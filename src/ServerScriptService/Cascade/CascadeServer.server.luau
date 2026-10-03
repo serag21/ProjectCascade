@@ -26,6 +26,11 @@ local function fire(kind: string, payload)
     cascadeEvent:FireAllClients(kind, payload)
 end
 
+local baseplate = workspace:FindFirstChild("Baseplate")
+if baseplate and baseplate:IsA("BasePart") then
+    baseplate:Destroy()
+end
+
 local world = workspace:FindFirstChild("CascadeFacility")
 if world then
     world:Destroy()
@@ -251,26 +256,33 @@ createPrompt("ArrayInteraction", "OBSERVATION ARRAY", "Activate Array", arrayCon
 createPrompt("SignalInteraction", "SIGNAL CONSOLE", "Transmit Signal", signalConsole, "TransmitSignal")
 createPrompt("ExitInteraction", "MAIN EXIT", "Escape", exitConsole, "Escape")
 
-fire("Objective", {text = "Activate the observation array."})
-fire("Event", {
-    title = "MISSION",
-    text = "Restore power, reach the array, and transmit the recovery signal.",
-})
+local function sendCurrentState(player: Player)
+    local objectiveText = "Activate the observation array."
+    if state.objective == "ReachArray" then
+        objectiveText = "Reach the observation array."
+    elseif state.objective == "TransmitSignal" then
+        objectiveText = "Transmit the recovery signal."
+    elseif state.objective == "Escape" then
+        objectiveText = "Escape through the main entrance."
+    elseif state.objective == "Complete" then
+        objectiveText = "Run complete."
+    end
+
+    cascadeEvent:FireClient(player, "Objective", {text = objectiveText})
+    cascadeEvent:FireClient(player, "Event", {
+        title = "MISSION",
+        text = "Restore power, reach the array, and transmit the recovery signal.",
+    })
+end
 
 Players.PlayerAdded:Connect(function(player)
     task.delay(1, function()
         if player.Parent then
-            local objectiveText = "Activate the observation array."
-            if state.objective == "ReachArray" then
-                objectiveText = "Reach the observation array."
-            elseif state.objective == "TransmitSignal" then
-                objectiveText = "Transmit the recovery signal."
-            elseif state.objective == "Escape" then
-                objectiveText = "Escape through the main entrance."
-            elseif state.objective == "Complete" then
-                objectiveText = "Run complete."
-            end
-            cascadeEvent:FireClient(player, "Objective", {text = objectiveText})
+            sendCurrentState(player)
         end
     end)
 end)
+
+for _, player in Players:GetPlayers() do
+    task.defer(sendCurrentState, player)
+end
