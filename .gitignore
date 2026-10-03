@@ -1,0 +1,11 @@
+# Roblox / generated
+*.rbxl
+*.rbxlx
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Local files / logs
+*.log
