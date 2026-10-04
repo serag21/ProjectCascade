@@ -191,6 +191,12 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
             elseif eventName == "PumpsStarted" then
                 local pumpConsole = interactables:FindFirstChild("DrainageControl")
                 if pumpConsole and pumpConsole:IsA("BasePart") then
+                    local prompt = pumpConsole:FindFirstChildWhichIsA("ProximityPrompt")
+                    if prompt then
+                        prompt.Enabled = true
+                    end
+                end
+                if pumpConsole and pumpConsole:IsA("BasePart") then
                     local lamp = pumpConsole:FindFirstChild("StatusLamp")
                     if lamp and lamp:IsA("BasePart") then
                         lamp.Transparency = 0
@@ -202,6 +208,15 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
                 end
                 cascadeEvent:FireAllClients("World", {kind = "PumpsStarted"})
             elseif eventName == "DrainageStarted" then
+                local gate = geometry:FindFirstChild("LowerRouteGate")
+                if gate and gate:IsA("BasePart") then
+                    TweenService:Create(
+                        gate,
+                        TweenInfo.new(1.0, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+                        {CFrame = gate.CFrame + Vector3.new(0, 9, 0)}
+                    ):Play()
+                end
+
                 local water = effects:FindFirstChild("FloodWater")
                 if water and water:IsA("BasePart") then
                     TweenService:Create(
@@ -328,7 +343,8 @@ wall("EastWall", Vector3.new(2, 16, 120), Vector3.new(85, 8, 5))
 
 -- Room partitions with deliberate sightlines
 wall("MaintenancePartition", Vector3.new(2, 16, 52), Vector3.new(-32, 8, 12))
-wall("ObservationPartition", Vector3.new(2, 16, 44), Vector3.new(27, 8, 22))
+wall("ObservationPartitionSouth", Vector3.new(2, 16, 10), Vector3.new(27, 8, 5))
+wall("ObservationPartitionNorth", Vector3.new(2, 16, 20), Vector3.new(27, 8, 33))
 wall("ControlPartition", Vector3.new(52, 16, 2), Vector3.new(1, 8, 44))
 
 -- Entrance sightline
@@ -347,6 +363,9 @@ addBillboard(glass, "OBSERVATION ARRAY", UDim2.fromOffset(240, 58), Vector3.new(
 -- Doors
 local maintenanceDoor = createPart("MaintenanceDoor", Vector3.new(3, 9, 10), CFrame.new(-32, 4.5, -5), Enum.Material.Metal, Color3.fromRGB(81, 88, 98), geometry)
 addBillboard(maintenanceDoor, "MAINTENANCE", UDim2.fromOffset(210, 48), Vector3.new(0, 6, 0))
+
+local lowerRouteGate = createPart("LowerRouteGate", Vector3.new(2.8, 8, 10), CFrame.new(27, 4, 15), Enum.Material.Metal, Color3.fromRGB(71, 77, 88), geometry)
+addBillboard(lowerRouteGate, "LOWER ACCESS", UDim2.fromOffset(190, 46), Vector3.new(0, 6, 0))
 
 local signalShutter = createPart("SignalShutter", Vector3.new(2.8, 8, 15), CFrame.new(1, 4, 44), Enum.Material.Metal, Color3.fromRGB(71, 77, 88), geometry)
 addBillboard(signalShutter, "CONTROL ROOM", UDim2.fromOffset(190, 46), Vector3.new(0, 6, 0))
