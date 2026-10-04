@@ -162,12 +162,12 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
             return
         end
 
-        for _, eventName in result.events do
-            cascadeEvent:FireAllClients("Event", {
-                title = "SYSTEM",
-                text = result.message or "State changed.",
-            })
+        cascadeEvent:FireAllClients("Event", {
+            title = "SYSTEM",
+            text = result.message or "State changed.",
+        })
 
+        for _, eventName in result.events do
             if eventName == "PowerRestored" then
                 local lightModel = world:FindFirstChild("FacilityLights")
                 if lightModel then
@@ -248,12 +248,24 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
                 end
 
                 local arrayCore = geometry:FindFirstChild("ArrayCore")
-                if arrayCore and arrayCore:IsA("Model") and arrayCore.PrimaryPart then
-                    TweenService:Create(
-                        arrayCore.PrimaryPart,
+                if arrayCore and arrayCore:IsA("Model") then
+                    local pivotValue = Instance.new("CFrameValue")
+                    pivotValue.Value = arrayCore:GetPivot()
+                    pivotValue:GetPropertyChangedSignal("Value"):Connect(function()
+                        if arrayCore.Parent then
+                            arrayCore:PivotTo(pivotValue.Value)
+                        end
+                    end)
+
+                    local pivotTween = TweenService:Create(
+                        pivotValue,
                         TweenInfo.new(1.4, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
-                        {CFrame = arrayCore.PrimaryPart.CFrame * CFrame.Angles(0, math.rad(55), math.rad(10))}
-                    ):Play()
+                        {Value = pivotValue.Value * CFrame.Angles(0, math.rad(55), math.rad(10))}
+                    )
+                    pivotTween:Play()
+                    pivotTween.Completed:Connect(function()
+                        pivotValue:Destroy()
+                    end)
                 end
 
                 local shutter = geometry:FindFirstChild("SignalShutter")
@@ -342,9 +354,10 @@ wall("WestWall", Vector3.new(2, 16, 120), Vector3.new(-85, 8, 5))
 wall("EastWall", Vector3.new(2, 16, 120), Vector3.new(85, 8, 5))
 
 -- Room partitions with deliberate sightlines
-wall("MaintenancePartition", Vector3.new(2, 16, 52), Vector3.new(-32, 8, 12))
-wall("ObservationPartitionSouth", Vector3.new(2, 16, 10), Vector3.new(27, 8, 5))
-wall("ObservationPartitionNorth", Vector3.new(2, 16, 20), Vector3.new(27, 8, 33))
+wall("MaintenancePartitionSouth", Vector3.new(2, 16, 45), Vector3.new(-32, 8, -32.5))
+wall("MaintenancePartitionNorth", Vector3.new(2, 16, 65), Vector3.new(-32, 8, 32.5))
+wall("ObservationPartitionSouth", Vector3.new(2, 16, 65), Vector3.new(27, 8, -22.5))
+wall("ObservationPartitionNorth", Vector3.new(2, 16, 45), Vector3.new(27, 8, 42.5))
 wall("ControlPartition", Vector3.new(52, 16, 2), Vector3.new(1, 8, 44))
 
 -- Entrance sightline
