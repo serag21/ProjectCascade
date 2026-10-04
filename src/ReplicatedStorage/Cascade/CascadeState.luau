@@ -1,5 +1,6 @@
 export type WorldState = {
     power: boolean,
+    pump: boolean,
     access: string,
     environment: string,
     lighting: string,
@@ -19,6 +20,7 @@ local CascadeState = {}
 function CascadeState.new(): WorldState
     return {
         power = false,
+        pump = false,
         access = "Entrance",
         environment = "Normal",
         lighting = "Normal",
@@ -33,7 +35,7 @@ function CascadeState.apply(state: WorldState, action: string): ActionResult
 
     if action == "RestorePower" then
         if state.power then
-            return { ok = false, events = {}, message = "Power is already restored." }
+            return { ok = false, events = {}, message = "Primary power is already restored." }
         end
 
         state.power = true
@@ -42,18 +44,46 @@ function CascadeState.apply(state: WorldState, action: string): ActionResult
         state.objective = "ReachArray"
 
         table.insert(events, "PowerRestored")
-        table.insert(events, "DoorOpened")
+        table.insert(events, "MaintenanceDoorOpened")
+        table.insert(events, "PumpsStarted")
 
         return {
             ok = true,
             events = events,
-            message = "Primary power restored.",
+            message = "Primary power restored. Mechanical systems are coming online.",
+        }
+    end
+
+    if action == "StabilizePump" then
+        if not state.power then
+            return { ok = false, events = {}, message = "The pump controller has no power." }
+        end
+
+        if state.pump then
+            return { ok = false, events = {}, message = "Drainage is already active." }
+        end
+
+        state.pump = true
+        state.environment = "Draining"
+        state.access = "MaintenanceOpen"
+
+        table.insert(events, "DrainageStarted")
+        table.insert(events, "LowerRouteOpened")
+
+        return {
+            ok = true,
+            events = events,
+            message = "Drainage system stabilized. The lower route is opening.",
         }
     end
 
     if action == "ActivateArray" then
         if not state.power then
-            return { ok = false, events = {}, message = "The array has no power." }
+            return { ok = false, events = {}, message = "The observation array has no power." }
+        end
+
+        if not state.pump then
+            return { ok = false, events = {}, message = "The array is receiving power, but the access route is not clear." }
         end
 
         if state.objective ~= "ReachArray" then
@@ -69,6 +99,7 @@ function CascadeState.apply(state: WorldState, action: string): ActionResult
 
         table.insert(events, "EnvironmentChanged")
         table.insert(events, "CascadeStarted")
+        table.insert(events, "SignalRoomOpened")
         table.insert(events, "ObjectiveAdvanced")
 
         return {
@@ -85,11 +116,12 @@ function CascadeState.apply(state: WorldState, action: string): ActionResult
 
         state.objective = "Escape"
         table.insert(events, "ObjectiveAdvanced")
+        table.insert(events, "EmergencyExitOpened")
 
         return {
             ok = true,
             events = events,
-            message = "Recovery signal transmitted. Escape the facility.",
+            message = "Recovery signal transmitted. The emergency route is open.",
         }
     end
 
@@ -111,7 +143,7 @@ function CascadeState.apply(state: WorldState, action: string): ActionResult
     return {
         ok = false,
         events = {},
-        message = `Unknown action: {action}`,
+        message = "Unknown action: " .. action,
     }
 end
 
