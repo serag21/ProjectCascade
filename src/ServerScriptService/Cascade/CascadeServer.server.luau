@@ -152,7 +152,7 @@ local function pointLight(parent: Instance, name: string, color: Color3, brightn
     light.Color = color
     light.Brightness = brightness
     light.Range = range
-    light.Shadows = true
+    light.Shadows = false
     light.Enabled = enabled ~= false
     light.Parent = parent
     return light
@@ -300,7 +300,7 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
                     TweenService:Create(
                         floodwater,
                         TweenInfo.new(6, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
-                        {Position = floodwater.Position - Vector3.new(0, 4.8, 0)}
+                        {Position = floodwater.Position - Vector3.new(0, 1.15, 0)}
                     ):Play()
                 end
                 if arrayGate then openVerticalDoor(arrayGate) end
@@ -364,6 +364,11 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
                 for _, lamp in redAlarmLights do
                     lamp.Enabled = true
                 end
+                for _, light in facilityLights do
+                    local disabled = math.random() < 0.34
+                    light:SetAttribute("CascadeDisabled", disabled)
+                    if disabled then light.Enabled = false end
+                end
                 if alarmSound then alarmSound:Play() end
                 if darkWorldMusic then darkWorldMusic:Play() end
                 oneShot(arrayCore and arrayCore.PrimaryPart or world, "135540168785024", "CascadeSting", 0.7, 0.82, 120)
@@ -376,7 +381,7 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
                             if math.random() < 0.28 then light.Enabled = false end
                         end
                         task.wait(0.09)
-                        for _, light in facilityLights do light.Enabled = state.power end
+                        for _, light in facilityLights do light.Enabled = state.power and (not light:GetAttribute("CascadeDisabled")) end
                     end
                 end)
             elseif eventName == "ContainmentReleased" then
@@ -669,7 +674,7 @@ pointLight(pumpLamp, "PumpStandbyGlow", Color3.fromRGB(219, 153, 71), 0.25, 5, f
 pumpPrompt = addPrompt(pumpConsole, "Drainage Control", "Stabilize Flow", "StabilizePump", false)
 
 -- Flooded transfer corridor, visible from the central hall through reinforced glass.
-local waterWindow = part("TransferWindow", Vector3.new(0.6, 7.5, 25), CFrame.new(14, 4.7, 18), Enum.Material.Glass, Color3.fromRGB(38, 107, 137), architecture, 0.62, true)
+local waterWindow = part("TransferWindow", Vector3.new(0.6, 7.5, 12), CFrame.new(14, 4.7, 21), Enum.Material.Glass, Color3.fromRGB(38, 107, 137), architecture, 0.62, true)
 part("FloodWater", Vector3.new(60, 1.8, 22), CFrame.new(16, 1.75, 5), Enum.Material.Glass, Color3.fromRGB(35, 124, 160), effects, 0.32, false)
 floodwater = effects:FindFirstChild("FloodWater")
 local waterGlowPart = part("WaterGlowSource", Vector3.new(1, 1, 1), CFrame.new(16, 1.7, 5), Enum.Material.SmoothPlastic, Color3.new(1, 1, 1), effects, 1, false)
@@ -694,6 +699,7 @@ for ringIndex = 1, 3 do
 end
 local arrayEnergyNode = part("ArrayEnergyNode", Vector3.new(2.2, 2.2, 2.2), CFrame.new(82, 8, 11), Enum.Material.Neon, Color3.fromRGB(103, 204, 255), arrayCore, 0.05, false)
 arrayEnergyLight = pointLight(arrayEnergyNode, "ArrayPulseLight", Color3.fromRGB(77, 173, 230), 1.6, 28, true)
+arrayEnergyLight.Shadows = true
 local arrayObservationGlass = part("ObservationGlass", Vector3.new(0.6, 9, 18), CFrame.new(48, 5.5, 28), Enum.Material.Glass, Color3.fromRGB(70, 139, 164), architecture, 0.58, true)
 arrayConsole = part("ArrayControl", Vector3.new(4.5, 4, 2.4), CFrame.new(66, 2.5, -3), Enum.Material.Metal, Color3.fromRGB(49, 64, 76), interactables)
 addSign(arrayConsole, "ARRAY CONTROL", 208, 42, Vector3.new(0, 3, 0), Color3.fromRGB(83, 185, 219))
@@ -885,7 +891,7 @@ local function makeCreature()
         local lastStep = 0
         while model.Parent and humanoid.Health > 0 do
             local t = os.clock() - startClock
-            local moving = root.AssemblyLinearVelocity.Magnitude > 2 and creatureActive
+            local moving = root.AssemblyLinearVelocity.Magnitude > 2
             if moving then
                 local swing = math.sin(t * 8) * 0.48
                 joints.leftHip.C0 = joints.leftHipBase * CFrame.Angles(swing, 0, 0)
