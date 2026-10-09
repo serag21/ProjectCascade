@@ -492,7 +492,8 @@ wall("ArrayWingNorthSouth", Vector3.new(2.5, 18, 5), Vector3.new(48, 9, 17.5))
 wall("ArrayWingNorthNorth", Vector3.new(2.5, 18, 59), Vector3.new(48, 9, 65.5))
 wall("SignalRoomWallLeft", Vector3.new(42, 18, 2.5), Vector3.new(-24, 9, 40))
 wall("SignalRoomWallRight", Vector3.new(27, 18, 2.5), Vector3.new(34.5, 9, 40))
-wall("RecordsRoomWallSouth", Vector3.new(70, 18, 2.5), Vector3.new(-87, 9, 41.5))
+wall("RecordsRoomWallSouthLeft", Vector3.new(18, 18, 2.5), Vector3.new(-113, 9, 41.5))
+wall("RecordsRoomWallSouthRight", Vector3.new(30, 18, 2.5), Vector3.new(-67, 9, 41.5))
 wall("PumpRoomDivider", Vector3.new(2.5, 18, 42), Vector3.new(-72, 9, 63))
 
 -- Ceiling cross-beams, cable trays and consistent industrial trim.
@@ -524,10 +525,11 @@ local function wallSign(name: string, text: string, position: Vector3, accent: C
     return anchor
 end
 wallSign("WelcomeSign", "SITE 07  /  OBSERVATION & SIGNAL RESEARCH", Vector3.new(0, 11, -80), Color3.fromRGB(94, 166, 198))
-wallSign("PowerSign", "POWER DISTRIBUTION", Vector3.new(-43, 11, -15), Color3.fromRGB(223, 165, 76))
-wallSign("PumpSign", "WATER TRANSFER  /  LOWER SERVICE", Vector3.new(-46, 11, 25), Color3.fromRGB(73, 167, 195))
+wallSign("PowerSign", "POWER DISTRIBUTION", Vector3.new(-65, 11, -36), Color3.fromRGB(223, 165, 76))
+wallSign("PumpSign", "WATER TRANSFER  /  LOWER SERVICE", Vector3.new(-63, 11, 20), Color3.fromRGB(73, 167, 195))
 wallSign("ArraySign", "OBSERVATION ARRAY  /  AUTHORIZED PERSONNEL", Vector3.new(48, 11, 23), Color3.fromRGB(83, 184, 220))
 wallSign("ControlSign", "SIGNAL CONTROL  /  RECORDING ACTIVE", Vector3.new(10, 11, 46), Color3.fromRGB(124, 155, 206))
+wallSign("ArchiveSign", "INCIDENT ARCHIVE  /  RECORDS INCOMPLETE", Vector3.new(-94, 11, 47), Color3.fromRGB(103, 167, 186))
 wallSign("ContainmentSign", "CONTAINMENT 03  /  DO NOT CYCLE POWER", Vector3.new(96, 11, 24), Color3.fromRGB(200, 76, 75))
 
 -- Sliding blast doors.
@@ -637,7 +639,7 @@ end
 addPipeRun(Vector3.new(-120, 13.8, 22), Vector3.new(-54, 13.8, 22), 1, Color3.fromRGB(67, 107, 119))
 addPipeRun(Vector3.new(-120, 12.5, 26), Vector3.new(-54, 12.5, 26), 0.65, Color3.fromRGB(125, 80, 61))
 
-powerConsole = part("PrimaryPowerConsole", Vector3.new(5.4, 4.4, 2.4), CFrame.new(-29, 2.8, -34), Enum.Material.Metal, Color3.fromRGB(55, 66, 78), interactables)
+powerConsole = part("PrimaryPowerConsole", Vector3.new(5.4, 4.4, 2.4), CFrame.new(-74, 2.8, -34), Enum.Material.Metal, Color3.fromRGB(55, 66, 78), interactables)
 addSign(powerConsole, "PRIMARY POWER", 218, 44, Vector3.new(0, 3.3, 0), Color3.fromRGB(210, 159, 77))
 local powerLamp = part("PowerStatus", Vector3.new(0.5, 0.5, 0.16), powerConsole.CFrame * CFrame.new(0, 1.15, -1.28), Enum.Material.Neon, Color3.fromRGB(239, 171, 65), powerConsole, 0, false)
 pointLight(powerLamp, "StandbyGlow", Color3.fromRGB(239, 171, 65), 0.25, 5, false)
@@ -645,12 +647,12 @@ addPrompt(powerConsole, "Primary Grid", "Engage", "RestorePower")
 
 -- A dark archive side room with optional story, shelving, and an unlit terminal.
 for i = 0, 4 do
-    local cabinet = part("ArchiveShelf", Vector3.new(2, 7, 12), CFrame.new(-116 + i * 13, 3.5, 61), Enum.Material.Metal, Color3.fromRGB(42, 49, 58), props)
+    local cabinet = part("ArchiveShelf", Vector3.new(2, 7, 12), CFrame.new(-118 + i * 12, 3.5, 78), Enum.Material.Metal, Color3.fromRGB(42, 49, 58), props)
     for shelfY = -2.2, 2.2, 1.5 do
         part("ArchiveShelfLip", Vector3.new(2.15, 0.14, 12.2), cabinet.CFrame * CFrame.new(0, shelfY, 0), Enum.Material.Metal, Color3.fromRGB(81, 88, 98), props)
     end
 end
-local archiveTerminal = part("ArchiveTerminal", Vector3.new(3.5, 3, 1.8), CFrame.new(-56, 2, 66), Enum.Material.Metal, Color3.fromRGB(45, 56, 67), interactables)
+local archiveTerminal = part("ArchiveTerminal", Vector3.new(3.5, 3, 1.8), CFrame.new(-92, 2, 64), Enum.Material.Metal, Color3.fromRGB(45, 56, 67), interactables)
 addSign(archiveTerminal, "INCIDENT ARCHIVE", 210, 40, Vector3.new(0, 2.5, 0), Color3.fromRGB(104, 156, 184))
 local archiveScreen = part("ArchiveScreen", Vector3.new(2.4, 1.4, 0.12), archiveTerminal.CFrame * CFrame.new(0, 0.9, -0.95), Enum.Material.Neon, Color3.fromRGB(28, 99, 116), props, 0.12, false)
 pointLight(archiveScreen, "ScreenGlow", Color3.fromRGB(48, 158, 181), 0.4, 7)
@@ -674,7 +676,7 @@ pointLight(pumpLamp, "PumpStandbyGlow", Color3.fromRGB(219, 153, 71), 0.25, 5, f
 pumpPrompt = addPrompt(pumpConsole, "Drainage Control", "Stabilize Flow", "StabilizePump", false)
 
 -- Flooded transfer corridor, visible from the central hall through reinforced glass.
-local waterWindow = part("TransferWindow", Vector3.new(0.6, 7.5, 12), CFrame.new(14, 4.7, 21), Enum.Material.Glass, Color3.fromRGB(38, 107, 137), architecture, 0.62, true)
+local waterWindow = part("TransferWindow", Vector3.new(0.6, 7.5, 22), CFrame.new(14, 4.7, 5), Enum.Material.Glass, Color3.fromRGB(38, 107, 137), architecture, 0.62, true)
 part("FloodWater", Vector3.new(60, 1.8, 22), CFrame.new(16, 1.75, 5), Enum.Material.Glass, Color3.fromRGB(35, 124, 160), effects, 0.32, false)
 floodwater = effects:FindFirstChild("FloodWater")
 local waterGlowPart = part("WaterGlowSource", Vector3.new(1, 1, 1), CFrame.new(16, 1.7, 5), Enum.Material.SmoothPlastic, Color3.new(1, 1, 1), effects, 1, false)
@@ -860,6 +862,7 @@ local function makeCreature()
 
     local humanoid = Instance.new("Humanoid")
     humanoid.Name = "Humanoid"
+    humanoid.RigType = Enum.HumanoidRigType.R6
     humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
     humanoid.WalkSpeed = 15
     humanoid.JumpPower = 38
