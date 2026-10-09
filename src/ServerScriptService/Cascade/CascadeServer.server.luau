@@ -923,6 +923,7 @@ creatureActive = false
 local lastKnownPosition: Vector3? = nil
 local lastSeenAt = 0
 local lastDamageAt = {}
+local lastThreatCueAt = {}
 local lastPathAt = 0
 local patrolPoints = {
     Vector3.new(72, 3, 14),
@@ -1019,7 +1020,11 @@ task.spawn(function()
                         if creatureGrowl then creatureGrowl:Play() end
                     end
                 elseif targetDistance < 35 then
-                    eventRemote:FireClient(player, "Threat", {distance = targetDistance, hit = false})
+                    local lastCue = lastThreatCueAt[player.UserId] or 0
+                    if now - lastCue > 0.55 then
+                        lastThreatCueAt[player.UserId] = now
+                        eventRemote:FireClient(player, "Threat", {distance = targetDistance, hit = false})
+                    end
                 end
             end
 
