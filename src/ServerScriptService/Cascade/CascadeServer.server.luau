@@ -476,7 +476,8 @@ wall("SouthWallRight", Vector3.new(38, 18, 3), Vector3.new(111, 9, -85))
 wall("WestWingSouth", Vector3.new(2.5, 18, 60), Vector3.new(-45, 9, -55))
 wall("WestWingNorth", Vector3.new(2.5, 18, 105), Vector3.new(-45, 9, 42.5))
 wall("ArrayWingSouth", Vector3.new(2.5, 18, 80), Vector3.new(48, 9, -45))
-wall("ArrayWingNorth", Vector3.new(2.5, 18, 80), Vector3.new(48, 9, 55))
+wall("ArrayWingNorthSouth", Vector3.new(2.5, 18, 5), Vector3.new(48, 9, 17.5))
+wall("ArrayWingNorthNorth", Vector3.new(2.5, 18, 59), Vector3.new(48, 9, 65.5))
 wall("SignalRoomWallLeft", Vector3.new(42, 18, 2.5), Vector3.new(-24, 9, 40))
 wall("SignalRoomWallRight", Vector3.new(27, 18, 2.5), Vector3.new(34.5, 9, 40))
 wall("RecordsRoomWallSouth", Vector3.new(70, 18, 2.5), Vector3.new(-87, 9, 41.5))
@@ -524,7 +525,7 @@ arrayGate = part("ArrayAccessGate", Vector3.new(3, 10, 20), CFrame.new(48, 5, 5)
 addSign(arrayGate, "TRANSFER GATE", 185, 40, Vector3.new(0, 6, 0))
 signalShutter = part("SignalShutter", Vector3.new(20, 10, 3), CFrame.new(10, 5, 40), Enum.Material.Metal, Color3.fromRGB(61, 72, 85), architecture)
 addSign(signalShutter, "SIGNAL CONTROL", 185, 40, Vector3.new(0, 6, 0))
-exitRouteGate = part("ExitRouteGate", Vector3.new(26, 10, 3), CFrame.new(82, 5, -39), Enum.Material.Metal, Color3.fromRGB(61, 72, 85), architecture)
+exitRouteGate = part("ExitRouteGate", Vector3.new(60, 10, 3), CFrame.new(95, 5, -39), Enum.Material.Metal, Color3.fromRGB(61, 72, 85), architecture)
 addSign(exitRouteGate, "OUTER ROUTE", 185, 40, Vector3.new(0, 6, 0))
 exitDoor = part("EmergencyExitDoor", Vector3.new(24, 12, 3), CFrame.new(80, 6, -85), Enum.Material.Metal, Color3.fromRGB(69, 78, 90), architecture)
 addSign(exitDoor, "SURFACE ACCESS", 200, 40, Vector3.new(0, 7, 0))
@@ -625,7 +626,7 @@ addPipeRun(Vector3.new(-120, 12.5, 26), Vector3.new(-54, 12.5, 26), 0.65, Color3
 
 powerConsole = part("PrimaryPowerConsole", Vector3.new(5.4, 4.4, 2.4), CFrame.new(-29, 2.8, -34), Enum.Material.Metal, Color3.fromRGB(55, 66, 78), interactables)
 addSign(powerConsole, "PRIMARY POWER", 218, 44, Vector3.new(0, 3.3, 0), Color3.fromRGB(210, 159, 77))
-local powerLamp = part("PowerStatus", Vector3.new(0.5, 0.5, 0.16), powerConsole.CFrame * CFrame.new(0, 1.15, -1.28), Enum.Material.Neon, Color3.fromRGB(239, 171, 65), interactables, 0, false)
+local powerLamp = part("PowerStatus", Vector3.new(0.5, 0.5, 0.16), powerConsole.CFrame * CFrame.new(0, 1.15, -1.28), Enum.Material.Neon, Color3.fromRGB(239, 171, 65), powerConsole, 0, false)
 pointLight(powerLamp, "StandbyGlow", Color3.fromRGB(239, 171, 65), 0.35, 5)
 addPrompt(powerConsole, "Primary Grid", "Engage", "RestorePower")
 
@@ -655,7 +656,7 @@ addPipeRun(Vector3.new(-119, 8.5, 33), Vector3.new(-55, 8.5, 33), 1.2, Color3.fr
 addPipeRun(Vector3.new(-119, 6.4, 37), Vector3.new(-55, 6.4, 37), 0.65, Color3.fromRGB(147, 92, 65))
 pumpConsole = part("DrainageControl", Vector3.new(4.6, 4.1, 2.2), CFrame.new(-58, 2.55, 19), Enum.Material.Metal, Color3.fromRGB(51, 65, 76), interactables)
 addSign(pumpConsole, "DRAINAGE CONTROL", 238, 42, Vector3.new(0, 3.2, 0), Color3.fromRGB(79, 172, 190))
-local pumpLamp = part("PumpStatus", Vector3.new(0.45, 0.45, 0.16), pumpConsole.CFrame * CFrame.new(0, 1.12, -1.16), Enum.Material.Neon, Color3.fromRGB(214, 151, 71), interactables, 0, false)
+local pumpLamp = part("PumpStatus", Vector3.new(0.45, 0.45, 0.16), pumpConsole.CFrame * CFrame.new(0, 1.12, -1.16), Enum.Material.Neon, Color3.fromRGB(214, 151, 71), pumpConsole, 0, false)
 pointLight(pumpLamp, "PumpStandbyGlow", Color3.fromRGB(219, 153, 71), 0.25, 5)
 pumpPrompt = addPrompt(pumpConsole, "Drainage Control", "Stabilize Flow", "StabilizePump", false)
 
@@ -685,10 +686,10 @@ for ringIndex = 1, 3 do
 end
 local arrayEnergyNode = part("ArrayEnergyNode", Vector3.new(2.2, 2.2, 2.2), CFrame.new(82, 8, 11), Enum.Material.Neon, Color3.fromRGB(103, 204, 255), arrayCore, 0.05, false)
 arrayEnergyLight = pointLight(arrayEnergyNode, "ArrayPulseLight", Color3.fromRGB(77, 173, 230), 1.6, 28, true)
-local arrayObservationGlass = part("ObservationGlass", Vector3.new(0.6, 9, 28), CFrame.new(48, 5.5, 17), Enum.Material.Glass, Color3.fromRGB(70, 139, 164), architecture, 0.68, true)
+local arrayObservationGlass = part("ObservationGlass", Vector3.new(0.6, 9, 18), CFrame.new(48, 5.5, 28), Enum.Material.Glass, Color3.fromRGB(70, 139, 164), architecture, 0.58, true)
 arrayConsole = part("ArrayControl", Vector3.new(4.5, 4, 2.4), CFrame.new(66, 2.5, -3), Enum.Material.Metal, Color3.fromRGB(49, 64, 76), interactables)
 addSign(arrayConsole, "ARRAY CONTROL", 208, 42, Vector3.new(0, 3, 0), Color3.fromRGB(83, 185, 219))
-local arrayLamp = part("ArrayStatus", Vector3.new(0.45, 0.45, 0.16), arrayConsole.CFrame * CFrame.new(0, 1.1, -1.26), Enum.Material.Neon, Color3.fromRGB(72, 171, 210), interactables, 0, false)
+local arrayLamp = part("ArrayStatus", Vector3.new(0.45, 0.45, 0.16), arrayConsole.CFrame * CFrame.new(0, 1.1, -1.26), Enum.Material.Neon, Color3.fromRGB(72, 171, 210), arrayConsole, 0, false)
 pointLight(arrayLamp, "ArrayStatusGlow", Color3.fromRGB(70, 172, 220), 0.3, 5)
 addPrompt(arrayConsole, "Observation Array", "Engage", "ActivateArray")
 
@@ -703,7 +704,7 @@ for i = 0, 3 do
 end
 signalConsole = part("SignalConsole", Vector3.new(4.4, 4, 2), CFrame.new(11, 2.5, 76), Enum.Material.Metal, Color3.fromRGB(50, 63, 75), interactables)
 addSign(signalConsole, "RECOVERY TRANSMITTER", 250, 44, Vector3.new(0, 3, 0), Color3.fromRGB(128, 157, 214))
-local signalLamp = part("SignalStatus", Vector3.new(0.45, 0.45, 0.16), signalConsole.CFrame * CFrame.new(0, 1.1, -1.08), Enum.Material.Neon, Color3.fromRGB(220, 167, 71), interactables, 0, false)
+local signalLamp = part("SignalStatus", Vector3.new(0.45, 0.45, 0.16), signalConsole.CFrame * CFrame.new(0, 1.1, -1.08), Enum.Material.Neon, Color3.fromRGB(220, 167, 71), signalConsole, 0, false)
 pointLight(signalLamp, "SignalStandbyGlow", Color3.fromRGB(220, 167, 71), 0.25, 5)
 signalPrompt = addPrompt(signalConsole, "Recovery Transmitter", "Transmit", "TransmitSignal", false)
 for i = 1, 4 do
@@ -858,7 +859,7 @@ local function makeCreature()
     model.Parent = world
     pcall(function() root:SetNetworkOwner(nil) end)
 
-    local footSound = makeSound(root, "1244506786", "SubjectFootsteps", 0.24, false, 0.8, 65)
+    local footSound = makeSound(root, "1244506786", "SubjectFootsteps", 0.18, true, 1.25, 65)
     local growlSound = makeSound(root, "74103327872448", "SubjectGrowl", 0.6, false, 0.8, 100)
     local joints = {
         leftShoulder = leftShoulder,
@@ -883,11 +884,9 @@ local function makeCreature()
                 joints.rightHip.C0 = joints.rightHipBase * CFrame.Angles(-swing, 0, 0)
                 joints.leftShoulder.C0 = joints.leftShoulderBase * CFrame.Angles(-swing * 0.7, 0, -0.15)
                 joints.rightShoulder.C0 = joints.rightShoulderBase * CFrame.Angles(swing * 0.7, 0, 0.15)
-                if os.clock() - lastStep > 1.15 then
-                    lastStep = os.clock()
-                    footSound:Play()
-                end
+                if not footSound.IsPlaying then footSound:Play() end
             else
+                if footSound.IsPlaying then footSound:Stop() end
                 joints.leftHip.C0 = joints.leftHipBase
                 joints.rightHip.C0 = joints.rightHipBase
                 joints.leftShoulder.C0 = joints.leftShoulderBase
@@ -981,7 +980,14 @@ end
 
 task.spawn(function()
     while creatureModel and creatureModel.Parent do
-        if creatureActive and creatureHumanoid and creatureHumanoid.Health > 0 and creatureRoot then
+        if creatureHumanoid and creatureHumanoid.Health > 0 and creatureRoot and not creatureActive then
+            local now = os.clock()
+            if now - lastPathAt > 5.5 then
+                lastPathAt = now
+                local idlePoint = Vector3.new(math.random(93, 108), 3, math.random(25, 45))
+                moveToward(idlePoint)
+            end
+        elseif creatureActive and creatureHumanoid and creatureHumanoid.Health > 0 and creatureRoot then
             local now = os.clock()
             local player, targetRoot, targetHumanoid, targetDistance = nearestVisiblePlayer()
             if player and targetRoot then
