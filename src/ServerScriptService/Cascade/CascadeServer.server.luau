@@ -302,7 +302,7 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
                         {Position = floodwater.Position - Vector3.new(0, 4.8, 0)}
                     ):Play()
                 end
-                if lowerRouteGate then openVerticalDoor(lowerRouteGate) end
+                if arrayGate then openVerticalDoor(arrayGate) end
                 if pumpPrompt then pumpPrompt.Enabled = false end
                 for _, lamp in lowerRouteLights do
                     lamp.Transparency = 0.05
