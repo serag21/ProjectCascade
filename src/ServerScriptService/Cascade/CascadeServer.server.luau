@@ -26,6 +26,7 @@ local exitRouteGate: BasePart? = nil
 local exitDoor: BasePart? = nil
 local exitTrigger: BasePart? = nil
 local powerConsole: BasePart? = nil
+local arrayConsole: BasePart? = nil
 local pumpConsole: BasePart? = nil
 local pumpPrompt: ProximityPrompt? = nil
 local pumpHousing: BasePart? = nil
@@ -353,7 +354,13 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
                     atmosphere.Color = Color3.fromRGB(98, 116, 147)
                     atmosphere.Decay = Color3.fromRGB(28, 33, 46)
                 end
-                for _, light in emergencyStatusLights do light.Enabled = true end
+                for _, lamp in emergencyStatusLights do
+                    if lamp and lamp:IsA("BasePart") then
+                        lamp.Transparency = 0
+                        local glow = lamp:FindFirstChildWhichIsA("PointLight")
+                        if glow then glow.Enabled = true end
+                    end
+                end
                 for _, lamp in redAlarmLights do
                     lamp.Enabled = true
                 end
@@ -564,6 +571,7 @@ for z = -68, -45, 7 do
 end
 for z = -65, 80, 15 do
     local lamp, glow = addRouteLamp(effects, "ExitRouteLamp", Vector3.new(112, 1.4, z), Color3.fromRGB(230, 65, 61), false)
+    glow.Name = "ExitGlow"
     table.insert(exitRouteLights, lamp)
 end
 for _, pos in ipairs({Vector3.new(47, 1.5, 15), Vector3.new(47, 1.5, -1), Vector3.new(30, 1.5, 7)}) do
