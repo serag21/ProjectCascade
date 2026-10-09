@@ -526,11 +526,11 @@ wallSign("ControlSign", "SIGNAL CONTROL  /  RECORDING ACTIVE", Vector3.new(10, 1
 wallSign("ContainmentSign", "CONTAINMENT 03  /  DO NOT CYCLE POWER", Vector3.new(96, 11, 24), Color3.fromRGB(200, 76, 75))
 
 -- Sliding blast doors.
-maintenanceDoor = part("MaintenanceDoor", Vector3.new(3, 11, 14), CFrame.new(-45, 5.5, -17.5), Enum.Material.Metal, Color3.fromRGB(59, 71, 82), architecture)
+maintenanceDoor = part("MaintenanceDoor", Vector3.new(3, 11, 15), CFrame.new(-45, 5.5, -17.5), Enum.Material.Metal, Color3.fromRGB(59, 71, 82), architecture)
 addSign(maintenanceDoor, "MAINTENANCE", 185, 40, Vector3.new(0, 6.5, 0))
 arrayGate = part("ArrayAccessGate", Vector3.new(3, 10, 20), CFrame.new(48, 5, 5), Enum.Material.Metal, Color3.fromRGB(58, 73, 86), architecture)
 addSign(arrayGate, "TRANSFER GATE", 185, 40, Vector3.new(0, 6, 0))
-signalShutter = part("SignalShutter", Vector3.new(20, 10, 3), CFrame.new(10, 5, 40), Enum.Material.Metal, Color3.fromRGB(61, 72, 85), architecture)
+signalShutter = part("SignalShutter", Vector3.new(24, 10, 3), CFrame.new(9, 5, 40), Enum.Material.Metal, Color3.fromRGB(61, 72, 85), architecture)
 addSign(signalShutter, "SIGNAL CONTROL", 185, 40, Vector3.new(0, 6, 0))
 exitRouteGate = part("ExitRouteGate", Vector3.new(60, 10, 3), CFrame.new(95, 5, -39), Enum.Material.Metal, Color3.fromRGB(61, 72, 85), architecture)
 addSign(exitRouteGate, "OUTER ROUTE", 185, 40, Vector3.new(0, 6, 0))
@@ -635,7 +635,7 @@ addPipeRun(Vector3.new(-120, 12.5, 26), Vector3.new(-54, 12.5, 26), 0.65, Color3
 powerConsole = part("PrimaryPowerConsole", Vector3.new(5.4, 4.4, 2.4), CFrame.new(-29, 2.8, -34), Enum.Material.Metal, Color3.fromRGB(55, 66, 78), interactables)
 addSign(powerConsole, "PRIMARY POWER", 218, 44, Vector3.new(0, 3.3, 0), Color3.fromRGB(210, 159, 77))
 local powerLamp = part("PowerStatus", Vector3.new(0.5, 0.5, 0.16), powerConsole.CFrame * CFrame.new(0, 1.15, -1.28), Enum.Material.Neon, Color3.fromRGB(239, 171, 65), powerConsole, 0, false)
-pointLight(powerLamp, "StandbyGlow", Color3.fromRGB(239, 171, 65), 0.35, 5)
+pointLight(powerLamp, "StandbyGlow", Color3.fromRGB(239, 171, 65), 0.25, 5, false)
 addPrompt(powerConsole, "Primary Grid", "Engage", "RestorePower")
 
 -- A dark archive side room with optional story, shelving, and an unlit terminal.
@@ -665,7 +665,7 @@ addPipeRun(Vector3.new(-119, 6.4, 37), Vector3.new(-55, 6.4, 37), 0.65, Color3.f
 pumpConsole = part("DrainageControl", Vector3.new(4.6, 4.1, 2.2), CFrame.new(-58, 2.55, 19), Enum.Material.Metal, Color3.fromRGB(51, 65, 76), interactables)
 addSign(pumpConsole, "DRAINAGE CONTROL", 238, 42, Vector3.new(0, 3.2, 0), Color3.fromRGB(79, 172, 190))
 local pumpLamp = part("PumpStatus", Vector3.new(0.45, 0.45, 0.16), pumpConsole.CFrame * CFrame.new(0, 1.12, -1.16), Enum.Material.Neon, Color3.fromRGB(214, 151, 71), pumpConsole, 0, false)
-pointLight(pumpLamp, "PumpStandbyGlow", Color3.fromRGB(219, 153, 71), 0.25, 5)
+pointLight(pumpLamp, "PumpStandbyGlow", Color3.fromRGB(219, 153, 71), 0.25, 5, false)
 pumpPrompt = addPrompt(pumpConsole, "Drainage Control", "Stabilize Flow", "StabilizePump", false)
 
 -- Flooded transfer corridor, visible from the central hall through reinforced glass.
@@ -698,7 +698,7 @@ local arrayObservationGlass = part("ObservationGlass", Vector3.new(0.6, 9, 18), 
 arrayConsole = part("ArrayControl", Vector3.new(4.5, 4, 2.4), CFrame.new(66, 2.5, -3), Enum.Material.Metal, Color3.fromRGB(49, 64, 76), interactables)
 addSign(arrayConsole, "ARRAY CONTROL", 208, 42, Vector3.new(0, 3, 0), Color3.fromRGB(83, 185, 219))
 local arrayLamp = part("ArrayStatus", Vector3.new(0.45, 0.45, 0.16), arrayConsole.CFrame * CFrame.new(0, 1.1, -1.26), Enum.Material.Neon, Color3.fromRGB(72, 171, 210), arrayConsole, 0, false)
-pointLight(arrayLamp, "ArrayStatusGlow", Color3.fromRGB(70, 172, 220), 0.3, 5)
+pointLight(arrayLamp, "ArrayStatusGlow", Color3.fromRGB(70, 172, 220), 0.3, 5, false)
 addPrompt(arrayConsole, "Observation Array", "Engage", "ActivateArray")
 
 -- Control room: desks, consoles, recording equipment, and the shutter that reacts to the array.
@@ -713,7 +713,7 @@ end
 signalConsole = part("SignalConsole", Vector3.new(4.4, 4, 2), CFrame.new(11, 2.5, 76), Enum.Material.Metal, Color3.fromRGB(50, 63, 75), interactables)
 addSign(signalConsole, "RECOVERY TRANSMITTER", 250, 44, Vector3.new(0, 3, 0), Color3.fromRGB(128, 157, 214))
 local signalLamp = part("SignalStatus", Vector3.new(0.45, 0.45, 0.16), signalConsole.CFrame * CFrame.new(0, 1.1, -1.08), Enum.Material.Neon, Color3.fromRGB(220, 167, 71), signalConsole, 0, false)
-pointLight(signalLamp, "SignalStandbyGlow", Color3.fromRGB(220, 167, 71), 0.25, 5)
+pointLight(signalLamp, "SignalStandbyGlow", Color3.fromRGB(220, 167, 71), 0.25, 5, false)
 signalPrompt = addPrompt(signalConsole, "Recovery Transmitter", "Transmit", "TransmitSignal", false)
 for i = 1, 4 do
     local cable = part("SignalCable", Vector3.new(0.18, 0.18, 15), CFrame.new(-5 + i * 3.2, 0.7, 66), Enum.Material.Neon, Color3.fromRGB(25, 76, 91), props, 0.2, false)
@@ -725,8 +725,8 @@ local glassColor = Color3.fromRGB(53, 101, 125)
 part("ContainmentGlassWest", Vector3.new(2, 11, 38), CFrame.new(82, 5.5, cellZ), Enum.Material.Glass, glassColor, architecture, 0.58, true)
 part("ContainmentGlassNorth", Vector3.new(34, 11, 2), CFrame.new(99, 5.5, 54), Enum.Material.Glass, glassColor, architecture, 0.58, true)
 part("ContainmentGlassEast", Vector3.new(2, 11, 38), CFrame.new(116, 5.5, cellZ), Enum.Material.Glass, glassColor, architecture, 0.58, true)
-part("ContainmentGlassSouthLeft", Vector3.new(11, 11, 2), CFrame.new(88, 5.5, 16), Enum.Material.Glass, glassColor, architecture, 0.58, true)
-part("ContainmentGlassSouthRight", Vector3.new(16, 11, 2), CFrame.new(108, 5.5, 16), Enum.Material.Glass, glassColor, architecture, 0.58, true)
+part("ContainmentGlassSouthLeft", Vector3.new(14, 11, 2), CFrame.new(89, 5.5, 16), Enum.Material.Glass, glassColor, architecture, 0.58, true)
+part("ContainmentGlassSouthRight", Vector3.new(13, 11, 2), CFrame.new(109.5, 5.5, 16), Enum.Material.Glass, glassColor, architecture, 0.58, true)
 containmentDoor = part("ContainmentDoor", Vector3.new(7, 10, 2.5), CFrame.new(99.5, 5, 16), Enum.Material.Metal, Color3.fromRGB(57, 70, 81), architecture)
 addSign(containmentDoor, "CONTAINMENT 03", 205, 42, Vector3.new(0, 6, 0), Color3.fromRGB(191, 76, 77))
 local redCellLamp = part("CellWarning", Vector3.new(2.4, 0.3, 0.4), CFrame.new(99, 10.8, 14.4), Enum.Material.Neon, Color3.fromRGB(191, 48, 48), props, 0.1, false)
