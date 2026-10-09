@@ -178,6 +178,8 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
                     end
                 end
 
+                cascadeEvent:FireAllClients("Status", {text = "FACILITY: ONLINE"})
+            elseif eventName == "MaintenanceDoorOpened" then
                 local door = geometry:FindFirstChild("MaintenanceDoor")
                 if door and door:IsA("BasePart") then
                     TweenService:Create(
@@ -186,8 +188,6 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
                         {CFrame = door.CFrame + Vector3.new(0, 9, 0)}
                     ):Play()
                 end
-
-                cascadeEvent:FireAllClients("Status", {text = "FACILITY: ONLINE"})
             elseif eventName == "PumpsStarted" then
                 local pumpConsole = interactables:FindFirstChild("DrainageControl")
                 if pumpConsole and pumpConsole:IsA("BasePart") then
@@ -320,6 +320,14 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
                     end
                 end
 
+                local exitConsole = interactables:FindFirstChild("ExitConsole")
+                if exitConsole then
+                    local prompt = exitConsole:FindFirstChildWhichIsA("ProximityPrompt")
+                    if prompt then
+                        prompt.Enabled = true
+                    end
+                end
+
                 cascadeEvent:FireAllClients("Status", {text = "EMERGENCY EXIT: OPEN"})
             elseif eventName == "RunCompleted" then
                 cascadeEvent:FireAllClients("Status", {text = "RUN: COMPLETE"})
@@ -349,9 +357,26 @@ atmosphere.Parent = Lighting
 createPart("Floor", Vector3.new(170, 1, 120), CFrame.new(0, 0, 5), Enum.Material.Concrete, Color3.fromRGB(62, 67, 75), geometry)
 
 wall("NorthWall", Vector3.new(170, 16, 2), Vector3.new(0, 8, 65))
-wall("SouthWall", Vector3.new(170, 16, 2), Vector3.new(0, 8, -55))
+wall("SouthWallLeft", Vector3.new(152, 16, 2), Vector3.new(-9, 8, -55))
+wall("SouthWallRight", Vector3.new(8, 16, 2), Vector3.new(81, 8, -55))
 wall("WestWall", Vector3.new(2, 16, 120), Vector3.new(-85, 8, 5))
 wall("EastWall", Vector3.new(2, 16, 120), Vector3.new(85, 8, 5))
+
+-- Industrial structure: the room should read as a facility, not a blank box.
+for _, x in ipairs({-78, -32, 16, 62, 78}) do
+    createPart("SupportColumn", Vector3.new(1.6, 15, 1.6), CFrame.new(x, 7.5, 3), Enum.Material.Metal, Color3.fromRGB(78, 86, 97), geometry)
+end
+for _, z in ipairs({-36, -2, 32, 59}) do
+    createPart("CeilingCrossbeam", Vector3.new(164, 0.7, 1.4), CFrame.new(0, 15.5, z), Enum.Material.Metal, Color3.fromRGB(75, 83, 94), geometry)
+end
+
+-- Subtle floor lanes point to room thresholds without becoming giant objective arrows.
+for x = -76, 72, 8 do
+    createPart("FloorLane", Vector3.new(3.2, 0.035, 0.22), CFrame.new(x, 0.53, -18), Enum.Material.Metal, Color3.fromRGB(104, 112, 121), geometry, 0, false)
+end
+for z = -44, 55, 8 do
+    createPart("FloorLane", Vector3.new(0.22, 0.035, 3.2), CFrame.new(33, 0.53, z), Enum.Material.Metal, Color3.fromRGB(104, 112, 121), geometry, 0, false)
+end
 
 -- Room partitions with deliberate sightlines
 wall("MaintenancePartitionSouth", Vector3.new(2, 16, 45), Vector3.new(-32, 8, -32.5))
@@ -380,10 +405,10 @@ addBillboard(maintenanceDoor, "MAINTENANCE", UDim2.fromOffset(210, 48), Vector3.
 local lowerRouteGate = createPart("LowerRouteGate", Vector3.new(2.8, 8, 10), CFrame.new(27, 4, 15), Enum.Material.Metal, Color3.fromRGB(71, 77, 88), geometry)
 addBillboard(lowerRouteGate, "LOWER ACCESS", UDim2.fromOffset(190, 46), Vector3.new(0, 6, 0))
 
-local signalShutter = createPart("SignalShutter", Vector3.new(2.8, 8, 15), CFrame.new(1, 4, 44), Enum.Material.Metal, Color3.fromRGB(71, 77, 88), geometry)
+local signalShutter = createPart("SignalShutter", Vector3.new(15, 8, 2.8), CFrame.new(1, 4, 44), Enum.Material.Metal, Color3.fromRGB(71, 77, 88), geometry)
 addBillboard(signalShutter, "CONTROL ROOM", UDim2.fromOffset(190, 46), Vector3.new(0, 6, 0))
 
-local exitDoor = createPart("EmergencyExitDoor", Vector3.new(3, 9, 10), CFrame.new(72, 4.5, -53.5), Enum.Material.Metal, Color3.fromRGB(84, 91, 102), geometry)
+local exitDoor = createPart("EmergencyExitDoor", Vector3.new(10, 9, 3), CFrame.new(72, 4.5, -53.5), Enum.Material.Metal, Color3.fromRGB(84, 91, 102), geometry)
 addBillboard(exitDoor, "EMERGENCY EXIT", UDim2.fromOffset(230, 48), Vector3.new(0, 6, 0))
 
 -- Observation array
@@ -424,7 +449,7 @@ addBillboard(arrayConsole, "ARRAY CONTROL", UDim2.fromOffset(205, 50), Vector3.n
 addStatusLamp(arrayConsole, Vector3.new(0, 0, -1.05), Color3.fromRGB(105, 174, 255), false)
 addPrompt(arrayConsole, "Observation Array", "Activate Array", "ActivateArray")
 
-local signalConsole = createPart("SignalConsole", Vector3.new(4, 4, 2), CFrame.new(22, 2.5, 53), Enum.Material.Metal, Color3.fromRGB(86, 95, 106), interactables, 1, false)
+local signalConsole = createPart("SignalConsole", Vector3.new(4, 4, 2), CFrame.new(0, 2.5, 53), Enum.Material.Metal, Color3.fromRGB(86, 95, 106), interactables, 1, false)
 addBillboard(signalConsole, "SIGNAL CONSOLE", UDim2.fromOffset(220, 50), Vector3.new(0, 3.2, 0))
 addStatusLamp(signalConsole, Vector3.new(0, 0, -1.05), Color3.fromRGB(255, 215, 98), false)
 local signalPrompt = addPrompt(signalConsole, "Signal Console", "Transmit Signal", "TransmitSignal")
@@ -435,6 +460,15 @@ addBillboard(exitConsole, "EVACUATION CONTROL", UDim2.fromOffset(245, 50), Vecto
 addStatusLamp(exitConsole, Vector3.new(0, 0, -1.05), Color3.fromRGB(255, 84, 84), false)
 local exitPrompt = addPrompt(exitConsole, "Emergency Exit", "Escape", "Escape")
 exitPrompt.Enabled = false
+
+-- Pump hardware gives the drainage interaction a physical cause in the room.
+local pumpHousing = createPart("PumpHousing", Vector3.new(8, 5, 7), CFrame.new(-35, 2.5, 30), Enum.Material.Metal, Color3.fromRGB(59, 76, 84), geometry)
+addBillboard(pumpHousing, "DRAINAGE PUMP", UDim2.fromOffset(220, 46), Vector3.new(0, 3.2, 0))
+for i = 1, 3 do
+    local pipe = createPart("PumpPipe", Vector3.new(1, 1, 15), CFrame.new(-38 + (i * 2.4), 5.5, 35), Enum.Material.Metal, Color3.fromRGB(89, 126, 138), geometry)
+    pipe.Shape = Enum.PartType.Cylinder
+    pipe.CFrame = CFrame.new(-38 + (i * 2.4), 5.5, 35) * CFrame.Angles(0, 0, math.rad(90))
+end
 
 -- Flooded lower route
 local water = createPart(
@@ -515,7 +549,7 @@ local function sendCurrentState(player: Player)
         text = "Activate the observation array and transmit the recovery signal.",
     })
 
-    local statusText = "FACILITY: OFFLINE"
+    local statusText = "BUILD 02 // FACILITY OFFLINE"
     if state.objective == "ReachArray" then
         statusText = "FACILITY: ONLINE"
     elseif state.objective == "TransmitSignal" then
@@ -544,4 +578,4 @@ end
 cascadeEvent:FireAllClients("Objective", {
     text = "Activate the observation array and transmit the recovery signal.",
 })
-cascadeEvent:FireAllClients("Status", {text = "FACILITY: OFFLINE"})
+cascadeEvent:FireAllClients("Status", {text = "BUILD 02 // FACILITY OFFLINE"})
