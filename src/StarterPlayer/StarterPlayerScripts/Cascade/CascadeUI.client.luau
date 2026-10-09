@@ -7,6 +7,7 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local SoundService = game:GetService("SoundService")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
@@ -163,7 +164,7 @@ evidenceDismiss.BackgroundColor3 = Color3.fromRGB(35, 54, 66)
 evidenceDismiss.TextColor3 = Color3.fromRGB(228, 239, 244)
 evidenceDismiss.Font = Enum.Font.GothamBold
 evidenceDismiss.TextSize = 11
-evidenceDismiss.Text = "CLOSE  [E]"
+evidenceDismiss.Text = "DISMISS"
 evidenceDismiss.BorderSizePixel = 0
 evidenceDismiss.Parent = evidenceCard
 round(evidenceDismiss, 5)
@@ -186,6 +187,50 @@ threatLabel.AnchorPoint = Vector2.new(1, 1)
 threatLabel.Position = UDim2.new(1, -24, 1, -24)
 threatLabel.TextXAlignment = Enum.TextXAlignment.Right
 threatLabel.Visible = false
+
+local flashlightEnabled = true
+local flashlight = Instance.new("SpotLight")
+flashlight.Name = "CascadeFlashlight"
+flashlight.Color = Color3.fromRGB(213, 230, 255)
+flashlight.Brightness = 2.45
+flashlight.Range = 48
+flashlight.Angle = 62
+flashlight.Shadows = true
+flashlight.Enabled = flashlightEnabled
+
+local flashlightButton = Instance.new("TextButton")
+flashlightButton.Name = "FlashlightToggle"
+flashlightButton.Position = UDim2.fromOffset(22, 145)
+flashlightButton.Size = UDim2.fromOffset(198, 38)
+flashlightButton.BackgroundColor3 = Color3.fromRGB(14, 23, 32)
+flashlightButton.BackgroundTransparency = 0.1
+flashlightButton.BorderSizePixel = 0
+flashlightButton.Text = "FLASHLIGHT  [F]  ON"
+flashlightButton.Font = Enum.Font.GothamBold
+flashlightButton.TextSize = 12
+flashlightButton.TextColor3 = Color3.fromRGB(151, 218, 227)
+flashlightButton.Parent = gui
+round(flashlightButton, 6)
+stroke(flashlightButton, Color3.fromRGB(82, 143, 160), 0.42, 1)
+
+local function updateFlashlight()
+    flashlightButton.Text = "FLASHLIGHT  [F]  " .. (if flashlightEnabled then "ON" else "OFF")
+    flashlightButton.TextColor3 = if flashlightEnabled then Color3.fromRGB(151, 218, 227) else Color3.fromRGB(153, 162, 172)
+    flashlightButton.BackgroundColor3 = if flashlightEnabled then Color3.fromRGB(14, 28, 37) else Color3.fromRGB(19, 21, 25)
+    flashlight.Enabled = flashlightEnabled
+end
+
+local function toggleFlashlight()
+    flashlightEnabled = not flashlightEnabled
+    updateFlashlight()
+end
+flashlightButton.Activated:Connect(toggleFlashlight)
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    if input.KeyCode == Enum.KeyCode.F then
+        toggleFlashlight()
+    end
+end)
 
 local flash = Instance.new("Frame")
 flash.Name = "MomentFlash"
@@ -307,6 +352,12 @@ local playerRoot: BasePart? = nil
 local function bindCharacter(character: Model)
     playerCharacter = character
     playerRoot = character:WaitForChild("HumanoidRootPart", 8) :: BasePart?
+    local head = character:WaitForChild("Head", 8)
+    if head and head:IsA("BasePart") then
+        flashlight.Parent = head
+        flashlight.Face = Enum.NormalId.Front
+        updateFlashlight()
+    end
 end
 if player.Character then task.spawn(bindCharacter, player.Character) end
 player.CharacterAdded:Connect(bindCharacter)
