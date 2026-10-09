@@ -1,12 +1,11 @@
 export type WorldState = {
     power: boolean,
     pump: boolean,
-    access: string,
+    arrayActive: boolean,
+    signalSent: boolean,
+    escaped: boolean,
     environment: string,
-    lighting: string,
-    security: string,
     objective: string,
-    cascade: boolean,
 }
 
 export type ActionResult = {
@@ -21,130 +20,97 @@ function CascadeState.new(): WorldState
     return {
         power = false,
         pump = false,
-        access = "Entrance",
-        environment = "Normal",
-        lighting = "Normal",
-        security = "Idle",
-        objective = "RestorePower",
-        cascade = false,
+        arrayActive = false,
+        signalSent = false,
+        escaped = false,
+        environment = "Dark",
+        objective = "Restore the observation array's signal and get out.",
     }
 end
 
 function CascadeState.apply(state: WorldState, action: string): ActionResult
-    local events = {}
-
     if action == "RestorePower" then
         if state.power then
-            return { ok = false, events = {}, message = "Primary power is already restored." }
+            return {ok = false, events = {}, message = "The primary grid is already online."}
         end
-
         state.power = true
-        state.access = "Maintenance"
-        state.lighting = "Facility"
-        state.objective = "ReachArray"
-
-        table.insert(events, "PowerRestored")
-        table.insert(events, "MaintenanceDoorOpened")
-        table.insert(events, "PumpsStarted")
-
+        state.environment = "Powered"
         return {
             ok = true,
-            events = events,
-            message = "Primary power restored. Mechanical systems are coming online.",
+            events = {"PowerRestored", "MaintenanceDoorOpened", "PumpsStarted"},
+            message = "The primary grid has come alive. Something heavy is running below.",
         }
     end
 
     if action == "StabilizePump" then
         if not state.power then
-            return { ok = false, events = {}, message = "The pump controller has no power." }
+            return {ok = false, events = {}, message = "The pump controller is dead."}
         end
-
         if state.pump then
-            return { ok = false, events = {}, message = "Drainage is already active." }
+            return {ok = false, events = {}, message = "The drain cycle is already running."}
         end
-
         state.pump = true
         state.environment = "Draining"
-        state.access = "MaintenanceOpen"
-
-        table.insert(events, "DrainageStarted")
-        table.insert(events, "LowerRouteOpened")
-
         return {
             ok = true,
-            events = events,
-            message = "Drainage system stabilized. The lower route is opening.",
+            events = {"DrainageStarted", "ArrayRouteOpened"},
+            message = "The water level drops. A sealed route groans open.",
         }
     end
 
     if action == "ActivateArray" then
-        if not state.power then
-            return { ok = false, events = {}, message = "The observation array has no power." }
+        if not state.power or not state.pump then
+            return {ok = false, events = {}, message = "The array is responding, but the service route is still flooded."}
         end
-
-        if not state.pump then
-            return { ok = false, events = {}, message = "The array is receiving power, but the access route is not clear." }
+        if state.arrayActive then
+            return {ok = false, events = {}, message = "The array is already active."}
         end
-
-        if state.objective ~= "ReachArray" then
-            return { ok = false, events = {}, message = "The array cannot be activated right now." }
-        end
-
-        state.access = "Transformed"
-        state.environment = "Unstable"
-        state.lighting = "Emergency"
-        state.security = "Alert"
-        state.objective = "TransmitSignal"
-        state.cascade = true
-
-        table.insert(events, "EnvironmentChanged")
-        table.insert(events, "CascadeStarted")
-        table.insert(events, "SignalRoomOpened")
-        table.insert(events, "ObjectiveAdvanced")
-
+        state.arrayActive = true
+        state.environment = "Cascade"
         return {
             ok = true,
-            events = events,
-            message = "Observation array activated. The facility is destabilizing.",
+            events = {"ArrayActivated", "CascadeStarted", "ContainmentReleased", "SignalRoomOpened"},
+            message = "The array locks onto something. The whole facility answers.",
         }
     end
 
     if action == "TransmitSignal" then
-        if state.objective ~= "TransmitSignal" then
-            return { ok = false, events = {}, message = "The signal console is not ready." }
+        if not state.arrayActive then
+            return {ok = false, events = {}, message = "The signal console has no carrier to transmit."}
         end
-
-        state.objective = "Escape"
-        table.insert(events, "ObjectiveAdvanced")
-        table.insert(events, "EmergencyExitOpened")
-
+        if state.signalSent then
+            return {ok = false, events = {}, message = "The recovery signal has already been transmitted."}
+        end
+        state.signalSent = true
+        state.environment = "Emergency"
         return {
             ok = true,
-            events = events,
-            message = "Recovery signal transmitted. The emergency route is open.",
+            events = {"SignalTransmitted", "EmergencyExitOpened"},
+            message = "Signal away. The facility has begun its emergency purge.",
         }
     end
 
     if action == "Escape" then
-        if state.objective ~= "Escape" then
-            return { ok = false, events = {}, message = "The evacuation route is not available yet." }
+        if not state.signalSent then
+            return {ok = false, events = {}, message = "The outer seal is still locked."}
         end
-
-        state.objective = "Complete"
-        table.insert(events, "RunCompleted")
-
+        state.escaped = true
         return {
             ok = true,
-            events = events,
-            message = "Run complete.",
+            events = {"RunCompleted"},
+            message = "You made it out. Something is still moving inside.",
         }
     end
 
-    return {
-        ok = false,
-        events = {},
-        message = "Unknown action: " .. action,
-    }
+    if action == "ReadArchive" then
+        return {
+            ok = true,
+            events = {"ArchiveRead"},
+            message = "INCIDENT 07: The array did not create the signal. It answered one.",
+        }
+    end
+
+    return {ok = false, events = {}, message = "Unknown action: " .. action}
 end
 
 return CascadeState
