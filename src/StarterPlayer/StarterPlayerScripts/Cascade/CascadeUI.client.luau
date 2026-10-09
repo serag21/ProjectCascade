@@ -46,7 +46,7 @@ missionLabel.Font = Enum.Font.GothamBold
 missionLabel.TextSize = 12
 missionLabel.TextColor3 = Color3.fromRGB(152, 168, 187)
 missionLabel.TextXAlignment = Enum.TextXAlignment.Left
-missionLabel.Text = "MISSION"
+missionLabel.Text = "CASCADE  •  PLAYTEST BUILD 02"
 missionLabel.Parent = mission
 
 local objectiveText = Instance.new("TextLabel")
@@ -71,7 +71,7 @@ statusText.Font = Enum.Font.GothamBold
 statusText.TextSize = 10
 statusText.TextColor3 = Color3.fromRGB(116, 190, 168)
 statusText.TextXAlignment = Enum.TextXAlignment.Left
-statusText.Text = "FACILITY: OFFLINE"
+statusText.Text = "BUILD 02 // FACILITY OFFLINE"
 statusText.Parent = mission
 
 local toast = Instance.new("Frame")
