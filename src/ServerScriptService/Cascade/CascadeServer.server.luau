@@ -13,6 +13,39 @@ local Debris = game:GetService("Debris")
 local CascadeState = require(ReplicatedStorage:WaitForChild("Cascade"):WaitForChild("CascadeState"))
 local state = CascadeState.new()
 
+-- Forward declarations keep interaction callbacks bound to the intended local instances.
+local facilityLights = {}
+local emergencyStatusLights = {}
+local redAlarmLights = {}
+local lowerRouteLights = {}
+local exitRouteLights = {}
+local maintenanceDoor: BasePart? = nil
+local arrayGate: BasePart? = nil
+local signalShutter: BasePart? = nil
+local exitRouteGate: BasePart? = nil
+local exitDoor: BasePart? = nil
+local exitTrigger: BasePart? = nil
+local powerConsole: BasePart? = nil
+local pumpConsole: BasePart? = nil
+local pumpPrompt: ProximityPrompt? = nil
+local pumpHousing: BasePart? = nil
+local floodwater: BasePart? = nil
+local arrayCore: Model? = nil
+local arrayEnergyLight: PointLight? = nil
+local signalConsole: BasePart? = nil
+local signalPrompt: ProximityPrompt? = nil
+local containmentDoor: BasePart? = nil
+local atmosphere: Atmosphere? = nil
+local machineHum: Sound? = nil
+local pumpStartSound: Sound? = nil
+local alarmSound: Sound? = nil
+local darkWorldMusic: Sound? = nil
+local creatureModel: Model? = nil
+local creatureHumanoid: Humanoid? = nil
+local creatureRoot: BasePart? = nil
+local creatureGrowl: Sound? = nil
+local creatureActive = false
+
 local rootFolder = ReplicatedStorage:WaitForChild("Cascade")
 local eventsFolder = rootFolder:FindFirstChild("Events") or Instance.new("Folder")
 eventsFolder.Name = "Events"
@@ -228,7 +261,11 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
                     light.Enabled = true
                 end
                 for _, lamp in emergencyStatusLights do
-                    lamp.Enabled = true
+                    if lamp and lamp:IsA("BasePart") then
+                        lamp.Transparency = 0
+                        local glow = lamp:FindFirstChildWhichIsA("PointLight")
+                        if glow then glow.Enabled = true end
+                    end
                 end
                 if machineHum and not machineHum.IsPlaying then
                     machineHum:Play()
@@ -322,7 +359,7 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
                 end
                 if alarmSound then alarmSound:Play() end
                 if darkWorldMusic then darkWorldMusic:Play() end
-                oneShot(arrayCore or world, "135540168785024", "CascadeSting", 0.7, 0.82, 120)
+                oneShot(arrayCore and arrayCore.PrimaryPart or world, "135540168785024", "CascadeSting", 0.7, 0.82, 120)
                 eventRemote:FireAllClients("Status", {text = "CONTAINMENT FAILURE  /  MOTION DETECTED"})
                 eventRemote:FireAllClients("WorldCue", {kind = "CascadeStarted"})
                 task.spawn(function()
@@ -697,7 +734,7 @@ for i = 0, 4 do
     local lamp = part("ExteriorFloodlight", Vector3.new(0.35, 7, 0.35), CFrame.new(57 + i * 11.5, 3.5, -116), Enum.Material.Metal, Color3.fromRGB(62, 77, 92), props)
     pointLight(lamp, "FloodlightBeam", Color3.fromRGB(143, 189, 211), 0.65, 22, true)
 end
-local exitTrigger = part("ExitThreshold", Vector3.new(24, 8, 7), CFrame.new(80, 4, -101), Enum.Material.SmoothPlastic, Color3.new(1, 1, 1), effects, 1, false)
+exitTrigger = part("ExitThreshold", Vector3.new(24, 8, 7), CFrame.new(80, 4, -101), Enum.Material.SmoothPlastic, Color3.new(1, 1, 1), effects, 1, false)
 exitTrigger.CanTouch = false
 exitTrigger.Touched:Connect(function(hit)
     if state.signalSent and not state.escaped then
@@ -765,7 +802,7 @@ local function makeCreature()
     model:SetAttribute("Active", false)
     model:SetAttribute("BuildVersion", 3)
 
-    local base = Vector3.new(101, 3, 35)
+    local base = Vector3.new(101, 4.8, 35)
     local root = part("HumanoidRootPart", Vector3.new(2, 2, 1), CFrame.new(base), Enum.Material.SmoothPlastic, Color3.fromRGB(10, 12, 17), model, 1, false)
     root.Anchored = false
     root.CanCollide = false
@@ -1028,8 +1065,8 @@ addSign(buildMark, "SITE 07  /  FIELD PLAYTEST 03", 360, 44, Vector3.new(0, 0, 0
 
 -- Sounds are positional where a world source matters. Free-to-use Creator Store audio IDs are used.
 pumpStartSound = makeSound(pumpHousing, "9113910297", "PumpStartup", 0.7, false, 0.83, 100)
-alarmSound = makeSound(redAlarmLights[1].Parent, "5348162330", "FacilityAlarm", 0.36, true, 0.85, 125)
-alarmSound.Parent = redAlarmLights[1]
+alarmSound = makeSound(SoundService, "5348162330", "FacilityAlarm", 0.36, true, 0.85, 10000)
+alarmSound.RollOffMaxDistance = 10000
 darkWorldMusic = makeSound(SoundService, "9044889073", "CascadeTension", 0.16, true, 0.83, 10000)
 
 -- State/UI initialization happens only after the first player joins, so late joiners receive it too.
