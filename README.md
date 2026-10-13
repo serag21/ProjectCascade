@@ -1,6 +1,6 @@
 # Project Cascade
 
-**Current internal milestone: Site 07 — Field Playtest 03**
+**Current internal milestone: Site 07 — Field Playtest 04 (bootstrap recovery)**
 
 Project Cascade is a 1–4 player cooperative environmental horror/adventure for Roblox. The core identity is causal environmental gameplay: players change connected facility systems and must adapt to the consequences.
 
@@ -36,3 +36,14 @@ This is still a procedural graybox with placeholder/procedural geometry, not fin
 ## Audio assets
 
 The prototype uses audio from Roblox Creator Store by asset ID. If Roblox reports asset permission/load errors in Studio Output, replace those IDs with suitable Creator Store sounds available to the experience rather than silently shipping a mute mix.
+
+
+## Site 07 startup safety (Playtest 04)
+
+- The server resolves `CascadeState` even if an earlier Script Sync mistake left it nested under another `Cascade` folder; it warns when it has to recover from that layout.
+- A safety floor remains below the site during construction and is removed only after a successful build. An initialization failure produces a visible red diagnostic sign and sets `Workspace.CascadeBuildStatus` / `Workspace.CascadeBuildError`.
+- The client HUD reports a failed or incomplete server build after 12 seconds instead of leaving an unexplained flashlight-only session.
+- The containment subject stays dormant without pathfinding until the array releases it, avoiding background path computations during the opening exploration phase.
+- A successful session ends startup with `Workspace.CascadeBuildStatus = "Ready"` and `CascadeFacility.BuildVersion = 4`.
+
+The actual in-Studio server/client playtest is still required to verify Roblox runtime behavior and audio asset permissions.
