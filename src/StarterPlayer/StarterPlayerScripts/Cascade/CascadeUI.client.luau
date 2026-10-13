@@ -78,7 +78,7 @@ accent.BorderSizePixel = 0
 accent.Parent = panel
 round(accent, 3)
 
-local buildLabel = label(panel, "BuildLabel", "SITE 07   /   FIELD PLAYTEST 03", UDim2.fromOffset(17, 9), UDim2.new(1, -32, 0, 18), Enum.Font.GothamBold, 12, Color3.fromRGB(106, 190, 211))
+local buildLabel = label(panel, "BuildLabel", "SITE 07   /   FIELD PLAYTEST 04", UDim2.fromOffset(17, 9), UDim2.new(1, -32, 0, 18), Enum.Font.GothamBold, 12, Color3.fromRGB(106, 190, 211))
 buildLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local missionLabel = label(panel, "MissionLabel", "MISSION", UDim2.fromOffset(17, 29), UDim2.new(1, -32, 0, 15), Enum.Font.GothamBold, 10, Color3.fromRGB(137, 151, 168))
@@ -279,7 +279,7 @@ local panicCueAt = 0
 local currentThreat = 0
 local targetFov = 70
 local cameraBaseFov = 70
-local lastBuild = 3
+local lastBuild = 4
 local function announceBuild(version: number)
     lastBuild = version
     buildLabel.Text = "SITE 07   /   FIELD PLAYTEST " .. string.format("%02d", version)
@@ -415,5 +415,26 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 
--- Prevent any stale build label from ever being silent: the HUD itself identifies the loaded client.
-announceBuild(3)
+-- If the server script blocked on a bad sync path or crashed during construction, make that
+-- failure explicit rather than leaving the player with a flashlight over an empty baseplate.
+task.delay(12, function()
+    if not gui.Parent then return end
+    local facility = Workspace:FindFirstChild("CascadeFacility")
+    local status = Workspace:GetAttribute("CascadeBuildStatus")
+    local version = facility and facility:GetAttribute("BuildVersion")
+    if facility and status == "Ready" and version == 4 then
+        return
+    end
+
+    local detail = cascadeRoot:GetAttribute("CascadeBuildError")
+    if type(detail) ~= "string" or detail == "" then
+        detail = "Server status: " .. tostring(status or "no status reported")
+    end
+    statusText.Text = "SERVER BUILD  /  " .. string.upper(tostring(status or "NOT STARTED"))
+    statusText.TextColor3 = Color3.fromRGB(255, 105, 99)
+    objectiveText.Text = "Site 07 did not finish loading. The server diagnostic sign describes the startup failure."
+    showToast("SITE 07 DID NOT FINISH LOADING", detail, Color3.fromRGB(225, 58, 61))
+end)
+
+-- The loaded HUD marks the intended build; the server separately confirms when the world is ready.
+announceBuild(4)
