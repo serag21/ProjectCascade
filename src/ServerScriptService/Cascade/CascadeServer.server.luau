@@ -1,4 +1,4 @@
--- Project Cascade | Site 07 | Playtest Build 03
+-- Project Cascade | Site 07 | Playtest Build 04
 -- Server-authoritative procedural facility, causal interactions, ambience and pursuit AI.
 
 local Players = game:GetService("Players")
@@ -10,9 +10,125 @@ local PathfindingService = game:GetService("PathfindingService")
 local RunService = game:GetService("RunService")
 local Debris = game:GetService("Debris")
 
-local CascadeState = require(ReplicatedStorage:WaitForChild("Cascade"):WaitForChild("CascadeState"))
-local state = CascadeState.new()
+-- Bootstrap guardrails: never delete the default floor and leave players falling if
+-- the synced ModuleScript is missing, misplaced, or throws while loading.
+local rootFolder: Instance? = nil
+local safetyFloor = workspace:FindFirstChild("CascadeSafetyFloor")
+if not safetyFloor then
+    safetyFloor = Instance.new("Part")
+    safetyFloor.Name = "CascadeSafetyFloor"
+    safetyFloor.Size = Vector3.new(320, 2, 280)
+    safetyFloor.CFrame = CFrame.new(0, -3, 5)
+    safetyFloor.Anchored = true
+    safetyFloor.CanCollide = true
+    safetyFloor.CanTouch = false
+    safetyFloor.CanQuery = false
+    safetyFloor.Material = Enum.Material.Concrete
+    safetyFloor.Color = Color3.fromRGB(40, 34, 42)
+    safetyFloor.Parent = workspace
+end
 
+local function markStartupFailure(message: string)
+    workspace:SetAttribute("CascadeBuildStatus", "Failed")
+    workspace:SetAttribute("CascadeBuildError", message)
+    if rootFolder then
+        rootFolder:SetAttribute("CascadeBuildStatus", "Failed")
+        rootFolder:SetAttribute("CascadeBuildError", message)
+        rootFolder:SetAttribute("CascadeServerBuildActive", false)
+    end
+
+    local marker = workspace:FindFirstChild("CascadeBootFailureMarker")
+    if not marker then
+        marker = Instance.new("Part")
+        marker.Name = "CascadeBootFailureMarker"
+        marker.Size = Vector3.new(1, 1, 1)
+        marker.CFrame = CFrame.new(0, 5, -58)
+        marker.Anchored = true
+        marker.Transparency = 1
+        marker.CanCollide = false
+        marker.CanTouch = false
+        marker.CanQuery = false
+        marker.Parent = workspace
+    end
+
+    local board = marker:FindFirstChild("FailureBillboard")
+    if not board then
+        board = Instance.new("BillboardGui")
+        board.Name = "FailureBillboard"
+        board.Adornee = marker
+        board.Size = UDim2.fromOffset(560, 128)
+        board.StudsOffsetWorldSpace = Vector3.new(0, 2, 0)
+        board.AlwaysOnTop = true
+        board.MaxDistance = 1000
+        board.LightInfluence = 0
+        board.Parent = marker
+    end
+
+    local label = board:FindFirstChild("FailureText")
+    if not label then
+        label = Instance.new("TextLabel")
+        label.Name = "FailureText"
+        label.Size = UDim2.fromScale(1, 1)
+        label.BackgroundColor3 = Color3.fromRGB(104, 21, 29)
+        label.BackgroundTransparency = 0.06
+        label.BorderSizePixel = 0
+        label.TextColor3 = Color3.fromRGB(255, 244, 240)
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 19
+        label.TextWrapped = true
+        label.TextScaled = true
+        label.Parent = board
+    end
+    label.Text = "SITE 07 FAILED TO INITIALIZE\n" .. message
+    warn("[Cascade][BOOT FAILURE] " .. message)
+end
+
+workspace:SetAttribute("CascadeBuildStatus", "Starting")
+workspace:SetAttribute("CascadeBuildVersion", 4)
+workspace:SetAttribute("CascadeBuildError", nil)
+
+rootFolder = ReplicatedStorage:FindFirstChild("Cascade")
+if not rootFolder then
+    rootFolder = ReplicatedStorage:WaitForChild("Cascade", 10)
+end
+if not rootFolder then
+    markStartupFailure("ReplicatedStorage/Cascade was not found. Check the Script Sync mapping.")
+    return
+end
+
+if rootFolder:GetAttribute("CascadeServerBuildActive") == true then
+    warn("[Cascade] Duplicate server builder ignored; an instance already owns Site 07.")
+    return
+end
+rootFolder:SetAttribute("CascadeServerBuildActive", true)
+rootFolder:SetAttribute("CascadeBuildStatus", "Loading state module")
+
+local stateModule = rootFolder:FindFirstChild("CascadeState")
+if not stateModule then
+    stateModule = rootFolder:FindFirstChild("CascadeState", true)
+end
+if not stateModule or not stateModule:IsA("ModuleScript") then
+    markStartupFailure("CascadeState ModuleScript is missing under ReplicatedStorage/Cascade (including nested folders).")
+    return
+end
+
+if stateModule.Parent ~= rootFolder then
+    rootFolder:SetAttribute("CascadeStateRecoveredFromNestedFolder", true)
+    warn("[Cascade] Recovered CascadeState from nested path: " .. stateModule:GetFullName())
+else
+    rootFolder:SetAttribute("CascadeStateRecoveredFromNestedFolder", false)
+end
+
+local requireOk, CascadeState = pcall(require, stateModule)
+if not requireOk or type(CascadeState) ~= "table" or type(CascadeState.new) ~= "function" or type(CascadeState.apply) ~= "function" then
+    markStartupFailure("CascadeState could not load: " .. tostring(CascadeState))
+    return
+end
+
+local state = CascadeState.new()
+rootFolder:SetAttribute("CascadeBuildStatus", "Building")
+
+local startupOk, startupError = xpcall(function()
 -- Forward declarations keep interaction callbacks bound to the intended local instances.
 local facilityLights = {}
 local emergencyStatusLights = {}
@@ -47,7 +163,6 @@ local creatureRoot: BasePart? = nil
 local creatureGrowl: Sound? = nil
 local creatureActive = false
 
-local rootFolder = ReplicatedStorage:WaitForChild("Cascade")
 local eventsFolder = rootFolder:FindFirstChild("Events") or Instance.new("Folder")
 eventsFolder.Name = "Events"
 eventsFolder.Parent = rootFolder
@@ -63,7 +178,10 @@ if oldBaseplate and oldBaseplate:IsA("BasePart") then oldBaseplate:Destroy() end
 local world = Instance.new("Folder")
 world.Name = "CascadeFacility"
 world.Parent = workspace
-world:SetAttribute("BuildVersion", 3)
+world:SetAttribute("BuildVersion", 4)
+world:SetAttribute("BuildStatus", "Building")
+workspace:SetAttribute("CascadeBuildStatus", "Building")
+workspace:SetAttribute("CascadeBuildStage", "Creating site shell")
 
 local architecture = Instance.new("Folder")
 architecture.Name = "Architecture"
@@ -477,6 +595,7 @@ darkWorldMusic = nil
 
 -- Build site shell.
 part("Foundation", Vector3.new(260, 2, 180), CFrame.new(0, -0.5, 5), Enum.Material.Concrete, Color3.fromRGB(33, 39, 48), architecture)
+workspace:SetAttribute("CascadeBuildStage", "Site shell created")
 part("Ceiling", Vector3.new(260, 2, 180), CFrame.new(0, 20, 5), Enum.Material.Metal, Color3.fromRGB(20, 26, 34), architecture)
 wall("NorthWall", Vector3.new(260, 18, 3), Vector3.new(0, 9, 95))
 wall("WestWall", Vector3.new(3, 18, 180), Vector3.new(-130, 9, 5))
@@ -817,7 +936,7 @@ local function makeCreature()
     local model = Instance.new("Model")
     model.Name = "ContainmentSubject"
     model:SetAttribute("Active", false)
-    model:SetAttribute("BuildVersion", 3)
+    model:SetAttribute("BuildVersion", 4)
 
     local base = Vector3.new(101, 4.8, 35)
     local root = part("HumanoidRootPart", Vector3.new(2, 2, 1), CFrame.new(base), Enum.Material.SmoothPlastic, Color3.fromRGB(10, 12, 17), model, 1, false)
@@ -998,13 +1117,10 @@ end
 
 task.spawn(function()
     while creatureModel and creatureModel.Parent do
-        if creatureHumanoid and creatureHumanoid.Health > 0 and creatureRoot and not creatureActive then
-            local now = os.clock()
-            if now - lastPathAt > 5.5 then
-                lastPathAt = now
-                local idlePoint = Vector3.new(math.random(93, 108), 3, math.random(25, 45))
-                moveToward(idlePoint)
-            end
+        -- Keep the containment subject still while sealed. It only performs pathfinding
+        -- once the array releases it, avoiding background path computations throughout exploration.
+        if not creatureActive and creatureHumanoid and creatureHumanoid.Health > 0 then
+            -- Dormant by design.
         elseif creatureActive and creatureHumanoid and creatureHumanoid.Health > 0 and creatureRoot then
             local now = os.clock()
             local player, targetRoot, targetHumanoid, targetDistance = nearestVisiblePlayer()
@@ -1089,7 +1205,7 @@ spawnLocation.Color = Color3.fromRGB(65, 100, 116)
 
 -- One clear identity mark proves that this is the current, newly synced build.
 local buildMark = part("BuildMarker", Vector3.new(1, 1, 1), CFrame.new(0, 8, -75), Enum.Material.SmoothPlastic, Color3.new(1, 1, 1), props, 1, false)
-addSign(buildMark, "SITE 07  /  FIELD PLAYTEST 03", 360, 44, Vector3.new(0, 0, 0), Color3.fromRGB(75, 174, 204))
+addSign(buildMark, "SITE 07  /  FIELD PLAYTEST 04", 360, 44, Vector3.new(0, 0, 0), Color3.fromRGB(75, 174, 204))
 
 -- Sounds are positional where a world source matters. Free-to-use Creator Store audio IDs are used.
 pumpStartSound = makeSound(pumpHousing, "9113910297", "PumpStartup", 0.7, false, 0.83, 100)
@@ -1101,7 +1217,7 @@ darkWorldMusic = makeSound(SoundService, "9044889073", "CascadeTension", 0.16, t
 local function sendInitialUI(player: Player)
     eventRemote:FireClient(player, "Objective", {text = "Restore the observation array's signal. Then get out."})
     eventRemote:FireClient(player, "Status", {text = "SITE 07  /  GRID OFFLINE"})
-    eventRemote:FireClient(player, "Build", {version = 3})
+    eventRemote:FireClient(player, "Build", {version = 4})
 end
 Players.PlayerAdded:Connect(function(player)
     task.delay(1.1, function()
@@ -1114,4 +1230,19 @@ end
 
 eventRemote:FireAllClients("Objective", {text = "Restore the observation array's signal. Then get out."})
 eventRemote:FireAllClients("Status", {text = "SITE 07  /  GRID OFFLINE"})
-eventRemote:FireAllClients("Build", {version = 3})
+eventRemote:FireAllClients("Build", {version = 4})
+
+world:SetAttribute("BuildStatus", "Ready")
+workspace:SetAttribute("CascadeBuildStage", "Complete")
+workspace:SetAttribute("CascadeBuildStatus", "Ready")
+workspace:SetAttribute("CascadeBuildError", nil)
+rootFolder:SetAttribute("CascadeBuildStatus", "Ready")
+rootFolder:SetAttribute("CascadeBuildError", nil)
+if safetyFloor and safetyFloor.Parent then
+    safetyFloor:Destroy()
+end
+end, debug.traceback)
+
+if not startupOk then
+    markStartupFailure(tostring(startupError))
+end
