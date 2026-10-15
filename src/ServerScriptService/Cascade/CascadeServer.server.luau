@@ -540,7 +540,7 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
 end
 
 -- Night-time interior lighting and restrained atmosphere.
-Lighting.Technology = Enum.Technology.Future
+-- Technology is configured in Studio; Roblox game scripts cannot write Lighting.Technology.
 Lighting.GlobalShadows = true
 Lighting.ClockTime = 0.15
 Lighting.Brightness = 0.65
