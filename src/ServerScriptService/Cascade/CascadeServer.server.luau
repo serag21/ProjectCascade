@@ -462,13 +462,13 @@ local function addPrompt(console: BasePart, objectText: string, actionText: stri
                 end
                 eventRemote:FireAllClients("WorldCue", {kind = "ArrayPulse"})
             elseif eventName == "CascadeStarted" then
-                Lighting.Brightness = 0.35
+                Lighting.Brightness = 0.52
                 Lighting.ClockTime = 0
-                Lighting.FogEnd = 150
+                Lighting.FogEnd = 175
                 Lighting.FogColor = Color3.fromRGB(13, 19, 29)
                 if atmosphere then
-                    atmosphere.Density = 0.38
-                    atmosphere.Haze = 3
+                    atmosphere.Density = 0.32
+                    atmosphere.Haze = 2.5
                     atmosphere.Color = Color3.fromRGB(98, 116, 147)
                     atmosphere.Decay = Color3.fromRGB(28, 33, 46)
                 end
@@ -543,25 +543,25 @@ end
 -- Technology is configured in Studio; Roblox game scripts cannot write Lighting.Technology.
 Lighting.GlobalShadows = true
 Lighting.ClockTime = 0.15
-Lighting.Brightness = 0.65
-Lighting.ExposureCompensation = -0.25
-Lighting.EnvironmentDiffuseScale = 0.18
-Lighting.EnvironmentSpecularScale = 0.22
-Lighting.Ambient = Color3.fromRGB(17, 22, 31)
-Lighting.OutdoorAmbient = Color3.fromRGB(8, 11, 18)
+Lighting.Brightness = 0.9
+Lighting.ExposureCompensation = -0.08
+Lighting.EnvironmentDiffuseScale = 0.28
+Lighting.EnvironmentSpecularScale = 0.24
+Lighting.Ambient = Color3.fromRGB(29, 35, 47)
+Lighting.OutdoorAmbient = Color3.fromRGB(17, 22, 32)
 Lighting.FogColor = Color3.fromRGB(18, 25, 37)
-Lighting.FogStart = 35
-Lighting.FogEnd = 205
+Lighting.FogStart = 44
+Lighting.FogEnd = 245
 pcall(function() SoundService.AmbientReverb = Enum.ReverbType.Hangar end)
 
 atmosphere = Lighting:FindFirstChild("CascadeAtmosphere") or Instance.new("Atmosphere")
 atmosphere.Name = "CascadeAtmosphere"
-atmosphere.Density = 0.27
+atmosphere.Density = 0.22
 atmosphere.Offset = 0.05
 atmosphere.Color = Color3.fromRGB(156, 176, 202)
 atmosphere.Decay = Color3.fromRGB(43, 51, 69)
 atmosphere.Glare = 0
-atmosphere.Haze = 1.6
+atmosphere.Haze = 1.25
 atmosphere.Parent = Lighting
 
 local colorCorrection = Lighting:FindFirstChild("CascadeGrade") or Instance.new("ColorCorrectionEffect")
@@ -672,7 +672,7 @@ exitRouteLights = {}
 
 local function addCeilingLight(x: number, z: number, color: Color3, brightness: number, range: number)
     local fixture = part("CeilingFixture", Vector3.new(6, 0.3, 1.4), CFrame.new(x, 18.2, z), Enum.Material.Neon, color, props, 0.35, false)
-    local light = pointLight(fixture, "FixtureLight", color, brightness, range, false)
+    local light = pointLight(fixture, "FixtureLight", color, brightness * 1.16, range * 1.12, false)
     table.insert(facilityLights, light)
     return fixture, light
 end
@@ -709,6 +709,43 @@ for _, pos in ipairs({Vector3.new(48, 12, 28), Vector3.new(112, 12, 27), Vector3
     local lamp, glow = addRouteLamp(effects, "RedAlarmBeacon", pos, Color3.fromRGB(255, 53, 52), false)
     glow.Name = "AlarmGlow"
     table.insert(redAlarmLights, glow)
+end
+
+-- Low-output blue-green guide lights make silhouettes, doors, and room connections legible
+-- before the grid comes online. Their limited range leaves deliberate dark areas between them.
+local guideLights = {}
+for _, position in ipairs({
+    Vector3.new(-124, 4.5, -35),
+    Vector3.new(-111, 4.5, 29),
+    Vector3.new(-111, 4.5, 67),
+    Vector3.new(-13, 4.5, 12),
+    Vector3.new(12, 4.5, 70),
+    Vector3.new(61, 4.5, 6),
+    Vector3.new(118, 4.5, 36),
+    Vector3.new(85, 4.5, -60),
+}) do
+    local housing = part(
+        "LowGuideFixture",
+        Vector3.new(1.1, 0.22, 0.2),
+        CFrame.new(position),
+        Enum.Material.Metal,
+        Color3.fromRGB(43, 69, 81),
+        props,
+        0,
+        false
+    )
+    local lens = part(
+        "GuideLens",
+        Vector3.new(0.72, 0.12, 0.08),
+        housing.CFrame * CFrame.new(0, 0, -0.13),
+        Enum.Material.Neon,
+        Color3.fromRGB(83, 139, 157),
+        props,
+        0.12,
+        false
+    )
+    local glow = pointLight(lens, "GuideFill", Color3.fromRGB(99, 152, 175), 0.48, 20, true)
+    table.insert(guideLights, glow)
 end
 
 -- Set-dressing helper: repeatable, consistent industrial props.
