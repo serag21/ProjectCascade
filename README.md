@@ -47,3 +47,8 @@ The prototype uses audio from Roblox Creator Store by asset ID. If Roblox report
 - A successful session ends startup with `Workspace.CascadeBuildStatus = "Ready"` and `CascadeFacility.BuildVersion = 4`.
 
 The actual in-Studio server/client playtest is still required to verify Roblox runtime behavior and audio asset permissions.
+
+ 
+## Site 07 visibility tuning
+
+The opening uses slightly brighter cool ambient fill, softer atmospheric attenuation, eight low-output local guide lights, and a wider/stronger flashlight. The facility is still unpowered at the start, ceiling fixtures remain off until power is restored, and the containment/cascade state retains darker lighting and alarms. Guide lights use non-shadowing point lights to keep the added cost modest.
