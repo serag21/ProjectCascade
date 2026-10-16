@@ -192,9 +192,9 @@ local flashlightEnabled = true
 local flashlight = Instance.new("SpotLight")
 flashlight.Name = "CascadeFlashlight"
 flashlight.Color = Color3.fromRGB(213, 230, 255)
-flashlight.Brightness = 2.45
-flashlight.Range = 48
-flashlight.Angle = 62
+flashlight.Brightness = 3.1
+flashlight.Range = 62
+flashlight.Angle = 70
 flashlight.Shadows = true
 flashlight.Enabled = flashlightEnabled
 
