@@ -1,0 +1,85 @@
+{
+  "generator": "tools/generate_audio.py",
+  "provenance": "Original synthesis; no external audio assets",
+  "files": [
+    {
+      "file": "bank.wav",
+      "duration_seconds": 0.85,
+      "sample_rate": 44100,
+      "channels": 1,
+      "bits_per_sample": 16,
+      "bytes": 75014,
+      "peak_linear": 0.550005,
+      "peak_dbfs": -5.19,
+      "rms_dbfs": -18.99,
+      "seam_step_linear": 0.0,
+      "sha256": "c17f48f9a622566fe92017cb62fb818af454c692036f03d01b241e31b810157f"
+    },
+    {
+      "file": "catch.wav",
+      "duration_seconds": 0.34,
+      "sample_rate": 44100,
+      "channels": 1,
+      "bits_per_sample": 16,
+      "bytes": 30032,
+      "peak_linear": 0.479995,
+      "peak_dbfs": -6.38,
+      "rms_dbfs": -19.32,
+      "seam_step_linear": 0.0,
+      "sha256": "2e91ebee5fc7db0d8b94cffed76b1347ae6dfd89486b88f78cbb2be4e325b5ce"
+    },
+    {
+      "file": "dash.wav",
+      "duration_seconds": 0.3,
+      "sample_rate": 44100,
+      "channels": 1,
+      "bits_per_sample": 16,
+      "bytes": 26504,
+      "peak_linear": 0.340007,
+      "peak_dbfs": -9.37,
+      "rms_dbfs": -23.53,
+      "seam_step_linear": 0.0,
+      "sha256": "3f3039dab9e5fe458f59edca17666a10d35aef505a9ea0b024b38235457faa6b"
+    },
+    {
+      "file": "pop_meadow_loop.wav",
+      "duration_seconds": 16.0,
+      "sample_rate": 44100,
+      "channels": 2,
+      "bits_per_sample": 16,
+      "bytes": 2822444,
+      "peak_linear": 0.479995,
+      "peak_dbfs": -6.38,
+      "rms_dbfs": -23.9,
+      "seam_step_linear": 0.004669,
+      "sha256": "bf14c1bbd6dbba98511eca575eb3a39decfab6c6ed61408ac411d4ede160d3f5"
+    },
+    {
+      "file": "round_reward.wav",
+      "duration_seconds": 1.9,
+      "sample_rate": 44100,
+      "channels": 1,
+      "bits_per_sample": 16,
+      "bytes": 167624,
+      "peak_linear": 0.580004,
+      "peak_dbfs": -4.73,
+      "rms_dbfs": -19.76,
+      "seam_step_linear": 0.0,
+      "sha256": "fa824a3f384f5405eab1b36a3582d684cb196001286e81d7a92d28c254ce06c1"
+    },
+    {
+      "file": "upgrade.wav",
+      "duration_seconds": 1.1,
+      "sample_rate": 44100,
+      "channels": 1,
+      "bits_per_sample": 16,
+      "bytes": 97064,
+      "peak_linear": 0.550005,
+      "peak_dbfs": -5.19,
+      "rms_dbfs": -19.55,
+      "seam_step_linear": 0.0,
+      "sha256": "ebb6fe171d03a84e03600e485749d0ec0c869d23c674607fc5ada3598f788929"
+    }
+  ],
+  "total_bytes": 3218682
+}
