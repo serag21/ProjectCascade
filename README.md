@@ -1,4 +1,12 @@
-# Project Cascade
+# Game #1 — SPARK STAMPEDE (working title)
+
+**Product pivot approved October 24, 2026.** This repository is being repurposed IN PLACE for the first production Roblox game, a bright action/collection game optimized for immediate understanding, replay, 1–4-player enjoyment and professional release quality. The original atmospheric facility game Project Cascade is preserved unchanged on [the archive branch](https://github.com/serag21/ProjectCascade/tree/archive/cascade-pre-game1-pivot-20261024).
+
+**Codex startup:** Read [AGENTS.md](AGENTS.md), [Game #1 product charter](docs/GAME1_PRODUCT_CHARTER.md), and [progress tracker](docs/GAME1_PROGRESS.md). The files and game scripts described below are the LEGACY Cascade state until the replacement implementation is complete. Do not interpret the legacy MVP instructions as current Game #1 requirements.
+
+---
+
+## Historical Project Cascade README (archived idea; not current product)
 
 **Current internal milestone: Site 07 — Field Playtest 04 (bootstrap recovery)**
 
