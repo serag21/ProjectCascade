@@ -8,6 +8,7 @@ local RunService=game:GetService("RunService")
 local Debris=game:GetService("Debris")
 local SoundService=game:GetService("SoundService")
 local StarterGui=game:GetService("StarterGui")
+local GuiService=game:GetService("GuiService")
 local player=Players.LocalPlayer
 -- The default player list covers the score HUD. Retry while CoreScripts initialize.
 task.spawn(function()
@@ -33,6 +34,12 @@ gui.Parent=player:WaitForChild("PlayerGui")
 local latest=nil
 local selectedPanel=nil
 local results
+local replayButton
+local close
+local tabButtons={}
+local function controllerActive()
+	return string.match(UserInputService:GetLastInputType().Name,"^Gamepad")~=nil
+end
 local cooldownUntil={Capture=0,Dash=0}
 local function requestAction(action)
 	if selectedPanel or not latest or latest.phase~="Playing" then return end
@@ -95,7 +102,7 @@ bankGuide.Name="BankGuide"
 bankGuide.TextXAlignment=Enum.TextXAlignment.Center
 bankGuide.BackgroundColor3=palette.gold; bankGuide.BackgroundTransparency=.08; round(bankGuide)
 bankGuide.Visible=false
-local controls=make("Frame",gui,{Name="Controls",BackgroundTransparency=1,Size=UDim2.fromScale(1,1)})
+local controls=make("Frame",gui,{Name="Controls",BackgroundTransparency=1,Size=UDim2.fromScale(1,1),Visible=false})
 local captureButton=button(controls,"CATCH\n[E / X]",UDim2.new(1,-122,1,-182),UDim2.fromOffset(108,70),palette.mint,function() requestAction("Capture") end)
 captureButton.Name="CaptureButton"
 local dashButton=button(controls,"DASH\n[Shift / B]",UDim2.new(1,-232,1,-165),UDim2.fromOffset(100,58),palette.gold,function() requestAction("Dash") end)
@@ -110,8 +117,10 @@ local panel=make("Frame",shade,{Name="Panel",AnchorPoint=Vector2.new(.5,.5),Posi
 round(panel,20)
 local panelTitle=label(panel,"YOUR SPARKS",24,UDim2.fromOffset(22,14),UDim2.new(1,-80,0,38)); panelTitle.ZIndex=7
 panelTitle.Name="Title"
+panelTitle.TextScaled=true; panelTitle.TextWrapped=false
+make("UITextSizeConstraint",panelTitle,{MinTextSize=12,MaxTextSize=24})
 local content=make("ScrollingFrame",panel,{Name="Content",Position=UDim2.fromOffset(16,108),Size=UDim2.new(1,-32,1,-124),BackgroundTransparency=1,BorderSizePixel=0,
-	ScrollBarThickness=5,CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,ZIndex=7})
+	ScrollBarThickness=5,CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,Selectable=true,ZIndex=7})
 local tabs=make("Frame",panel,{Name="Tabs",Position=UDim2.fromOffset(16,62),Size=UDim2.new(1,-32,0,36),BackgroundTransparency=1,ZIndex=7})
 local renderPanel
 local function syncOverlays()
@@ -125,13 +134,30 @@ local function togglePanel(name)
 	selectedPanel=name
 	syncOverlays()
 	if name then renderPanel() end
+	if controllerActive() then
+		GuiService.SelectedObject=if name then tabButtons[name] elseif results and results.Visible then replayButton else nil
+	elseif not name and GuiService.SelectedObject and GuiService.SelectedObject:IsDescendantOf(panel) then
+		GuiService.SelectedObject=nil
+	end
 end
-local close=button(panel,"×",UDim2.new(1,-54,0,14),UDim2.fromOffset(38,38),palette.gold,function() togglePanel(nil) end); close.ZIndex=8
+close=button(panel,"×",UDim2.new(1,-54,0,14),UDim2.fromOffset(38,38),palette.gold,function() togglePanel(nil) end); close.ZIndex=8
 close.Name="CloseButton"
 for i,name in ipairs({"Album","Upgrades","Quests","Arenas","Settings"}) do
 	local b=button(tabs,name,UDim2.new((i-1)/5,2,0,0),UDim2.new(1/5,-4,1,0),palette.mint,function() togglePanel(name) end)
 	b.Name=name; b.TextSize=13; b.ZIndex=8
+	b.TextScaled=true; make("UITextSizeConstraint",b,{MinTextSize=10,MaxTextSize=13})
+	tabButtons[name]=b
 end
+local tabOrder={"Album","Upgrades","Quests","Arenas","Settings"}
+for i,name in ipairs(tabOrder) do
+	local b=tabButtons[name]
+	b.NextSelectionLeft=tabButtons[tabOrder[(i-2)%#tabOrder+1]]
+	b.NextSelectionRight=tabButtons[tabOrder[i%#tabOrder+1]]
+	b.NextSelectionUp=close
+	b.NextSelectionDown=content
+end
+close.NextSelectionDown=tabButtons.Album
+content.NextSelectionUp=tabButtons.Album
 menu.Activated:Connect(function() togglePanel(if selectedPanel then nil else "Album") end)
 
 local templates={}
@@ -167,6 +193,9 @@ local function rowText(r,text,size,y)
 	local t=label(r,text,size,UDim2.fromOffset(14,y),UDim2.new(1,-28,0,size+14)); t.Name="Line_"..y; t.ZIndex=9; return t
 end
 renderPanel=function()
+	local focused=GuiService.SelectedObject
+	local focusedRow=if focused and focused.Parent and focused:IsDescendantOf(content) then focused.Parent.Name else nil
+	local focusedName=if focusedRow then focused.Name else nil
 	for _,child in ipairs(content:GetChildren()) do child:Destroy() end
 	make("UIListLayout",content,{Padding=UDim.new(0,9),SortOrder=Enum.SortOrder.LayoutOrder})
 	if not latest or not latest.profile then return end
@@ -228,6 +257,18 @@ renderPanel=function()
 		rowText(r,"Catch: E / X • Dash: Shift / B • Bank: R / Y",14,34)
 		rowText(r,"Collection: M / Select • All rewards earned in play",13,61)
 	end
+	local firstAction=nil
+	for _,r in ipairs(content:GetChildren()) do
+		for _,child in ipairs(r:GetChildren()) do
+			if child:IsA("GuiButton") then firstAction=child; break end
+		end
+		if firstAction then break end
+	end
+	for _,b in pairs(tabButtons) do b.NextSelectionDown=firstAction or content end
+	if focusedRow and controllerActive() then
+		local replacementRow=content:FindFirstChild(focusedRow)
+		GuiService.SelectedObject=(replacementRow and replacementRow:FindFirstChild(focusedName)) or tabButtons[selectedPanel]
+	end
 end
 
 results=make("Frame",gui,{Name="Results",AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.fromOffset(400,260),BackgroundColor3=palette.paper,BorderSizePixel=0,Visible=false,ZIndex=3}); round(results,20)
@@ -235,19 +276,45 @@ local resultTitle=label(results,"WHAT A PARADE!",25,UDim2.fromOffset(20,18),UDim
 resultTitle.Name="Title"
 local resultScore=label(results,"",19,UDim2.fromOffset(20,72),UDim2.new(1,-40,0,58)); resultScore.TextXAlignment=Enum.TextXAlignment.Center
 resultScore.Name="Score"
-local replayButton=button(results,"CHASE AGAIN",UDim2.fromOffset(20,148),UDim2.new(1,-40,0,47),palette.gold,function() togglePanel(nil); Action:FireServer("Replay") end)
+replayButton=button(results,"CHASE AGAIN",UDim2.fromOffset(20,148),UDim2.new(1,-40,0,47),palette.gold,function() togglePanel(nil); Action:FireServer("Replay") end)
 replayButton.Name="ReplayButton"
 local resultUpgrade=button(results,"UPGRADE YOUR PARADE",UDim2.fromOffset(20,205),UDim2.new(1,-40,0,36),palette.mint,function() togglePanel("Upgrades") end)
 resultUpgrade.Name="UpgradeButton"
+replayButton.NextSelectionDown=resultUpgrade
+resultUpgrade.NextSelectionUp=replayButton
 for _,child in ipairs(results:GetChildren()) do if child:IsA("GuiObject") then child.ZIndex=4 end end
 
+-- BEGIN PURE LAYOUT: extracted by tests/SparkClientLayoutSmoke.ps1.
+local function layoutFor(width,height,touch)
+	local panelWidth=math.min(640,math.max(240,width-24))
+	local panelHeight=math.min(560,math.max(200,height-64))
+	local touchWide=touch and width>=560
+	local stacked=touch and not touchWide
+	local compact=touchWide and height<330
+	local bankWidth=if compact then 140 elseif touchWide then math.min(240,width-320) else math.min(240,width-24)
+	local objectiveWidth=if compact then width-142 else math.min(580,width-24)
+	return {
+		panel={x=(width-panelWidth)/2,y=(height-panelHeight)/2,w=panelWidth,h=panelHeight},
+		capture={x=width-122,y=if compact then 126 else height-(if stacked then 244 else 182),w=108,h=if compact then 44 else 70},
+		dash={x=width-(if stacked then 122 else 232),y=if compact then 126 else height-165,w=if stacked then 108 else 100,h=if compact then 44 else 58},
+		bank={x=if touchWide then 180 else (width-bankWidth)/2,y=if compact then 128 elseif touchWide then 133 elseif touch then 187 else height-74,w=bankWidth,h=if touchWide then 36 else 40},
+		objective={x=if compact then 130 else (width-objectiveWidth)/2,y=if compact then 80 else 87,w=objectiveWidth,h=if compact then 40 else 44},
+		collection={x=12,y=if compact then 80 else 141,w=if compact then 110 else 158,h=if compact then 40 else 42},
+	}
+end
+-- END PURE LAYOUT
 local function resize()
 	local camera=workspace.CurrentCamera; if not camera then return end
-	local size=camera.ViewportSize
-	local width=math.max(280,math.min(640,size.X-24))
-	panel.Size=UDim2.fromOffset(width,math.max(220,math.min(560,size.Y-64)))
-	objective.Size=UDim2.fromOffset(math.min(580,size.X-24),44)
-	objective.Position=UDim2.new(.5,-math.min(580,size.X-24)/2,0,87)
+	local size=gui.AbsoluteSize
+	if size.X<=0 or size.Y<=0 then size=camera.ViewportSize end
+	local layout=layoutFor(size.X,size.Y,UserInputService.TouchEnabled)
+	panel.Size=UDim2.fromOffset(layout.panel.w,layout.panel.h)
+	for key,b in pairs({capture=captureButton,dash=dashButton,bank=bankGuide,objective=objective,collection=menu}) do
+		local rect=layout[key]
+		b.Position=UDim2.fromOffset(rect.x,rect.y); b.Size=UDim2.fromOffset(rect.w,rect.h)
+	end
+	objective.TextScaled=true
+	menu.TextSize=if layout.collection.w<158 then 12 else 17
 	toast.Size=UDim2.fromOffset(math.min(500,size.X-24),56); toast.Position=UDim2.new(.5,-math.min(500,size.X-24)/2,.58,-28)
 	results.Size=UDim2.fromOffset(math.min(400,size.X-24),260)
 	brand.TextSize=if size.X<500 then 13 else 18
@@ -269,7 +336,15 @@ local function bindViewport()
 	resize()
 end
 workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(bindViewport)
+gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(resize)
 bindViewport()
+make("UITextSizeConstraint",objective,{MinTextSize=12,MaxTextSize=17})
+UserInputService.LastInputTypeChanged:Connect(function()
+	if controllerActive() then
+		if selectedPanel then GuiService.SelectedObject=tabButtons[selectedPanel]
+		elseif results.Visible then GuiService.SelectedObject=replayButton end
+	end
+end)
 
 local function bind(name,action,...)
 	ContextActionService:BindAction(name,function(_,state)
@@ -331,6 +406,7 @@ Feedback.OnClientEvent:Connect(function(data)
 	if data.position then burst(data.position) end
 end)
 State.OnClientEvent:Connect(function(data)
+	local previousPhase=latest and latest.phase
 	latest=data
 	local seconds=data.remaining or 0
 	timer.Text=string.format("%d:%02d",math.floor(seconds/60),seconds%60)
@@ -341,6 +417,9 @@ State.OnClientEvent:Connect(function(data)
 	saveLabel.Text=data.saveStatus
 	resultScore.Text=string.format("+%d glow this round\n%d / 12 Sparks discovered",data.score,Profile.speciesCount(data.profile))
 	syncOverlays()
+	if previousPhase~=data.phase and controllerActive() and not selectedPanel then
+		GuiService.SelectedObject=if data.phase=="Results" then replayButton else nil
+	end
 	if data.cooldowns then
 		for action,key in pairs({Capture="capture",Dash="dash"}) do
 			if type(data.cooldowns[key])=="number" then cooldownUntil[action]=os.clock()+math.max(0,data.cooldowns[key]) end
