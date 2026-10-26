@@ -7,7 +7,17 @@ local TweenService=game:GetService("TweenService")
 local RunService=game:GetService("RunService")
 local Debris=game:GetService("Debris")
 local SoundService=game:GetService("SoundService")
+local StarterGui=game:GetService("StarterGui")
 local player=Players.LocalPlayer
+-- The default player list covers the score HUD. Retry while CoreScripts initialize.
+task.spawn(function()
+	for _=1,10 do
+		local ok=pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList,false) end)
+		if ok then return end
+		task.wait(.5)
+	end
+	warn("[Spark] PlayerList could not be hidden; check HUD overlap")
+end)
 local Shared=ReplicatedStorage:WaitForChild("Spark")
 local Config=require(Shared:WaitForChild("Config"))
 local Profile=require(Shared:WaitForChild("Profile"))
@@ -56,40 +66,53 @@ local function button(parent,text,position,dimensions,color,callback)
 	return b
 end
 local top=make("Frame",gui,{BackgroundColor3=palette.paper,BackgroundTransparency=0.05,
-	Size=UDim2.new(1,-24,0,70),Position=UDim2.fromOffset(12,8),BorderSizePixel=0})
+	Name="HudTop",Size=UDim2.new(1,-24,0,70),Position=UDim2.fromOffset(12,8),BorderSizePixel=0})
 round(top)
 local brand=label(top,"SPARK\nSTAMPEDE",18,UDim2.fromOffset(14,7),UDim2.fromOffset(130,54))
+brand.Name="Brand"
 local timer=label(top,"1:50",26,UDim2.new(.5,-40,0,5),UDim2.fromOffset(80,31))
+timer.Name="Timer"
 timer.TextXAlignment=Enum.TextXAlignment.Center
 local eventLabel=label(top,"GET READY",12,UDim2.new(.5,-100,0,40),UDim2.fromOffset(200,18),palette.purple)
+eventLabel.Name="Event"
 eventLabel.TextXAlignment=Enum.TextXAlignment.Center
 local glow=label(top,"0 GLOW",20,UDim2.new(1,-165,0,8),UDim2.fromOffset(150,28))
+glow.Name="Glow"
 glow.TextXAlignment=Enum.TextXAlignment.Right
 local carry=label(top,"PARADE 0 / 8",12,UDim2.new(1,-165,0,40),UDim2.fromOffset(150,20))
+carry.Name="Carry"
 carry.TextXAlignment=Enum.TextXAlignment.Right
 local objective=label(gui,"Connecting your collection…",17,UDim2.new(.5,-290,0,87),UDim2.fromOffset(580,44),palette.ink)
+objective.Name="Objective"
 objective.TextXAlignment=Enum.TextXAlignment.Center
 objective.BackgroundColor3=palette.paper; objective.BackgroundTransparency=.12; round(objective,12)
 local menu=button(gui,"COLLECTION  ≡",UDim2.fromOffset(12,141),UDim2.fromOffset(158,42),palette.paper,function() end)
+menu.Name="CollectionButton"
 local saveLabel=label(gui,"Loading",11,UDim2.new(0,14,1,-24),UDim2.fromOffset(230,18),palette.ink)
+saveLabel.Name="SaveStatus"
 local bankGuide=label(gui,"",16,UDim2.new(.5,-120,1,-74),UDim2.fromOffset(240,40),palette.ink)
+bankGuide.Name="BankGuide"
 bankGuide.TextXAlignment=Enum.TextXAlignment.Center
 bankGuide.BackgroundColor3=palette.gold; bankGuide.BackgroundTransparency=.08; round(bankGuide)
 bankGuide.Visible=false
-local controls=make("Frame",gui,{BackgroundTransparency=1,Size=UDim2.fromScale(1,1)})
+local controls=make("Frame",gui,{Name="Controls",BackgroundTransparency=1,Size=UDim2.fromScale(1,1)})
 local captureButton=button(controls,"CATCH\n[E / X]",UDim2.new(1,-122,1,-182),UDim2.fromOffset(108,70),palette.mint,function() requestAction("Capture") end)
+captureButton.Name="CaptureButton"
 local dashButton=button(controls,"DASH\n[Shift / B]",UDim2.new(1,-232,1,-165),UDim2.fromOffset(100,58),palette.gold,function() requestAction("Dash") end)
+dashButton.Name="DashButton"
 local toast=label(gui,"",20,UDim2.new(.5,-250,.58,-28),UDim2.fromOffset(500,56),palette.ink)
+toast.Name="FeedbackToast"
 toast.TextXAlignment=Enum.TextXAlignment.Center; toast.BackgroundColor3=palette.gold; toast.BackgroundTransparency=.05; round(toast)
 toast.Visible=false
 local toastSerial=0
-local shade=make("Frame",gui,{Size=UDim2.fromScale(1,1),BackgroundColor3=palette.ink,BackgroundTransparency=.3,Visible=false,ZIndex=5})
-local panel=make("Frame",shade,{AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.fromOffset(640,500),BackgroundColor3=palette.paper,BorderSizePixel=0,ZIndex=6})
+local shade=make("Frame",gui,{Name="Overlay",Size=UDim2.fromScale(1,1),BackgroundColor3=palette.ink,BackgroundTransparency=.3,Visible=false,ZIndex=5})
+local panel=make("Frame",shade,{Name="Panel",AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.fromOffset(640,500),BackgroundColor3=palette.paper,BorderSizePixel=0,ZIndex=6})
 round(panel,20)
 local panelTitle=label(panel,"YOUR SPARKS",24,UDim2.fromOffset(22,14),UDim2.new(1,-80,0,38)); panelTitle.ZIndex=7
-local content=make("ScrollingFrame",panel,{Position=UDim2.fromOffset(16,108),Size=UDim2.new(1,-32,1,-124),BackgroundTransparency=1,BorderSizePixel=0,
+panelTitle.Name="Title"
+local content=make("ScrollingFrame",panel,{Name="Content",Position=UDim2.fromOffset(16,108),Size=UDim2.new(1,-32,1,-124),BackgroundTransparency=1,BorderSizePixel=0,
 	ScrollBarThickness=5,CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,ZIndex=7})
-local tabs=make("Frame",panel,{Position=UDim2.fromOffset(16,62),Size=UDim2.new(1,-32,0,36),BackgroundTransparency=1,ZIndex=7})
+local tabs=make("Frame",panel,{Name="Tabs",Position=UDim2.fromOffset(16,62),Size=UDim2.new(1,-32,0,36),BackgroundTransparency=1,ZIndex=7})
 local renderPanel
 local function syncOverlays()
 	local playing=latest~=nil and latest.phase=="Playing"
@@ -104,9 +127,10 @@ local function togglePanel(name)
 	if name then renderPanel() end
 end
 local close=button(panel,"×",UDim2.new(1,-54,0,14),UDim2.fromOffset(38,38),palette.gold,function() togglePanel(nil) end); close.ZIndex=8
+close.Name="CloseButton"
 for i,name in ipairs({"Album","Upgrades","Quests","Arenas","Settings"}) do
 	local b=button(tabs,name,UDim2.new((i-1)/5,2,0,0),UDim2.new(1/5,-4,1,0),palette.mint,function() togglePanel(name) end)
-	b.TextSize=13; b.ZIndex=8
+	b.Name=name; b.TextSize=13; b.ZIndex=8
 end
 menu.Activated:Connect(function() togglePanel(if selectedPanel then nil else "Album") end)
 
@@ -134,13 +158,13 @@ local function miniature(id,parent)
 	model.PrimaryPart=part
 	return model
 end
-local function row(height)
-	local r=make("Frame",content,{Size=UDim2.new(1,-6,0,height),BackgroundColor3=Color3.fromRGB(234,234,249),BorderSizePixel=0,ZIndex=8})
+local function row(height,name)
+	local r=make("Frame",content,{Name=name or "Row",Size=UDim2.new(1,-6,0,height),BackgroundColor3=Color3.fromRGB(234,234,249),BorderSizePixel=0,ZIndex=8})
 	round(r,12)
 	return r
 end
 local function rowText(r,text,size,y)
-	local t=label(r,text,size,UDim2.fromOffset(14,y),UDim2.new(1,-28,0,size+14)); t.ZIndex=9; return t
+	local t=label(r,text,size,UDim2.fromOffset(14,y),UDim2.new(1,-28,0,size+14)); t.Name="Line_"..y; t.ZIndex=9; return t
 end
 renderPanel=function()
 	for _,child in ipairs(content:GetChildren()) do child:Destroy() end
@@ -149,12 +173,12 @@ renderPanel=function()
 	local p=latest.profile
 	panelTitle.Text=string.upper(selectedPanel or "Album").."  •  "..p.coins.." GLOW"
 	if selectedPanel=="Album" then
-		local intro=row(80); rowText(intro,Profile.speciesCount(p).." / 12 discovered • Your collection stays with you",15,4)
+		local intro=row(80,"CollectionSummary"); rowText(intro,Profile.speciesCount(p).." / 12 discovered • Your collection stays with you",15,4)
 		rowText(intro,"5 of a species → Glow   •   15 → Prism",13,44)
 		for _,def in ipairs(Config.Creatures) do
 			local count=p.album[def.id] or 0
-			local r=row(108)
-			local view=make("ViewportFrame",r,{Position=UDim2.fromOffset(8,8),Size=UDim2.fromOffset(92,92),BackgroundTransparency=1,ZIndex=9,
+			local r=row(108,"Album_"..def.id)
+			local view=make("ViewportFrame",r,{Name="Preview",Position=UDim2.fromOffset(8,8),Size=UDim2.fromOffset(92,92),BackgroundTransparency=1,ZIndex=9,
 				Ambient=Color3.fromRGB(200,200,200),LightColor=Color3.new(1,1,1),LightDirection=Vector3.new(-1,-1,-1)})
 			local mini=miniature(def.id,view); mini:PivotTo(CFrame.new())
 			local bounds,size=mini:GetBoundingBox()
@@ -162,48 +186,59 @@ renderPanel=function()
 			local target=bounds.Position
 			local camera=make("Camera",view,{CFrame=CFrame.lookAt(target+Vector3.new(.3,.18,-1).Unit*distance,target),FieldOfView=40}); view.CurrentCamera=camera
 			local name=label(r,def.name.."  •  "..def.rarity,17,UDim2.fromOffset(110,10),UDim2.new(1,-122,0,26)); name.ZIndex=9
+			name.Name="SpeciesName"
 			name.TextScaled=true; make("UITextSizeConstraint",name,{MinTextSize=11,MaxTextSize=17})
 			local description=label(r,def.trait,13,UDim2.fromOffset(110,39),UDim2.new(1,-122,0,30)); description.ZIndex=9
+			description.Name="Trait"
 			local mutation=p.mutations[def.id] or 0
 			local status=label(r,if count==0 then "Find in "..Config.Biomes[def.biome].name else count.." banked"..(if mutation>0 then "  •  "..Config.Mutations[mutation].name else ""),13,UDim2.fromOffset(110,73),UDim2.new(1,-122,0,24),palette.purple); status.ZIndex=9
+			status.Name="Status"
 		end
 	elseif selectedPanel=="Upgrades" then
 		for _,key in ipairs({"boots","magnet","basket"}) do
 			local upgrade=Config.Upgrades[key]; local level=p.upgrades[key]; local price=upgrade.costs[level+1]
-			local r=row(130); rowText(r,upgrade.name.." • Level "..level,18,6); rowText(r,upgrade.description,14,37)
+			local r=row(130,"Upgrade_"..key); rowText(r,upgrade.name.." • Level "..level,18,6); rowText(r,upgrade.description,14,37)
 			local b=button(r,if price then "UPGRADE • "..price.." GLOW" else "FULLY UPGRADED",UDim2.fromOffset(14,80),UDim2.new(1,-28,0,38),palette.gold,function() if price then Action:FireServer("Upgrade",key) end end); b.ZIndex=9
+			b.Name="UpgradeButton"
 		end
 	elseif selectedPanel=="Quests" then
 		for _,quest in ipairs(Config.Quests) do
 			local progress=Profile.questProgress(p,quest)
 			local claimed=p.quests[quest.id]
-			local r=row(104); rowText(r,quest.name.." • "..math.min(progress,quest.target).." / "..quest.target,17,5)
+			local r=row(104,"Quest_"..quest.id); rowText(r,quest.name.." • "..math.min(progress,quest.target).." / "..quest.target,17,5)
 			local b=button(r,if claimed then "COMPLETE" elseif progress>=quest.target then "CLAIM "..quest.reward.." GLOW" else "Reward: "..quest.reward.." glow",UDim2.fromOffset(14,53),UDim2.new(1,-28,0,38),if progress>=quest.target then palette.gold else palette.mint,function() Action:FireServer("Quest",quest.id) end); b.ZIndex=9
+			b.Name="ClaimButton"
 		end
 	elseif selectedPanel=="Arenas" then
 		for index,biome in ipairs(Config.Biomes) do
 			local unlocked=p.totalBanked>=biome.unlock
-			local r=row(137); rowText(r,biome.name,19,7); rowText(r,biome.description,13,37)
+			local r=row(137,"Arena_"..biome.id); rowText(r,biome.name,19,7); rowText(r,biome.description,13,37)
 			local b=button(r,if unlocked then (if latest.biome==index then "YOU ARE HERE" else "TRAVEL") else "Bank "..biome.unlock.." Sparks to unlock",UDim2.fromOffset(14,86),UDim2.new(1,-28,0,38),Color3.fromRGB(table.unpack(biome.accent)),function()
 				if unlocked then Action:FireServer("Biome",index); togglePanel(nil) end
 			end); b.ZIndex=9
+			b.Name="TravelButton"
 		end
 	elseif selectedPanel=="Settings" then
 		for _,setting in ipairs({{"reducedMotion","Reduced motion"},{"music","Music"},{"sfx","Sound effects"}}) do
-			local r=row(64)
+			local r=row(64,"Setting_"..setting[1])
 			local b=button(r,setting[2]..": "..(if p.settings[setting[1]] then "ON" else "OFF"),UDim2.fromOffset(12,10),UDim2.new(1,-24,0,44),palette.mint,function() Action:FireServer("Settings",{[setting[1]]=not p.settings[setting[1]]}) end); b.ZIndex=9
+			b.Name="ToggleButton"
 		end
-		local r=row(96); rowText(r,"Move: WASD / thumbstick • Jump: Space / A",14,7)
+		local r=row(96,"ControlsHelp"); rowText(r,"Move: WASD / thumbstick • Jump: Space / A",14,7)
 		rowText(r,"Catch: E / X • Dash: Shift / B • Bank: R / Y",14,34)
-		rowText(r,"Every reward is earned through play. No purchases.",13,61)
+		rowText(r,"Collection: M / Select • All rewards earned in play",13,61)
 	end
 end
 
-results=make("Frame",gui,{AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.fromOffset(400,260),BackgroundColor3=palette.paper,BorderSizePixel=0,Visible=false,ZIndex=3}); round(results,20)
+results=make("Frame",gui,{Name="Results",AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.fromOffset(400,260),BackgroundColor3=palette.paper,BorderSizePixel=0,Visible=false,ZIndex=3}); round(results,20)
 local resultTitle=label(results,"WHAT A PARADE!",25,UDim2.fromOffset(20,18),UDim2.new(1,-40,0,40)); resultTitle.TextXAlignment=Enum.TextXAlignment.Center
+resultTitle.Name="Title"
 local resultScore=label(results,"",19,UDim2.fromOffset(20,72),UDim2.new(1,-40,0,58)); resultScore.TextXAlignment=Enum.TextXAlignment.Center
-button(results,"CHASE AGAIN",UDim2.fromOffset(20,148),UDim2.new(1,-40,0,47),palette.gold,function() togglePanel(nil); Action:FireServer("Replay") end)
-button(results,"UPGRADE YOUR PARADE",UDim2.fromOffset(20,205),UDim2.new(1,-40,0,36),palette.mint,function() togglePanel("Upgrades") end)
+resultScore.Name="Score"
+local replayButton=button(results,"CHASE AGAIN",UDim2.fromOffset(20,148),UDim2.new(1,-40,0,47),palette.gold,function() togglePanel(nil); Action:FireServer("Replay") end)
+replayButton.Name="ReplayButton"
+local resultUpgrade=button(results,"UPGRADE YOUR PARADE",UDim2.fromOffset(20,205),UDim2.new(1,-40,0,36),palette.mint,function() togglePanel("Upgrades") end)
+resultUpgrade.Name="UpgradeButton"
 for _,child in ipairs(results:GetChildren()) do if child:IsA("GuiObject") then child.ZIndex=4 end end
 
 local function resize()
@@ -246,9 +281,10 @@ bind("SparkCapture","Capture",Enum.KeyCode.E,Enum.KeyCode.ButtonX)
 bind("SparkDash","Dash",Enum.KeyCode.LeftShift,Enum.KeyCode.ButtonB)
 bind("SparkBank","Bank",Enum.KeyCode.R,Enum.KeyCode.ButtonY)
 ContextActionService:BindAction("SparkMenu",function(_,state)
+	if UserInputService:GetFocusedTextBox() then return Enum.ContextActionResult.Pass end
 	if state==Enum.UserInputState.Begin then togglePanel(if selectedPanel then nil else "Album") end
 	return Enum.ContextActionResult.Sink
-end,false,Enum.KeyCode.Tab,Enum.KeyCode.ButtonSelect)
+end,false,Enum.KeyCode.M,Enum.KeyCode.ButtonSelect)
 
 local catalogModule=Shared:FindFirstChild("AudioCatalog")
 local audioCatalog=if catalogModule then require(catalogModule) else nil
