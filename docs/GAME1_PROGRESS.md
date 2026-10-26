@@ -1,32 +1,74 @@
-# Game #1 — Durable production log
+# Game #1 — durable production log
 
-**Date:** 2026-10-24
-**Lifecycle:** STRATEGY / REPOSITORY PREPARED. **No new SPARK STAMPEDE gameplay code or art implemented yet.** Studio MCP integration and automated playtests not yet verified. Do not claim release candidate or full automation active.
+Updated 2026-10-26 (America/Los_Angeles). **IMPLEMENTED FIRST INTEGRATED BUILD; LIVE SOLO QA IN PROGRESS. Not a release candidate.**
 
-## Verified facts
-- Repository `serag21/ProjectCascade`, active `main`, previous Roblox Studio Script Sync repo at `C:\Users\serag\source\repos\ProjectCascade`.
-- Existing Project Cascade server/client/state assets snapshot safely preserved at `archive/cascade-pre-game1-pivot-20261024` (commit `bcaabc660d98619716cd51fbc99bd38c053635f2`).
-- `AGENTS.md` and `docs/GAME1_PRODUCT_CHARTER.md` describe pivot objectives, research links, architecture constraints, quality gates.
-- Roblox official Studio native MCP documented; local Codex/Studio connection NOT yet confirmed.
-- Legacy Cascade source still occupies `src/`; new Game #1 agent must migrate IN PLACE after validating Studio file/source synchronization.
+## Recovery and source
 
-## Next autonomous agent actions — execute without asking the owner to micromanage
-1. Inspect this repo and current Studio place through Studio MCP, establish exact source-of-truth and active Script Sync file targets; confirm Studio ID and any old System32 mappings. If Studio MCP absent, test official quick-connect CLI and report only unavoidable user setup.
-2. Verify current Top Earning and Sep/Oct monthly charts, prioritize concept hooks, study *specific mechanics* from category competitors without copying assets or branding.
-3. Build full product plan with 3 detailed arena designs, art style board, prototype-critical interaction mechanics, inventory schema, reusable map generation pipeline and tests; then immediately start implementation, rather than stopping at a plan.
-4. Build and test one polished fully interactive arena + actual chase/catch/bank loop; inspect in Studio and fix rough UX; keep continuing toward G2/G3 release gates.
-5. Create and maintain `docs/GAME1_RELEASE_CHECKLIST.md`, write actual measured QA evidence and issue backlog, commit all substantial progress as recoverable milestones.
-6. Continue until a complete G4 release candidate exists, or document genuine external limits. Do not solicit cosmetic feedback from owner after every batch.
+- Initial tree clean; main safely fast-forwarded from bcaabc6 to origin/main 6e8c535. Safety branch codex/safety-before-spark-sync-20261025 retained.
+- Remote archive archive/cascade-pre-game1-pivot-20261024 remains bcaabc660d98619716cd51fbc99bd38c053635f2. Never rewrite it.
+- Four live Cascade scripts exported verbatim into backups/cascade-studio-20261025/ with path/class/RunContext manifest. Original source remains in src/. In the tested Studio session, legacy scripts were disabled and Baseplate/SpawnLocation/hello script moved into ServerStorage.CascadeRecovery, not destroyed.
+- Verified development place 127090454461830, universe 10769277416, title Project Cascade [DEV]. Initial Studio ID ec0f5394-bf5e-44ef-8784-457cf593fa2b; re-list each session.
+- All three Cascade Script Sync roots positively mapped to absolute repository paths. Disposable ModuleScript synced Studio→disk then disk→Studio; cleanup propagated. See GAME1_STUDIO_WORKFLOW.md.
+- **Git game/ is Spark's source of truth.** Run python tools/build_studio_install.py for compiled explicit Edit-mode installer and hash manifest in ignored build/. Spark is deliberately not Script Synced. All eight initial deployed scripts read back matching repository source exactly. No public publish performed.
 
-## Completion status
-| Gate | Status | Evidence |
-| --- | --- | --- |
-| G0 archive and charter | PARTIAL PASS | Git branch + docs prepared; Studio MCP/sync not tested |
-| G1 single arena interactive loop | NOT STARTED | none |
-| G2 complete content/progression | NOT STARTED | none |
-| G3 1/2/4 player QA + mobile | NOT STARTED | none |
-| G4 release candidate | NOT STARTED | none |
-| G5 published with permission | NOT AUTHORIZED | must be explicitly owner-approved |
+## Implemented milestones
 
-## Autonomy and safety
-One Codex session or task may stop at a usage cap, tool failure, turn completion or PC shutdown. Use this log plus commits as checkpoints and resume in subsequent executions. Work while PC+Studio are available, or do offline tasks and tests via cloud tasks when Studio isn't accessible. No public publishing, paid assets or irreversible monetization actions.
+- 73ff312: 12 creatures, 3 biomes, 3 upgrades, quests, deterministic earned mutations, sanitized profiles, retry/session-lease persistence.
+- 4a5c616: current top-earning mirror and Sep/Oct sampled concurrency research; release gates; draft store copy/storyboard. Revenue not inferred from concurrency.
+- 0ae6852: six original synthesized WAVs, generator/provenance/hashes. **IDs blank: authored soundtrack not audible in game yet.**
+- e39c3e6: three themed procedural arenas, twelve silhouettes, reproducible mock constructor smoke.
+- 0321166 / 6fd5a1d: authoritative captures/banking, 110s rounds, shared events, herd behavior/obstacle avoidance, movement validation, serialized final saves, responsive HUD/menu/controls/parades/settings.
+- bd23b31: live backup, installer/workflow, pure 1/2/4-contender simulation.
+- 7b0cf69: fallen-player rescue, starter targets near spawn, public QA attributes. da87ae0: stable GUI paths, M menu key, player-list overlap prevention. **These last two revisions are not yet live-tested at this checkpoint.**
+
+## Tests actually performed
+
+Official Luau 0.744 under ignored .tools/luau. Reproducible commands:
+
+```
+.tools/luau/luau.exe tests/SparkProfile.spec.luau
+.tools/luau/luau.exe tests/SparkPersistence.spec.luau
+.tools/luau/luau.exe tests/SparkRules.spec.luau
+.tools/luau/luau.exe tests/SparkSessionSimulation.spec.luau
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/SparkWorldSmoke.ps1
+python tools/generate_audio.py --verify
+python tools/build_studio_install.py
+```
+
+- Profile8 tests, Persistence11 tests, Rules111 assertions passed. Pure failure injection, sanitization, lease exclusion and duplicate protection covered.
+- Pure 1/2/4-contender simulation: 12,456 assertions, 70 player-rounds, 1,680 unique captures passed. **Not separate Studio clients or Main engine orchestration.** See docs/qa/SparkSessionSimulation.md.
+- Mock construction: 609 instances / 565 Parts / 123 colliders for world; 206 Parts for one of each species; 27 yields. **Not rendering/performance evidence.**
+- Six audio format/peak/DC/edge/hash checks pass; 3,218,682 bytes. **No audible QA/platform playback yet.**
+- Eight production scripts compile; initial deployed source readback matched. Compilation is not runtime proof.
+
+### Actual solo Studio run — 2026-10-25
+
+Studio0.744, verified place, build bd23b31 (Main0321166, Client6fd5a1d), isolated memory persistence, no production DataStore writes.
+
+- MCP Play exposed Client/Server. HUD, three arenas, 54 moving creatures booted. Inspected client/server console contained no reported game errors in this run.
+- Actual MCP W/E and character_navigation: Bunvolt caught/carried, return to bank awarded exactly4 glow, dash feedback observed. Album opened with real pointer input and showed1/12 discovered, Bunvolt1 banked.
+- Observed log after join: first_action11.091s; first_catch20.456s; first_bank38.853s; first_round110.184s. **Action10s/reward20s gates were missed in this first test**, which included tool-inspection delays. Starter placement then tightened; retest pending.
+- Rendered album screenshot saved at docs/qa/2026-10-25/album.png; other inline screenshots inspected but not all saved.
+- Instant MCP clicks/keyPress did not reliably activate UI. Explicit mouseButtonDown→150ms wait→mouseButtonUp→200ms wait successfully fired MouseButton1Click/Activated. Use stable GUI paths from da87ae0. Temporary QA instance renames/signals were play-only diagnostics.
+- Quests tab click issued; claim/upgrade/replay not verified. No real multi-client/mobile/DataStore/audio/ten-round soak/physical-device performance tests yet.
+
+## Gates and next work
+
+| Gate | Status |
+| --- | --- |
+| G0 | Identity/archive/script backup/mappings/two-way probe verified; full local place backup and rollback rehearsal pending |
+| G1 | Live chase/catch/bank/dash and first round observed; revised hook, replay, upgrade and independent comprehension tests pending |
+| G2 | Broad implementation exists; audio binding, gameplay/art polish and complete live audit pending |
+| G3 | Pure tests passed, initial solo run only;2/4 clients,soak,device,security,engine persistence pending |
+| G4 | NOT READY; no owner candidate playtest requested |
+| G5 | NOT AUTHORIZED |
+
+1. Re-list Studio. Last heartbeat saw restarted Studio on home screen (ID324ca58a-4ee5-4798-b9d2-7c45ae115a7c,name null), returning Place is not open. Home screen offers Project Cascade [DEV]. Open, verify identity/source, reapply latest installer. Do not assume unsaved prior install survived restart.
+2. Install7b0cf69/da87ae0 and read back. Test fresh catch timing, three-catch haul, quest idempotence, upgrade debit/effect,110s results, Replay, fall/death recovery and invalid remotes.
+3. Safely save full local place/candidate and rehearse rollback. Studio Test Server/Clients UI needed for2/4 actual clients; MCP start_stop_play only exposes solo.
+4. Bind original audio through supported free permitted workflow and audit playback/permissions. Create real marketing artifacts. No Robux/public publishing/monetization.
+5. Fix observed weaknesses, measure performance and run10 genuine rounds; append evidence and update release checklist.
+
+## Continuation
+
+Desktop heartbeat continue-spark-stampede-production is ACTIVE every4 hours in this chat, notifying only meaningful changes. Local work requires awake host/app and reachable Studio. Some subagent turns hit account usage limits; commits survived. Scheduling is not unlimited compute. No credentials committed, Robux spent, monetization or public publication enabled.
