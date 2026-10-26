@@ -9,3 +9,5 @@ Thumbs.db
 
 # Local files / logs
 *.log
+.tools/
+build/

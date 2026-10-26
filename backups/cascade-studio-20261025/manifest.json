@@ -1,0 +1,30 @@
+{
+  "placeId": 127090454461830,
+  "gameId": 10769277416,
+  "studioId": "ec0f5394-bf5e-44ef-8784-457cf593fa2b",
+  "scripts": [
+    {
+      "class": "Script",
+      "path": "Workspace.Script",
+      "runContext": "Enum.RunContext.Legacy",
+      "length": 22
+    },
+    {
+      "class": "Script",
+      "path": "StarterPlayer.StarterPlayerScripts.Cascade.CascadeUI",
+      "runContext": "Enum.RunContext.Client",
+      "length": 18938
+    },
+    {
+      "class": "ModuleScript",
+      "path": "ReplicatedStorage.Cascade.CascadeState",
+      "length": 3713
+    },
+    {
+      "class": "Script",
+      "path": "ServerScriptService.Cascade.CascadeServer",
+      "runContext": "Enum.RunContext.Server",
+      "length": 64329
+    }
+  ]
+}
