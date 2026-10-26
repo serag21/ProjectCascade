@@ -42,6 +42,51 @@ local persistence = Persistence.new(store, os.time, {
 	sessionId = game.JobId..":"..HttpService:GenerateGUID(false), wait = task.wait,
 })
 local sessions, herd = {}, {}
+-- BEGIN PURE LIFECYCLE
+-- This exact block is exercised by tests/test_spark_lifecycle.py using the Luau runtime.
+local Lifecycle={}
+function Lifecycle.new() return {closing=false,loads={},finalizers={}} end
+function Lifecycle.beginLoad(work,s)
+	if work.closing then return false end
+	work.loads[s]=true
+	return true
+end
+function Lifecycle.finishLoad(work,s,hasProfile)
+	-- Transfer ownership without a gap in the work tracked by BindToClose.
+	local detached=work.closing or s.detached
+	if detached and hasProfile then work.finalizers[s]=true end
+	work.loads[s]=nil
+	return if detached then (if hasProfile then "finalize" else "discard") else "active"
+end
+function Lifecycle.beginFinalize(work,s)
+	if s.finalizing then return false end
+	s.finalizing=true; work.finalizers[s]=true
+	return true
+end
+function Lifecycle.finishFinalize(work,s)
+	s.finalized=true; work.finalizers[s]=nil
+end
+function Lifecycle.pending(work)
+	local count=0
+	for _ in pairs(work.loads) do count+=1 end
+	for _ in pairs(work.finalizers) do count+=1 end
+	return count
+end
+function Lifecycle.markDirty(s)
+	s.revision=(s.revision or 0)+1; s.dirty=true
+	s.saveStatus=if s.saving then "Saving earlier progress" else "Save pending"
+end
+function Lifecycle.saveResult(s,ok,snapshotRevision,studio)
+	if ok then
+		s.persistedRevision=math.max(s.persistedRevision or 0,snapshotRevision)
+		s.dirty=(s.revision or 0)>s.persistedRevision
+		s.saveStatus=if s.dirty then "Save pending" elseif studio then "Studio test save" else "Saved"
+	else
+		s.saveStatus="Save retry pending"
+	end
+end
+-- END PURE LIFECYCLE
+local lifecycle=Lifecycle.new()
 local arenaEpoch=os.clock()
 local random = Random.new(90210)
 local nextCreatureId = 0
@@ -142,7 +187,7 @@ local function bank(player,s,automatic)
 	s.score+=reward
 	metric(player,s,"first_bank")
 	feedback(player,"Bank",string.format("+%d glow • %d Sparks banked%s",reward,#catches,if newSpecies>0 then " • NEW ALBUM ENTRY!" else ""))
-	s.dirty=true
+	Lifecycle.markDirty(s)
 	send(player,s)
 end
 local function beginRound(player,s)
@@ -214,6 +259,7 @@ local function capture(player,s)
 end
 
 Action.OnServerEvent:Connect(function(player,action,payload)
+	if lifecycle.closing then return end
 	local s=sessions[player]
 	if not s or type(action)~="string" or #action>24 then return end
 	if not Rules.allow(s.transport,"request",os.clock(),0.08) then return end
@@ -243,17 +289,19 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 		bank(player,s,false)
 	elseif action=="Upgrade" and type(payload)=="string" and #payload<=20 then
 		local ok,message=Profile.buy(s.profile,payload)
-		if ok then s.dirty=true; metric(player,s,"first_upgrade"); local _,h=rootOf(player); if h then h.WalkSpeed=speed(s) end end
+		if ok then Lifecycle.markDirty(s); metric(player,s,"first_upgrade"); local _,h=rootOf(player); if h then h.WalkSpeed=speed(s) end end
 		feedback(player,if ok then "Upgrade" else "Hint",message); send(player,s)
 	elseif action=="Quest" and type(payload)=="string" and #payload<=40 then
 		local ok,message=Profile.claim(s.profile,payload)
-		if ok then s.dirty=true end
+		if ok then Lifecycle.markDirty(s) end
 		feedback(player,if ok then "Quest" else "Hint",message); send(player,s)
 	elseif action=="Settings" and type(payload)=="table" then
+		local changed=false
 		for _,key in ipairs({"reducedMotion","music","sfx"}) do
-			if type(payload[key])=="boolean" then s.profile.settings[key]=payload[key] end
+			if type(payload[key])=="boolean" and payload[key]~=s.profile.settings[key] then s.profile.settings[key]=payload[key]; changed=true end
 		end
-		s.dirty=true; send(player,s)
+		if changed then Lifecycle.markDirty(s) end
+		send(player,s)
 	elseif action=="Biome" and type(payload)=="number" and payload%1==0 and Config.Biomes[payload] then
 		if #s.carry>0 then feedback(player,"Hint","Bank your parade before travelling"); return end
 		if s.profile.totalBanked < Config.Biomes[payload].unlock then feedback(player,"Hint","Bank more Sparks to unlock this arena"); return end
@@ -261,18 +309,29 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 	end
 end)
 
+local finalize
 local function join(player)
 	local s={profile=nil,ready=false,clientReady=false,phase="Loading",carry={},biome=1,score=0,
-		buckets={},transport={},metrics={},joined=os.clock(),saveStatus="Loading",suspiciousUntil=0,dirty=false}
+		buckets={},transport={},metrics={},joined=os.clock(),saveStatus="Loading",suspiciousUntil=0,dirty=false,revision=0,persistedRevision=0}
+	if not Lifecycle.beginLoad(lifecycle,s) then
+		player:Kick("This server is closing. Please rejoin.")
+		return
+	end
 	sessions[player]=s
 	player.CameraMinZoomDistance=9; player.CameraMaxZoomDistance=27
 	player.CharacterAdded:Connect(function()
 		task.wait(0.25)
 		if sessions[player]==s and s.ready then teleport(player,s) end
 	end)
-	local profile,status=persistence:load(player.UserId)
-	if sessions[player]~=s then
-		if profile then persistence:release(player.UserId,profile) end
+	local ran,profile,status=pcall(function() return persistence:load(player.UserId) end)
+	if not ran then warn("[Spark] unexpected load error: "..tostring(profile)); profile=nil; status="unavailable" end
+	s.profile=profile
+	s.detached=s.detached or sessions[player]~=s
+	local disposition=Lifecycle.finishLoad(lifecycle,s,profile~=nil)
+	if disposition=="finalize" then
+		finalize(player,s)
+		return
+	elseif disposition=="discard" then
 		return
 	end
 	if not profile then
@@ -285,9 +344,6 @@ local function join(player)
 	if profile.lastSeen and profile.lastSeen>0 then metric(player,s,"return") end
 	if s.clientReady then beginRound(player,s) end
 end
-Players.PlayerAdded:Connect(join)
-for _,player in ipairs(Players:GetPlayers()) do task.spawn(join,player) end
-
 local function haltForLease(player,s,status)
 	s.ready=false; s.leaseLost=true; s.saveStatus="Reconnect to protect your collection"
 	warn("[Spark] progression halted: "..tostring(status))
@@ -295,34 +351,41 @@ local function haltForLease(player,s,status)
 	if player.Parent==Players then player:Kick("Your collection connection expired. Please rejoin; this server will not overwrite another session.") end
 end
 
-local function finalize(player,s)
-	local deadline=os.clock()+22
-	if s.finalizing then
+finalize=function(player,s)
+	local deadline=math.min(os.clock()+22,lifecycle.deadline or math.huge)
+	if not s.profile or s.leaseLost then return end
+	if not Lifecycle.beginFinalize(lifecycle,s) then
 		while not s.finalized and os.clock()<deadline do task.wait(.05) end
 		return
 	end
-	if not s.profile or s.leaseLost then return end
-	s.finalizing=true
-	-- Freeze the final snapshot only after banking legitimate carry once.
-	if s.ready then bank(player,s,true) end
-	s.ready=false; s.phase="Closing"; s.profile.lastSeen=os.time()
-	while s.saving and os.clock()<deadline do task.wait(.05) end
-	local ok,status=false,"busy"
-	while os.clock()<deadline and not s.leaseLost do
-		ok,status=persistence:release(player.UserId,s.profile)
-		if ok or (status~="busy" and status~="unavailable") then break end
-		task.wait(.2)
-	end
-	s.finalized=true
-	if not ok then warn("[Spark] final save unconfirmed: "..tostring(status)) end
+	local ran,failure=pcall(function()
+		-- Freeze the final snapshot only after banking legitimate carry once.
+		if s.ready then bank(player,s,true) end
+		s.ready=false; s.phase="Closing"; s.profile.lastSeen=os.time()
+		while s.saving and os.clock()<deadline do task.wait(.05) end
+		local ok,status=false,"busy"
+		while os.clock()<deadline and not s.leaseLost do
+			ok,status=persistence:release(player.UserId,s.profile)
+			if ok or (status~="busy" and status~="unavailable") then break end
+			task.wait(.2)
+		end
+		if ok then Lifecycle.saveResult(s,true,s.revision,RunService:IsStudio())
+		else warn("[Spark] final save unconfirmed: "..tostring(status)) end
+	end)
+	s.ready=false
+	Lifecycle.finishFinalize(lifecycle,s)
+	if not ran then warn("[Spark] final save errored: "..tostring(failure)) end
 end
 Players.PlayerRemoving:Connect(function(player)
 	local s=sessions[player]; sessions[player]=nil
-	if s then finalize(player,s) end
+	if s then s.detached=true; finalize(player,s) end
 end)
+Players.PlayerAdded:Connect(join)
+for _,player in ipairs(Players:GetPlayers()) do task.spawn(join,player) end
 
 local accumulator,networkAt=0,0
 RunService.Heartbeat:Connect(function(dt)
+	if lifecycle.closing then return end
 	accumulator+=dt
 	if accumulator<0.1 then return end
 	local step=math.min(accumulator,0.25); accumulator=0
@@ -339,7 +402,7 @@ RunService.Heartbeat:Connect(function(dt)
 		if s.phase=="Playing" then
 			local phase=Rules.roundPhase(s.started,now,Config.RoundSeconds)
 			if phase=="Results" then
-				bank(player,s,true); s.phase="Results"; s.profile.rounds+=1; s.dirty=true
+				bank(player,s,true); s.phase="Results"; s.profile.rounds+=1; Lifecycle.markDirty(s)
 				metric(player,s,"first_round"); feedback(player,"Results","Round complete! Your parade earned "..s.score.." glow")
 				send(player,s)
 			end
@@ -424,16 +487,18 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 task.spawn(function()
-	while task.wait(30) do
+	while task.wait(30) and not lifecycle.closing do
 		for player,s in pairs(sessions) do
 			if not s.ready or s.saving then continue end
-			s.saving=true
+			s.saving=true; s.saveStatus="Saving"
 			task.spawn(function()
 				-- Save even clean profiles to renew the cross-server lease.
-				local ok,status=persistence:save(player.UserId,s.profile)
+				local snapshotRevision=s.revision
+				local ran,ok,status=pcall(function() return persistence:save(player.UserId,s.profile) end)
+				if not ran then warn("[Spark] unexpected save error: "..tostring(ok)); ok=false; status="unavailable" end
 				s.saving=false
-				s.saveStatus=if ok then (if RunService:IsStudio() then "Studio test save" else "Saved") else "Save retry pending"
-				if ok then s.dirty=false; s.leaseAt=os.clock()
+				Lifecycle.saveResult(s,ok,snapshotRevision,RunService:IsStudio())
+				if ok then s.leaseAt=os.clock()
 				elseif status=="lease-lost" or status=="not-loaded" then haltForLease(player,s,status)
 				else warn("[Spark] save failed "..tostring(status)) end
 				if sessions[player]==s then send(player,s) end
@@ -442,16 +507,15 @@ task.spawn(function()
 	end
 end)
 game:BindToClose(function()
-	local remaining=0
+	lifecycle.closing=true
+	lifecycle.deadline=os.clock()+25
 	for player,s in pairs(sessions) do
 		if not s.profile or s.leaseLost then continue end
-		remaining+=1
-		task.spawn(function()
-			finalize(player,s)
-			remaining-=1
-		end)
+		task.spawn(finalize,player,s)
 	end
-	local deadline=os.clock()+25
-	while remaining>0 and os.clock()<deadline do task.wait(0.1) end
+	-- Includes detached PlayerRemoving saves and loads that may acquire a lease late.
+	while Lifecycle.pending(lifecycle)>0 and os.clock()<lifecycle.deadline do task.wait(0.1) end
+	local pending=Lifecycle.pending(lifecycle)
+	if pending>0 then warn("[Spark] shutdown deadline: "..pending.." load/final-save operations remain unconfirmed") end
 end)
 print("[Spark] Staged build booted; 3 arenas, 54 moving Sparks; publishing remains unauthorized")
