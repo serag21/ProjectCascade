@@ -79,6 +79,13 @@ local function send(player,s)
 	if not s.profile or player.Parent~=Players then return end
 	local elapsed = if s.started then os.clock()-s.started else 0
 	local now=os.clock()
+	-- Public, nonsensitive server summaries make live assertions reproducible.
+	player:SetAttribute("SparkPhase",s.phase)
+	player:SetAttribute("SparkGlow",s.profile.coins)
+	player:SetAttribute("SparkTotalBanked",s.profile.totalBanked)
+	player:SetAttribute("SparkSpecies",Profile.speciesCount(s.profile))
+	player:SetAttribute("SparkRounds",s.profile.rounds)
+	player:SetAttribute("SparkSaveStatus",s.saveStatus)
 	State:FireClient(player,{
 		phase=s.phase,remaining=math.max(0,math.ceil(Config.RoundSeconds-elapsed)),
 		biome=s.biome,carry=#s.carry,capacity=capacity(s),score=s.score,
@@ -105,13 +112,20 @@ local function validApproach(player,s)
 	if not root or not humanoid or humanoid.Health<=0 or not s.motion then return false end
 	local arena=world.arenas[s.biome]
 	local now=os.clock()
-	local valid=Rules.movement(s.motion,xyz(root.Position),now,{origin=xyz(arena.origin),radius=78,
+	local valid,reason=Rules.movement(s.motion,xyz(root.Position),now,{origin=xyz(arena.origin),radius=78,
 		minY=arena.origin.Y-4,maxY=arena.origin.Y+24,speed=speed(s)+2,burst=10})
 	s.suspiciousUntil=s.motion.blockedUntil or 0
 	if not valid then
-		local safe=s.motion.position
-		root.CFrame=CFrame.new(safe.x,safe.y,safe.z)
-		root.AssemblyLinearVelocity=Vector3.zero
+		if reason=="Arena bounds" or (reason=="Height bounds" and root.Position.Y<arena.origin.Y-4) then
+			-- A last valid point below the floor would trap a fallen player forever.
+			-- Rescue to the authored spawn, retaining the action quarantine.
+			teleport(player,s)
+			s.motion.blockedUntil=now+1.5; s.suspiciousUntil=now+1.5
+		else
+			local safe=s.motion.position
+			root.CFrame=CFrame.new(safe.x,safe.y,safe.z)
+			root.AssemblyLinearVelocity=Vector3.zero
+		end
 	end
 	return valid and now>=s.suspiciousUntil
 end
@@ -151,8 +165,9 @@ local function spawnCreature(biome,index)
 	local angle=random:NextNumber(0,math.pi*2)
 	local radius=random:NextNumber(10,43)
 	local position=arena.origin+Vector3.new(math.cos(angle)*radius,2.2,math.sin(angle)*radius)
-	-- Visible beginner herd directly ahead of the spawn, within one short approach.
-	if index<=3 then position=arena.origin+Vector3.new((index-2)*7,2.2,27) end
+	-- Three explicit-catch targets stay within the starting 10-stud capture radius.
+	-- Small home circles preserve gentle animation without drifting away during onboarding.
+	if index<=3 then position=arena.origin+Vector3.new((index-2)*4,2.2,30) end
 	local model=World.creature(def,creaturesFolder)
 	nextCreatureId+=1
 	model.Name="Spark_"..nextCreatureId
@@ -371,7 +386,7 @@ RunService.Heartbeat:Connect(function(dt)
 		if flat.Magnitude>48 then direction=-flat.Unit end
 		if c.beginner then
 			local toHome=c.home-c.position; toHome=Vector3.new(toHome.X,0,toHome.Z)
-			if toHome.Magnitude>5 then direction=toHome.Unit end
+			if toHome.Magnitude>.65 then direction=toHome.Unit end
 		end
 		-- Authored steering islands have 4.5-stud collision radius. Keep a 2.5-stud body margin.
 		for _,x in ipairs({-26.163,26.163}) do
@@ -385,6 +400,10 @@ RunService.Heartbeat:Connect(function(dt)
 		c.heading=math.atan2(direction.Z,direction.X)
 		local pace=c.def.speed*eventScale
 		c.position+=direction*pace*step
+		if c.beginner then
+			local fromHome=Vector3.new(c.position.X-c.home.X,0,c.position.Z-c.home.Z)
+			if fromHome.Magnitude>.75 then c.position=c.home+fromHome.Unit*.75 end
+		end
 		for _,x in ipairs({-26.163,26.163}) do
 			for _,z in ipairs({-26.163,26.163}) do
 				local island=arena.origin+Vector3.new(x,0,z)
