@@ -1,0 +1,438 @@
+-- Spark Stampede authoritative session orchestrator. Activate only after G0.
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local DataStoreService = game:GetService("DataStoreService")
+local HttpService = game:GetService("HttpService")
+local Shared = ReplicatedStorage:WaitForChild("Spark")
+local Config = require(Shared.Config)
+local Profile = require(Shared.Profile)
+local Rules = require(Shared.Rules)
+local World = require(script.Parent.World)
+local Persistence = require(script.Parent.Persistence)
+
+local remotes = Instance.new("Folder")
+remotes.Name = "Remotes"
+remotes.Parent = Shared
+local function remote(name)
+	local value = Instance.new("RemoteEvent")
+	value.Name = name; value.Parent = remotes
+	return value
+end
+local Action, State, Feedback = remote("Action"), remote("State"), remote("Feedback")
+local world = World.build(Config)
+local creaturesFolder = world.root:FindFirstChild("Creatures") or Instance.new("Folder")
+creaturesFolder.Name = "Creatures"; creaturesFolder.Parent = world.root
+local memory = {}
+local store
+if RunService:IsStudio() then
+	-- Isolated test data: never writes a production profile from Studio.
+	store = {
+		GetAsync = function(_,key) return memory[key] end,
+		UpdateAsync = function(_,key,callback)
+			local value = callback(memory[key]); if value ~= nil then memory[key] = value end
+			return value
+		end,
+	}
+	print("[Spark] Studio memory persistence; real cross-server durability NOT being tested")
+else
+	store = DataStoreService:GetDataStore("SparkStampedeProfiles_v1")
+end
+local persistence = Persistence.new(store, os.time, {
+	sessionId = game.JobId..":"..HttpService:GenerateGUID(false), wait = task.wait,
+})
+local sessions, herd = {}, {}
+local arenaEpoch=os.clock()
+local random = Random.new(90210)
+local nextCreatureId = 0
+local species = {}
+for _,def in ipairs(Config.Creatures) do species[def.id] = def end
+
+local function xyz(v) return {x=v.X,y=v.Y,z=v.Z} end
+local function feedback(player,kind,text,def,position)
+	if player.Parent~=Players then return end
+	Feedback:FireClient(player,{kind=kind,text=text,creature=def and def.id,position=position})
+end
+local function metric(player,s,name)
+	if s.metrics[name] then return end
+	s.metrics[name] = os.clock()-s.joined
+	-- Deliberately no invented retention analytics or private profile content.
+	print(string.format("[SparkMetric] user=%d event=%s elapsed=%.3f",player.UserId,name,s.metrics[name]))
+end
+local function capacity(s) return Config.MaxCarry + (s.profile.upgrades.basket or 0)*2 end
+local function speed(_s) return Config.WalkSpeed end
+local function dashCooldown(s) return math.max(1,Config.DashCooldown-(s.profile.upgrades.boots or 0)*Config.Upgrades.boots.cooldownReduction) end
+local function parade(player,s) player:SetAttribute("SparkParade",table.concat(s.carry,",")) end
+local function arenaEvent() return Rules.event((os.clock()-arenaEpoch)%Config.RoundSeconds) end
+local function rootOf(player)
+	local char = player.Character
+	return char and char:FindFirstChild("HumanoidRootPart"), char and char:FindFirstChildOfClass("Humanoid")
+end
+local function objective(s)
+	if not s.ready then return "Connecting your collection…" end
+	if s.phase == "Results" then return "Your haul is safe. Upgrade or chase again!" end
+	if #s.carry > 0 then return "Bring your parade to the glowing BANK gate" end
+	if s.profile.totalBanked == 0 then return "Move toward a Spark • CATCH when close" end
+	return "Chase Sparks • Dash to flank • Bank a group for a bonus"
+end
+local function send(player,s)
+	if not s.profile or player.Parent~=Players then return end
+	local elapsed = if s.started then os.clock()-s.started else 0
+	local now=os.clock()
+	State:FireClient(player,{
+		phase=s.phase,remaining=math.max(0,math.ceil(Config.RoundSeconds-elapsed)),
+		biome=s.biome,carry=#s.carry,capacity=capacity(s),score=s.score,
+		profile=s.profile,saveStatus=s.saveStatus,event=arenaEvent(),objective=objective(s),
+		bankPosition=world.arenas[s.biome].bank,ready=s.ready,
+		captureCooldown=Config.CaptureCooldown,dashCooldown=dashCooldown(s),
+		cooldowns={capture=math.max(0,Config.CaptureCooldown-(now-(s.buckets.capture or -math.huge))),
+			dash=math.max(0,dashCooldown(s)-(now-(s.buckets.dash or -math.huge)))},
+	})
+end
+local function teleport(player,s)
+	local root,humanoid = rootOf(player)
+	if root then
+		local arena=world.arenas[s.biome]
+		root.CFrame=CFrame.lookAt(arena.spawn,arena.origin+Vector3.new(0,3,0))
+		root.AssemblyLinearVelocity=Vector3.zero
+		s.motion={position=xyz(root.Position),at=os.clock(),credit=10,blockedUntil=0}
+		s.suspiciousUntil=0
+	end
+	if humanoid then humanoid.WalkSpeed=speed(s); humanoid.JumpPower=42 end
+end
+local function validApproach(player,s)
+	local root,humanoid=rootOf(player)
+	if not root or not humanoid or humanoid.Health<=0 or not s.motion then return false end
+	local arena=world.arenas[s.biome]
+	local now=os.clock()
+	local valid=Rules.movement(s.motion,xyz(root.Position),now,{origin=xyz(arena.origin),radius=78,
+		minY=arena.origin.Y-4,maxY=arena.origin.Y+24,speed=speed(s)+2,burst=10})
+	s.suspiciousUntil=s.motion.blockedUntil or 0
+	if not valid then
+		local safe=s.motion.position
+		root.CFrame=CFrame.new(safe.x,safe.y,safe.z)
+		root.AssemblyLinearVelocity=Vector3.zero
+	end
+	return valid and now>=s.suspiciousUntil
+end
+local function bank(player,s,automatic)
+	if not s.ready or #s.carry==0 then return end
+	local root = rootOf(player)
+	if not automatic and (not validApproach(player,s) or not root or (root.Position-world.arenas[s.biome].bank).Magnitude>12) then
+		feedback(player,"Hint","Follow BANK to save your parade"); return
+	end
+	-- Clear ownership before any callback; no yields in reward transaction.
+	local catches=s.carry; s.carry={}
+	parade(player,s)
+	local reward,newSpecies=Profile.bank(s.profile,catches)
+	s.score+=reward
+	metric(player,s,"first_bank")
+	feedback(player,"Bank",string.format("+%d glow • %d Sparks banked%s",reward,#catches,if newSpecies>0 then " • NEW ALBUM ENTRY!" else ""))
+	s.dirty=true
+	send(player,s)
+end
+local function beginRound(player,s)
+	if not s.ready then return end
+	if s.started then metric(player,s,"replay") end
+	s.phase="Playing"; s.started=os.clock(); s.carry={}; s.score=0; s.buckets={}
+	parade(player,s)
+	teleport(player,s)
+	feedback(player,"Round","CHASE • CATCH • BANK   |   110 seconds!")
+	send(player,s)
+end
+local function spawnCreature(biome,index)
+	local defs={}
+	for _,def in ipairs(Config.Creatures) do
+		if def.biome==Config.Biomes[biome].id or def.biome==biome then table.insert(defs,def) end
+	end
+	if #defs==0 then defs=Config.Creatures end
+	local def=defs[(index-1)%#defs+1]
+	local arena=world.arenas[biome]
+	local angle=random:NextNumber(0,math.pi*2)
+	local radius=random:NextNumber(10,43)
+	local position=arena.origin+Vector3.new(math.cos(angle)*radius,2.2,math.sin(angle)*radius)
+	-- Visible beginner herd directly ahead of the spawn, within one short approach.
+	if index<=3 then position=arena.origin+Vector3.new((index-2)*7,2.2,27) end
+	local model=World.creature(def,creaturesFolder)
+	nextCreatureId+=1
+	model.Name="Spark_"..nextCreatureId
+	model:SetAttribute("CreatureId",nextCreatureId); model:SetAttribute("Species",def.id)
+	model:PivotTo(CFrame.new(position))
+	herd[nextCreatureId]={id=nextCreatureId,def=def,model=model,biome=biome,
+		position=position,home=position,beginner=index<=3,heading=angle,seed=random:NextNumber(0,20),claimed=false,index=index}
+end
+for biome=1,#world.arenas do
+	for index=1,18 do spawnCreature(biome,index) end
+	task.wait()
+end
+
+local function capture(player,s)
+	if not Rules.allow(s.buckets,"capture",os.clock(),Config.CaptureCooldown) then return end
+	if not validApproach(player,s) then return end
+	local root,humanoid=rootOf(player)
+	if not root or not humanoid or humanoid.Health<=0 then return end
+	metric(player,s,"first_action")
+	local radius=Config.CaptureRadius+(s.profile.upgrades.magnet or 0)*1.5
+	local nearest,best=nil,math.huge
+	for _,creature in pairs(herd) do
+		local allowed=Rules.canCapture({phase=s.phase,ready=s.ready,carry=#s.carry,biome=s.biome,
+			position=xyz(root.Position),suspiciousUntil=s.suspiciousUntil},
+			{claimed=creature.claimed,biome=creature.biome,position=xyz(creature.position)},os.clock(),radius,capacity(s))
+		local offset=creature.position-root.Position
+		-- Wide forward arc rewards steering; close targets remain touch-friendly.
+		if allowed and (offset.Magnitude<4 or root.CFrame.LookVector:Dot(offset.Unit)>-0.2) and offset.Magnitude<best then
+			nearest=creature; best=offset.Magnitude
+		end
+	end
+	if not nearest then
+		feedback(player,"Hint",if #s.carry>=capacity(s) then "Parade full! Follow BANK" else "Get closer and face a Spark")
+		return
+	end
+	nearest.claimed=true -- atomic claim before effects and respawn scheduling
+	table.insert(s.carry,nearest.def.id)
+	parade(player,s)
+	nearest.model:Destroy(); herd[nearest.id]=nil
+	metric(player,s,"first_catch")
+	feedback(player,"Catch","Caught "..nearest.def.name.."!",nearest.def,nearest.position)
+	send(player,s)
+	task.delay(2,function() spawnCreature(nearest.biome,nearest.index) end)
+end
+
+Action.OnServerEvent:Connect(function(player,action,payload)
+	local s=sessions[player]
+	if not s or type(action)~="string" or #action>24 then return end
+	if not Rules.allow(s.transport,"request",os.clock(),0.08) then return end
+	if action=="Ready" then
+		s.clientReady=true
+		if s.ready and s.phase=="Loading" then beginRound(player,s) else send(player,s) end
+		return
+	end
+	if not s.ready then return end
+	if action=="Replay" then
+		if s.phase=="Results" then beginRound(player,s) end
+	elseif action=="Capture" then
+		capture(player,s)
+	elseif action=="Dash" and s.phase=="Playing" then
+		local root,humanoid=rootOf(player)
+		if validApproach(player,s) and root and humanoid and humanoid.Health>0 and Rules.allow(s.buckets,"dash",os.clock(),dashCooldown(s)) then
+			local direction=humanoid.MoveDirection
+			if not Rules.validPosition(xyz(direction)) then return end
+			if direction.Magnitude<0.1 then direction=root.CFrame.LookVector end
+			direction=Vector3.new(direction.X,0,direction.Z)
+			if direction.Magnitude<0.01 then return end
+			s.motion.dashStarted=os.clock(); s.motion.dashUntil=s.motion.dashStarted+0.35
+			root.AssemblyLinearVelocity=direction.Unit*65+Vector3.new(0,root.AssemblyLinearVelocity.Y,0)
+			metric(player,s,"first_action"); feedback(player,"Dash","WHOOSH!")
+		end
+	elseif action=="Bank" and s.phase=="Playing" and os.clock()>s.suspiciousUntil then
+		bank(player,s,false)
+	elseif action=="Upgrade" and type(payload)=="string" and #payload<=20 then
+		local ok,message=Profile.buy(s.profile,payload)
+		if ok then s.dirty=true; metric(player,s,"first_upgrade"); local _,h=rootOf(player); if h then h.WalkSpeed=speed(s) end end
+		feedback(player,if ok then "Upgrade" else "Hint",message); send(player,s)
+	elseif action=="Quest" and type(payload)=="string" and #payload<=40 then
+		local ok,message=Profile.claim(s.profile,payload)
+		if ok then s.dirty=true end
+		feedback(player,if ok then "Quest" else "Hint",message); send(player,s)
+	elseif action=="Settings" and type(payload)=="table" then
+		for _,key in ipairs({"reducedMotion","music","sfx"}) do
+			if type(payload[key])=="boolean" then s.profile.settings[key]=payload[key] end
+		end
+		s.dirty=true; send(player,s)
+	elseif action=="Biome" and type(payload)=="number" and payload%1==0 and Config.Biomes[payload] then
+		if #s.carry>0 then feedback(player,"Hint","Bank your parade before travelling"); return end
+		if s.profile.totalBanked < Config.Biomes[payload].unlock then feedback(player,"Hint","Bank more Sparks to unlock this arena"); return end
+		s.biome=payload; teleport(player,s); send(player,s)
+	end
+end)
+
+local function join(player)
+	local s={profile=nil,ready=false,clientReady=false,phase="Loading",carry={},biome=1,score=0,
+		buckets={},transport={},metrics={},joined=os.clock(),saveStatus="Loading",suspiciousUntil=0,dirty=false}
+	sessions[player]=s
+	player.CameraMinZoomDistance=9; player.CameraMaxZoomDistance=27
+	player.CharacterAdded:Connect(function()
+		task.wait(0.25)
+		if sessions[player]==s and s.ready then teleport(player,s) end
+	end)
+	local profile,status=persistence:load(player.UserId)
+	if sessions[player]~=s then
+		if profile then persistence:release(player.UserId,profile) end
+		return
+	end
+	if not profile then
+		feedback(player,"Error","Collection unavailable. Rejoin to protect your save.")
+		player:Kick("Your collection could not load safely ("..tostring(status).."). Please rejoin. No progress was overwritten.")
+		return
+	end
+	s.profile=profile; s.ready=true; s.leaseAt=os.clock(); s.saveStatus=if RunService:IsStudio() then "Studio test save" else "Saved"
+	metric(player,s,"join")
+	if profile.lastSeen and profile.lastSeen>0 then metric(player,s,"return") end
+	if s.clientReady then beginRound(player,s) end
+end
+Players.PlayerAdded:Connect(join)
+for _,player in ipairs(Players:GetPlayers()) do task.spawn(join,player) end
+
+local function haltForLease(player,s,status)
+	s.ready=false; s.leaseLost=true; s.saveStatus="Reconnect to protect your collection"
+	warn("[Spark] progression halted: "..tostring(status))
+	feedback(player,"Error","Collection connection lost. Rejoin to continue safely.")
+	if player.Parent==Players then player:Kick("Your collection connection expired. Please rejoin; this server will not overwrite another session.") end
+end
+
+local function finalize(player,s)
+	local deadline=os.clock()+22
+	if s.finalizing then
+		while not s.finalized and os.clock()<deadline do task.wait(.05) end
+		return
+	end
+	if not s.profile or s.leaseLost then return end
+	s.finalizing=true
+	-- Freeze the final snapshot only after banking legitimate carry once.
+	if s.ready then bank(player,s,true) end
+	s.ready=false; s.phase="Closing"; s.profile.lastSeen=os.time()
+	while s.saving and os.clock()<deadline do task.wait(.05) end
+	local ok,status=false,"busy"
+	while os.clock()<deadline and not s.leaseLost do
+		ok,status=persistence:release(player.UserId,s.profile)
+		if ok or (status~="busy" and status~="unavailable") then break end
+		task.wait(.2)
+	end
+	s.finalized=true
+	if not ok then warn("[Spark] final save unconfirmed: "..tostring(status)) end
+end
+Players.PlayerRemoving:Connect(function(player)
+	local s=sessions[player]; sessions[player]=nil
+	if s then finalize(player,s) end
+end)
+
+local accumulator,networkAt=0,0
+RunService.Heartbeat:Connect(function(dt)
+	accumulator+=dt
+	if accumulator<0.1 then return end
+	local step=math.min(accumulator,0.25); accumulator=0
+	local now=os.clock()
+	for player,s in pairs(sessions) do
+		if not s.ready then continue end
+		if now-(s.leaseAt or now)>=110 then haltForLease(player,s,"lease renewal timeout"); continue end
+		local root,humanoid=rootOf(player)
+		if root and humanoid then
+			local arena=world.arenas[s.biome]
+			local accepted=validApproach(player,s)
+			if accepted and s.phase=="Playing" and (root.Position-arena.bank).Magnitude<10 then bank(player,s,false) end
+		end
+		if s.phase=="Playing" then
+			local phase=Rules.roundPhase(s.started,now,Config.RoundSeconds)
+			if phase=="Results" then
+				bank(player,s,true); s.phase="Results"; s.profile.rounds+=1; s.dirty=true
+				metric(player,s,"first_round"); feedback(player,"Results","Round complete! Your parade earned "..s.score.." glow")
+				send(player,s)
+			end
+		end
+	end
+	local centroids={}
+	for _,c in pairs(herd) do
+		local center=centroids[c.biome] or {sum=Vector3.zero,count=0}
+		center.sum+=c.position; center.count+=1; centroids[c.biome]=center
+	end
+	local _,sharedScale=arenaEvent()
+	for _,c in pairs(herd) do
+		local arena=world.arenas[c.biome]
+		local time=now+c.seed
+		local direction=Vector3.new(math.cos(c.heading),0,math.sin(c.heading))
+		local nearest,dist=nil,26
+		local eventScale=if c.beginner then .55 else sharedScale
+		for player,s in pairs(sessions) do
+			if s.ready and s.phase=="Playing" and s.biome==c.biome then
+				local root=rootOf(player)
+				if root and Rules.validPosition(xyz(root.Position)) then local d=(root.Position-c.position).Magnitude; if d<dist then nearest=root.Position; dist=d end end
+			end
+		end
+		local center=centroids[c.biome]
+		if c.def.behavior=="herd" and center then
+			local toHerd=center.sum/center.count-c.position; toHerd=Vector3.new(toHerd.X,0,toHerd.Z)
+			if toHerd.Magnitude>7 then direction=direction:Lerp(toHerd.Unit,math.min(1,step*1.5)) end
+		elseif c.def.behavior=="wander" then
+			c.heading+=math.sin(time*.55)*step*.9
+			direction=Vector3.new(math.cos(c.heading),0,math.sin(c.heading))
+			eventScale*=.75+.15*math.sin(time*.8)
+		end
+		local awareness=if c.def.behavior=="wander" then 8 elseif c.def.behavior=="herd" then 15 else 26
+		if nearest and dist>0.1 and dist<awareness then
+			local away=Vector3.new(c.position.X-nearest.X,0,c.position.Z-nearest.Z)
+			if away.Magnitude>0.1 then
+				local flee=away.Unit
+				if c.def.behavior=="zigzag" then flee=(flee+Vector3.new(math.sin(time*3)*0.6,0,math.cos(time*3)*0.6)).Unit end
+				direction=direction:Lerp(flee,math.min(1,step*3))
+			end
+		else c.heading+=math.sin(time*0.6)*step*0.7 end
+		local delta=c.position-arena.origin
+		local flat=Vector3.new(delta.X,0,delta.Z)
+		if flat.Magnitude>48 then direction=-flat.Unit end
+		if c.beginner then
+			local toHome=c.home-c.position; toHome=Vector3.new(toHome.X,0,toHome.Z)
+			if toHome.Magnitude>5 then direction=toHome.Unit end
+		end
+		-- Authored steering islands have 4.5-stud collision radius. Keep a 2.5-stud body margin.
+		for _,x in ipairs({-26.163,26.163}) do
+			for _,z in ipairs({-26.163,26.163}) do
+				local island=arena.origin+Vector3.new(x,0,z)
+				local away=Vector3.new(c.position.X-island.X,0,c.position.Z-island.Z)
+				if away.Magnitude<10 and away.Magnitude>.01 then direction=direction+away.Unit*(10-away.Magnitude) end
+			end
+		end
+		if direction.Magnitude<0.01 then direction=Vector3.new(0,0,1) else direction=direction.Unit end
+		c.heading=math.atan2(direction.Z,direction.X)
+		local pace=c.def.speed*eventScale
+		c.position+=direction*pace*step
+		for _,x in ipairs({-26.163,26.163}) do
+			for _,z in ipairs({-26.163,26.163}) do
+				local island=arena.origin+Vector3.new(x,0,z)
+				local away=Vector3.new(c.position.X-island.X,0,c.position.Z-island.Z)
+				if away.Magnitude<7 then
+					local push=if away.Magnitude>.01 then away.Unit else Vector3.new(1,0,0)
+					c.position=island+push*7
+				end
+			end
+		end
+		c.position=Vector3.new(c.position.X,2.2+math.sin(time*4)*0.35,c.position.Z)
+		c.model:PivotTo(CFrame.lookAt(c.position,c.position+direction)*CFrame.Angles(0,0,math.sin(time*4)*0.08))
+	end
+	if now-networkAt>=0.5 then
+		networkAt=now
+		for player,s in pairs(sessions) do send(player,s) end
+	end
+end)
+
+task.spawn(function()
+	while task.wait(30) do
+		for player,s in pairs(sessions) do
+			if not s.ready or s.saving then continue end
+			s.saving=true
+			task.spawn(function()
+				-- Save even clean profiles to renew the cross-server lease.
+				local ok,status=persistence:save(player.UserId,s.profile)
+				s.saving=false
+				s.saveStatus=if ok then (if RunService:IsStudio() then "Studio test save" else "Saved") else "Save retry pending"
+				if ok then s.dirty=false; s.leaseAt=os.clock()
+				elseif status=="lease-lost" or status=="not-loaded" then haltForLease(player,s,status)
+				else warn("[Spark] save failed "..tostring(status)) end
+				if sessions[player]==s then send(player,s) end
+			end)
+		end
+	end
+end)
+game:BindToClose(function()
+	local remaining=0
+	for player,s in pairs(sessions) do
+		if not s.profile or s.leaseLost then continue end
+		remaining+=1
+		task.spawn(function()
+			finalize(player,s)
+			remaining-=1
+		end)
+	end
+	local deadline=os.clock()+25
+	while remaining>0 and os.clock()<deadline do task.wait(0.1) end
+end)
+print("[Spark] Staged build booted; 3 arenas, 54 moving Sparks; publishing remains unauthorized")
