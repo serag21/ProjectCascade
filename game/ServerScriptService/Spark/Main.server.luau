@@ -115,7 +115,7 @@ local function rootOf(player)
 end
 local function objective(s)
 	if not s.ready then return "Connecting your collection…" end
-	if s.phase == "Results" then return "Your haul is safe. Upgrade or chase again!" end
+	if s.phase == "Results" then return "Round banked! Upgrade or chase again • "..s.saveStatus end
 	if #s.carry > 0 then return "Bring your parade to the glowing BANK gate" end
 	if s.profile.totalBanked == 0 then return "Move toward a Spark • CATCH when close" end
 	return "Chase Sparks • Dash to flank • Bank a group for a bonus"
