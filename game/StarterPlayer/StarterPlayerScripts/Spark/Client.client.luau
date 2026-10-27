@@ -160,6 +160,54 @@ close.NextSelectionDown=tabButtons.Album
 content.NextSelectionUp=tabButtons.Album
 menu.Activated:Connect(function() togglePanel(if selectedPanel then nil else "Album") end)
 
+-- BEGIN STARTER VISIBILITY: exercised with event doubles by SparkStarterVisibilitySmoke.ps1.
+-- Private first catches occupy the same welcoming positions for each new player.
+-- Mask other owners locally; capture eligibility remains entirely server-owned.
+local function watchStarter(model,viewerId)
+	local masked={}
+	local function apply(item)
+		local owner=model:GetAttribute("StarterOwnerId")
+		local hidden=owner~=nil and owner~=viewerId
+		local property=if item:IsA("BasePart") then "LocalTransparencyModifier" elseif item:IsA("BillboardGui") then "Enabled" else nil
+		if not property then return end
+		if hidden then
+			if masked[item]==nil then masked[item]={property=property,value=item[property]} end
+			item[property]=if property=="Enabled" then false else 1
+		elseif masked[item] then
+			item[property]=masked[item].value
+			masked[item]=nil
+		end
+	end
+	local function refresh()
+		for _,item in ipairs(model:GetDescendants()) do apply(item) end
+	end
+	local ownerChanged=model:GetAttributeChangedSignal("StarterOwnerId"):Connect(refresh)
+	local added=model.DescendantAdded:Connect(apply)
+	local removed=model.DescendantRemoving:Connect(function(item)
+		local original=masked[item]
+		if original then item[original.property]=original.value; masked[item]=nil end
+	end)
+	refresh()
+	return function()
+		ownerChanged:Disconnect(); added:Disconnect(); removed:Disconnect()
+		for item,original in pairs(masked) do item[original.property]=original.value end
+		table.clear(masked)
+	end
+end
+-- END STARTER VISIBILITY
+task.spawn(function()
+	local herd=workspace:WaitForChild("SparkWorld"):WaitForChild("Creatures")
+	local watches={}
+	local function watch(model)
+		if model:IsA("Model") and not watches[model] then watches[model]=watchStarter(model,player.UserId) end
+	end
+	herd.ChildAdded:Connect(watch)
+	herd.ChildRemoved:Connect(function(model)
+		if watches[model] then watches[model](); watches[model]=nil end
+	end)
+	for _,model in ipairs(herd:GetChildren()) do watch(model) end
+end)
+
 local templates={}
 local function miniature(id,parent)
 	if templates[id] then local clone=templates[id]:Clone(); clone.Parent=parent; return clone end
@@ -170,7 +218,7 @@ local function miniature(id,parent)
 			if model:GetAttribute("Species")==id then
 				local clone=model:Clone()
 				for _,item in ipairs(clone:GetDescendants()) do
-					if item:IsA("BasePart") then item.Anchored=true; item.CanCollide=false; item.CanQuery=false; item.CanTouch=false
+					if item:IsA("BasePart") then item.Anchored=true; item.CanCollide=false; item.CanQuery=false; item.CanTouch=false; item.LocalTransparencyModifier=0
 					elseif item:IsA("BillboardGui") or item:IsA("ParticleEmitter") or item:IsA("Light") then item:Destroy() end
 				end
 				templates[id]=clone:Clone()
