@@ -103,15 +103,18 @@ function Add-Check([string]$Id, [string]$Executable, [string[]]$Arguments,
 $revision = Invoke-Captured 'git' @('rev-parse', 'HEAD')
 $gitStatus = Invoke-Captured 'git' @('status', '--porcelain=v1', '--untracked-files=normal')
 $sourceFiles = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'game') -Filter '*.luau' -Recurse -File | Sort-Object FullName)
+$sourceFiles += Get-Item -LiteralPath (Join-Path $repoRoot 'tools/StudioInstaller.luau')
 $suites = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'tests') -Filter '*.spec.luau' -File | Sort-Object FullName)
+$pythonSuites = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'tests') -Filter 'test_spark_*.py' -File | Sort-Object FullName)
+$smokeSuites = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'tests') -Filter 'Spark*Smoke.ps1' -File | Sort-Object FullName)
 $excludedSuites = @([ordered]@{path = 'tests/CascadeState.spec.luau';
     reason = 'Archived Cascade engine-only suite requires game.ReplicatedStorage; outside Spark offline scope. Not passed by this runner.'})
 $hashes = [ordered]@{}
-foreach ($file in @($sourceFiles) + @($suites)) {
+foreach ($file in @($sourceFiles) + @($suites) + @($pythonSuites) + @($smokeSuites)) {
     $relative = $file.FullName.Substring($repoRoot.Length + 1).Replace('\', '/')
     $hashes[$relative] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 }
-foreach ($relative in @('tools/run_checks.ps1', 'tests/SparkWorldSmoke.ps1', 'tools/generate_audio.py', 'assets/audio/manifest.json')) {
+foreach ($relative in @('tools/run_checks.ps1', 'tools/generate_audio.py', 'assets/audio/manifest.json')) {
     $hashes[$relative] = (Get-FileHash -LiteralPath (Join-Path $repoRoot $relative) -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
@@ -128,8 +131,19 @@ foreach ($file in $suites) {
 foreach ($path in $AdditionalSuite) {
     [void](Add-Check ('additional-suite:' + $path) $LuauPath @($path))
 }
-[void](Add-Check 'world-constructor-mock' $shellPath @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
-    (Join-Path $repoRoot 'tests/SparkWorldSmoke.ps1'), '-Luau', $LuauPath))
+foreach ($file in $pythonSuites) {
+    $relative = $file.FullName.Substring($repoRoot.Length + 1).Replace('\', '/')
+    $arguments = @($relative)
+    # This executable harness extracts production Luau and supports the CLI override.
+    # Other Python suites run directly, including ordinary unittest.main() scripts.
+    if ($file.Name -eq 'test_spark_lifecycle.py') { $arguments += @('--luau', $LuauPath) }
+    [void](Add-Check ('python-suite:' + $relative) $Python $arguments)
+}
+foreach ($file in $smokeSuites) {
+    $relative = $file.FullName.Substring($repoRoot.Length + 1).Replace('\', '/')
+    [void](Add-Check ('smoke:' + $relative) $shellPath @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+        $file.FullName, '-Luau', $LuauPath))
+}
 [void](Add-Check 'audio-format-and-manifest' $Python @('tools/generate_audio.py', '--verify') -AudioSummary)
 
 if ($VerifyFailClosed) {
@@ -177,7 +191,7 @@ foreach ($path in @($LuauPath, $CompilerPath)) {
 }
 $pythonVersion = Invoke-Captured $Python @('--version')
 $report = [ordered]@{
-    schema_version = 1; evidence_class = 'offline compilation, pure modules, mocked world constructor and audio file analysis'
+    schema_version = 1; evidence_class = 'offline compilation, pure modules, production-helper harnesses, mocked world/layout/installer and audio file analysis'
     not_tested = @('Studio gameplay', 'real multiplayer', 'real DataStore', 'rendering', 'audible playback', 'device performance')
     started_utc = $started.ToString('o'); completed_utc = [DateTime]::UtcNow.ToString('o')
     git_revision = $revision.stdout.Trim(); dirty = [bool]($gitStatus.stdout.Trim()); git_status = @($gitStatus.stdout.TrimEnd() -split "`r?`n" | Where-Object { $_ })

@@ -17,3 +17,9 @@ Two-way disposable probe performed: created ReplicatedStorage.Cascade.SparkSyncP
 Recovery: archive remote branch remains at bcaabc660d98619716cd51fbc99bd38c053635f2. Before pivot, four live LuaSourceContainers were exported verbatim under `backups/cascade-studio-20261025/` with path/class/RunContext metadata. Runtime world was absent in Edit mode (Cascade is generated on Play). The explicit installer disables legacy active scripts and relocates baseplate/spawn into a local recovery folder; it does not delete archive data or publish the experience.
 
 Spark source will be **not Script Synced**. This is intentional: explicit Git → generated installer → Studio is the sole write direction. Installer rejects an unexpected PlaceId or Play mode. Readback checks verify exact source after installation. Native Script Sync is retained for recovery and was verified in both directions before pivot.
+
+## Transactional installer update — October26/27
+
+The generator now embeds tools/StudioInstaller.luau, which is also executed directly by tests/SparkInstaller.spec.luau against a mock Instance tree. It preflights all paths/classes/sync ownership and refuses ambiguous or unmanifested source containers. Each source is read back after writing. Failure triggers reverse-order restoration of prior source/hash/RunContext/enabled state, legacy attributes/parents and source-mode attribute; newly created objects are removed. Rollback failures are explicitly reported. Edit mode is rechecked after yields.
+
+This protects against modeled partial writes; it does not replace a whole-place backup, survive a Studio process crash, or establish a real engine rollback pass. The October26 Download a Copy attempt hung and produced no file. Initial script exports and immutable Cascade archive remain the recovery baseline. Latest source is staged in Git and must be installed/reverified once Studio is available.

@@ -23,6 +23,7 @@ local function environment()
 	end
 	function methods:IsA(class)
 		return self.ClassName==class or (class=="BaseScript" and (self.ClassName=="Script" or self.ClassName=="LocalScript"))
+			or (class=="LuaSourceContainer" and (self.ClassName=="Script" or self.ClassName=="LocalScript" or self.ClassName=="ModuleScript"))
 	end
 	function methods:GetChildren()
 		local children={}
@@ -93,12 +94,18 @@ local function rejected(setup, fragment)
 	check(env.snapshot()==before,"failure changed prior state: "..fragment)
 end
 rejected(function(e) e.game.PlaceId=456 end,"Unexpected place")
+rejected(function(e) e.entries={} end,"Empty source manifest")
 rejected(function(e) e.game:GetService("RunService").running=true end,"Stop Play")
 rejected(function(e) e.main.sync="SyncedAsRoot" end,"second sync writer")
 rejected(function(e) e.main.Parent.sync="SyncedAsRoot" end,"second sync writer")
 rejected(function(e) e.entries[2].class="Script"; e.child(e.game:GetService("ReplicatedStorage"),"Part","Spark") end,"Unexpected source container")
 rejected(function(e) e.entries[1].class="LocalScript" end,"Unexpected script class")
 rejected(function(e) e.child(e.main.Parent,"Script","Main") end,"Ambiguous instance")
+rejected(function(e) e.child(e.main.Parent,"Script","ObsoleteMain") end,"Unmanifested Spark source")
+rejected(function(e) e.child(e.main.Parent,"ModuleScript","ObsoleteModule") end,"Unmanifested Spark source")
+rejected(function(e)
+	e.context.task.wait=function() e.game:GetService("RunService").running=true end
+end,"Stop Play")
 rejected(function(e) table.insert(e.entries,e.entries[1]) end,"Duplicate source path")
 rejected(function(e)
 	local recovery=e.child(e.game:GetService("ServerStorage"),"Folder","CascadeRecovery")

@@ -6,19 +6,19 @@ This is a gate ledger, not a test report. An unchecked item is not passed. Imple
 
 ## G0 — recoverable source and Studio
 
-- [ ] Local modifications preserved; `origin/main` synchronized without discarding changes; resulting commit recorded.
-- [ ] `archive/cascade-pre-game1-pivot-20261024` exists locally/remotely at the expected snapshot; no archive rewriting.
+- [x] Local modifications preserved; `origin/main` synchronized without discarding changes; resulting commit recorded. Evidence: [dated production log](GAME1_PROGRESS.md) and [sync record](GAME1_STUDIO_WORKFLOW.md); initial live build bd23b31, not the newest staged build.
+- [x] `archive/cascade-pre-game1-pivot-20261024` exists locally/remotely at the expected snapshot; no archive rewriting. Evidence: [dated production log](GAME1_PROGRESS.md) and [sync record](GAME1_STUDIO_WORKFLOW.md); initial live build bd23b31, not the newest staged build.
 - [ ] Intended Studio `studio_id`, process, place identity, local file and server state recorded.
 - [ ] Existing place saved/backed up before replacing active contents; backup location/recovery procedure recorded.
-- [ ] Actual Script Sync destinations inspected; no target resolves under Windows/System32 or outside the chosen repo root.
-- [ ] Disposable **file → Studio → file** probe observed in both directions, with exact paths and cleanup.
-- [ ] Single source of truth documented and enforced; staged implementation does not compete with live Studio edits.
+- [x] Actual Script Sync destinations inspected; no target resolves under Windows/System32 or outside the chosen repo root. Evidence: [dated production log](GAME1_PROGRESS.md) and [sync record](GAME1_STUDIO_WORKFLOW.md); initial live build bd23b31, not the newest staged build.
+- [x] Disposable **file → Studio → file** probe observed in both directions, with exact paths and cleanup. Evidence: [dated production log](GAME1_PROGRESS.md) and [sync record](GAME1_STUDIO_WORKFLOW.md); initial live build bd23b31, not the newest staged build.
+- [x] Single source of truth documented and enforced; staged implementation does not compete with live Studio edits. Evidence: [dated production log](GAME1_PROGRESS.md) and [sync record](GAME1_STUDIO_WORKFLOW.md); initial live build bd23b31, not the newest staged build.
 - [ ] Repeatable deployment and rollback verified against that place.
 
 ## G1 — playable first loop, not a delivery milestone
 
 - [ ] Enter solo directly into a coherent arena, facing targets and an unmistakable next action.
-- [ ] Actual movement, dash, steering/capture and banking performed in a real client.
+- [x] Actual movement, dash, steering/capture and banking performed in a real client. Evidence: [dated production log](GAME1_PROGRESS.md) and [sync record](GAME1_STUDIO_WORKFLOW.md); initial live build bd23b31, not the newest staged build.
 - [ ] Visible interaction ≤10s and first reward ≤20s, measured from spawn; sample count and video/log timestamps provided.
 - [ ] Independent tester understands solo objective ≤60s; record method and observation, not an invented score.
 - [ ] First satisfying complete round ≤120s from spawn, including result presentation; replay works immediately.
@@ -44,13 +44,13 @@ This is a gate ledger, not a test report. An unchecked item is not passed. Imple
 
 | Run | Minimum procedure | Required evidence | Status |
 | --- | --- | --- | --- |
-| Fresh solo | Default profile; move, dash, catch, bank, finish, upgrade, replay | Timed action log, client/server output, screenshots/video | NOT RUN / evidence pending |
+| Fresh solo | Default profile; move, dash, catch, bank, finish, upgrade, replay | Timed action log, client/server output, screenshots/video | PARTIAL: Oct25 movement/capture/bank/dash/round observed; upgrade/replay and current build pending |
 | Two clients | Same-target race, both bank, one late joins, one disconnects | Both client views, server inventory totals, no duplicate catch | NOT RUN / evidence pending |
 | Four clients | All moving/catching; mixed round phases; one disconnect/rejoin | Per-client state and objective completion; server errors | NOT RUN / evidence pending |
 | Ten-round soak | Ten consecutive complete rounds, arena/events rotation, replay every round | Round count, timings, instance/memory/network trends, no softlock | NOT RUN / evidence pending |
 | Death/respawn | Respawn carrying creatures and near round completion | Defined carry policy, restored HUD/control, no double reward | NOT RUN / evidence pending |
 | Rejoin/save | Bank, upgrade, claim quest; leave and reconnect | Exact before/after persisted values, session-lock behavior | NOT RUN / evidence pending |
-| Failure injection | Failed load, throttled save, transient retry, shutdown, competing session | Reproducible pure/integration commands and assertions | NOT RUN / evidence pending |
+| Failure injection | Failed load, throttled save, transient retry, shutdown, competing session | Reproducible pure/integration commands and assertions | Pure/profile/persistence/lifecycle tests passed; engine integration pending. [Report](qa/latest-checks.json) |
 | Remote abuse | Wrong types, NaN/infinity, floods, invalid IDs, out-of-range capture/bank | Rejection evidence; legitimate controls remain usable | NOT RUN / evidence pending |
 | Mobile | Portrait/landscape and representative low-end target; real touch controls | Device/resolution, HUD images, frame time and memory | NOT RUN / evidence pending |
 | Accessibility/audio | Reduced motion, SFX/music off/on, color/shape clarity | Real rendered/audio observations, persistent settings | NOT RUN / evidence pending |
@@ -87,4 +87,4 @@ Performance acceptance is not satisfied by an unmeasured claim of stable frame r
 
 ## Current honest blockers
 
-At creation, this checklist has **no attached completed engine/player/performance evidence**. Research and packaging copy are prepared separately. Read the latest production log and append verified evidence before changing any gate. Unavailable Studio must lead to useful offline implementation and queued engine cases; it must never lead to fabricated playtest success.
+Latest continuation: 2026-10-27 05:22UTC, Studio MCP inventory empty. Earlier October25 solo evidence is preserved, but the revised build has not been installed or live-tested. Nineteen offline checks passed; those do not close real multiplayer, audio, persistence, device or performance gates. The full-place backup attempt produced no file. See [issue ledger](GAME1_ISSUES.md) and [production log](GAME1_PROGRESS.md). No candidate or public publication approval is implied.

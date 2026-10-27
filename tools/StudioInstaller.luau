@@ -3,7 +3,11 @@
 return function(context, entries, expectedPlace)
 	local game, Instance, Enum, task = context.game, context.Instance, context.Enum, context.task
 	assert(game.PlaceId == expectedPlace, "Unexpected place; refusing to install")
-	assert(not game:GetService("RunService"):IsRunning(), "Stop Play before installation")
+	local function requireEdit()
+		assert(not game:GetService("RunService"):IsRunning(), "Stop Play before installation")
+	end
+	requireEdit()
+	assert(#entries > 0, "Empty source manifest; refusing to install")
 	local sync = game:GetService("InstanceFileSyncService")
 	local function unique(parent, name)
 		local found
@@ -15,7 +19,7 @@ return function(context, entries, expectedPlace)
 		end
 		return found
 	end
-	local seen = {}
+	local seen, recognized, roots = {}, {}, {}
 	for _, entry in ipairs(entries) do
 		local path = table.concat(entry.parts, ".")
 		assert(not seen[path], "Duplicate source path: " .. path); seen[path] = true
@@ -25,12 +29,19 @@ return function(context, entries, expectedPlace)
 			if parent then
 				assert(parent:IsA("Folder") or parent:IsA("StarterPlayerScripts"), "Unexpected source container: " .. parent:GetFullName())
 				assert(sync:GetStatus(parent) == Enum.InstanceFileSyncStatus.NotSynced, "Spark source container has a second sync writer: " .. parent:GetFullName())
+				if entry.parts[index] == "Spark" then roots[parent] = true end
 			end
 		end
 		local existing = parent and unique(parent, entry.parts[#entry.parts])
 		if existing then
 			assert(existing.ClassName == entry.class, "Unexpected script class at " .. path)
 			assert(sync:GetStatus(existing) == Enum.InstanceFileSyncStatus.NotSynced, "Spark must not have a second sync writer: " .. path)
+			recognized[existing] = true
+		end
+	end
+	for root in pairs(roots) do
+		for _, item in ipairs(root:GetDescendants()) do
+			assert(not item:IsA("LuaSourceContainer") or recognized[item], "Unmanifested Spark source; export and reconcile before installing: " .. item:GetFullName())
 		end
 	end
 	local serverStorage, workspace = game:GetService("ServerStorage"), game:GetService("Workspace")
@@ -69,6 +80,7 @@ return function(context, entries, expectedPlace)
 	end
 	local ok, failure = pcall(function()
 		for _, entry in ipairs(entries) do
+			requireEdit()
 			local parent = game:GetService(entry.parts[1])
 			for index = 2, #entry.parts - 1 do
 				parent = unique(parent, entry.parts[index]) or create("Folder", entry.parts[index], parent)
@@ -92,6 +104,7 @@ return function(context, entries, expectedPlace)
 			table.insert(installed, item)
 			task.wait()
 		end
+		requireEdit()
 		recovery = recovery or create("Folder", "CascadeRecovery", serverStorage)
 		for _, item in ipairs(legacy) do suspend(item) end
 		for _, item in ipairs(moved) do

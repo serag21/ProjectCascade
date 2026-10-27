@@ -1,6 +1,6 @@
 # Game #1 — durable production log
 
-Updated 2026-10-26 (America/Los_Angeles). **IMPLEMENTED FIRST INTEGRATED BUILD; LIVE SOLO QA IN PROGRESS. Not a release candidate.**
+Updated 2026-10-26 PDT / 2026-10-27 UTC. **INTEGRATED BUILD + SAVE/INSTALL/UI HARDENING; LIVE QA BLOCKED BY STUDIO AVAILABILITY. Not a release candidate.**
 
 ## Recovery and source
 
@@ -20,6 +20,20 @@ Updated 2026-10-26 (America/Los_Angeles). **IMPLEMENTED FIRST INTEGRATED BUILD; 
 - 0321166 / 6fd5a1d: authoritative captures/banking, 110s rounds, shared events, herd behavior/obstacle avoidance, movement validation, serialized final saves, responsive HUD/menu/controls/parades/settings.
 - bd23b31: live backup, installer/workflow, pure 1/2/4-contender simulation.
 - 7b0cf69: fallen-player rescue, starter targets near spawn, public QA attributes. da87ae0: stable GUI paths, M menu key, player-list overlap prevention. **These last two revisions are not yet live-tested at this checkpoint.**
+
+## Latest completed implementation batch — 2026-10-26/27
+
+- f1bc3f5: pending loads and detached departure saves remain tracked through shutdown; late loads release their leases; closing stops new progression. Save status acknowledges only the persisted revision, so an older write cannot mark newer rewards Saved. Eleven extracted-production-helper tests pass; actual engine shutdown/DataStore latency remains unverified.
+- 3e8b28a: mobile action buttons avoid reserved thumbstick/jump areas; narrow titles/tabs scale; gamepad menus/results receive focus and restore selection after refresh. Eleven canvas-size cases pass geometric checks, not rendering or actual touch/gamepad interaction. See GAME1_CLIENT_QA.md.
+- 4bf1556 and subsequent installer hardening: complete preflight before source writes, duplicate/class/sync/stale-source checks, readback, Edit-mode rechecks, transactional source/attribute/parent/enabled restoration on failure. Forty-five mocked assertions pass, including deliberate rollback failure reporting. Real Studio rollback rehearsal remains pending.
+- tools/run_checks.ps1 now includes compilation, all Spark Luau suites, production lifecycle harness, world/layout mock smoke and audio checks, with timestamp/HEAD/dirty/source hashes/exit codes. Final run at 2026-10-27 05:22:53–05:23:35UTC passed all19 checks (0failed); intentional child failure returned exit1 and was correctly recorded as failed. No tested source changed during the run. See docs/qa/latest-checks.json for exact commands, hashes and outputs.
+- Durable issue ledger: docs/GAME1_ISSUES.md. Offline fixes are not marked engine-verified closure.
+
+### Studio availability and backup attempt
+
+On October26, opened Project Cascade [DEV] in Studio a9042237-c870-4f83-ab86-16e43de5712d and verified place127090454461830/universe10769277416. Initial Spark sources were still present; newer patches were not installed. The local Download a Copy dialog became unresponsive while naming pre-refresh-place-20261026.rbxl. The target file does not exist; **no full-place backup success is claimed**. Escape timed out, process64196 reported Responding=False, and a read-only MCP state query remained stalled and was canceled. No forced process termination or public save/publish was performed.
+
+On 2026-10-27 at the 05:22UTC continuation, MCP returned an empty studios array. No new live gameplay, multiplayer, audio or performance tests were run in this batch. Earlier script exports/archive remain preserved. Reconnect/re-list before touching Studio; pending build must not be assumed installed.
 
 ## Tests actually performed
 
@@ -63,8 +77,8 @@ Studio0.744, verified place, build bd23b31 (Main0321166, Client6fd5a1d), isolate
 | G4 | NOT READY; no owner candidate playtest requested |
 | G5 | NOT AUTHORIZED |
 
-1. Re-list Studio. Last heartbeat saw restarted Studio on home screen (ID324ca58a-4ee5-4798-b9d2-7c45ae115a7c,name null), returning Place is not open. Home screen offers Project Cascade [DEV]. Open, verify identity/source, reapply latest installer. Do not assume unsaved prior install survived restart.
-2. Install7b0cf69/da87ae0 and read back. Test fresh catch timing, three-catch haul, quest idempotence, upgrade debit/effect,110s results, Replay, fall/death recovery and invalid remotes.
+1. Re-list Studio (latest inventory empty). Open/reconnect Project Cascade [DEV], verify identity, backup and absolute mappings; repeat disposable two-way probe. Save a full local copy and rehearse recovery before refreshing source. Never assume prior unsaved edits survived.
+2. Build/install the latest committed source and read back every file. Include starter/rescue, lifecycle, mobile/controller and transactional-installer revisions. Test fresh catch timing, three-catch haul, quest idempotence, upgrade debit/effect,110s results, Replay, fall/death recovery and invalid remotes.
 3. Safely save full local place/candidate and rehearse rollback. Studio Test Server/Clients UI needed for2/4 actual clients; MCP start_stop_play only exposes solo.
 4. Bind original audio through supported free permitted workflow and audit playback/permissions. Create real marketing artifacts. No Robux/public publishing/monetization.
 5. Fix observed weaknesses, measure performance and run10 genuine rounds; append evidence and update release checklist.
