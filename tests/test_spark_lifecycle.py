@@ -93,6 +93,14 @@ test("Studio acknowledgment is explicitly temporary and stale save cannot regres
     Lifecycle.markDirty(session);Lifecycle.saveResult(session,true,3,true)
     assert(session.dirty and session.saveStatus=="Save pending")
 end)
+test("actions stop at the acknowledged deadline, not response time",function()
+    assert(Lifecycle.leaseValid(1120,1119))
+    assert(not Lifecycle.leaseValid(1120,1120))
+    assert(not Lifecycle.leaseValid(1120,1160))
+    assert(not Lifecycle.leaseValid(nil,1000))
+    assert(not Lifecycle.leaseValid(0/0,1000))
+    assert(not Lifecycle.leaseValid(math.huge,1000))
+end)
 print("SparkLifecycle: "..count.." production-helper tests passed (NOT Roblox shutdown/DataStore integration)")
 '''
 

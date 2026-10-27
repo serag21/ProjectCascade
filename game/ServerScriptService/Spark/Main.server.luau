@@ -85,6 +85,9 @@ function Lifecycle.saveResult(s,ok,snapshotRevision,studio)
 		s.saveStatus="Save retry pending"
 	end
 end
+function Lifecycle.leaseValid(deadline, now)
+	return type(deadline)=="number" and deadline<math.huge and deadline>now
+end
 -- END PURE LIFECYCLE
 local lifecycle=Lifecycle.new()
 local arenaEpoch=os.clock()
@@ -288,6 +291,13 @@ local function capture(player,s)
 	end
 end
 
+local function haltForLease(player,s,status)
+	s.ready=false; s.leaseLost=true; s.saveStatus="Reconnect to protect your collection"
+	warn("[Spark] progression halted: "..tostring(status))
+	feedback(player,"Error","Collection connection lost. Rejoin to continue safely.")
+	if player.Parent==Players then player:Kick("Your collection connection expired. Please rejoin; this server will not overwrite another session.") end
+end
+
 Action.OnServerEvent:Connect(function(player,action,payload)
 	if lifecycle.closing then return end
 	local s=sessions[player]
@@ -299,6 +309,9 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 		return
 	end
 	if not s.ready then return end
+	if not Lifecycle.leaseValid(persistence:leaseDeadline(player.UserId),os.time()) then
+		haltForLease(player,s,"acknowledged lease expired"); return
+	end
 	if action=="Replay" then
 		if s.phase=="Results" then beginRound(player,s) end
 	elseif action=="Capture" then
@@ -369,17 +382,12 @@ local function join(player)
 		player:Kick("Your collection could not load safely ("..tostring(status).."). Please rejoin. No progress was overwritten.")
 		return
 	end
-	s.profile=profile; s.ready=true; s.leaseAt=os.clock(); s.saveStatus=if RunService:IsStudio() then "Studio test save" else "Saved"
+	s.profile=profile; s.ready=true; s.saveStatus=if RunService:IsStudio() then "Studio test save" else "Saved"
 	metric(player,s,"join")
 	if profile.lastSeen and profile.lastSeen>0 then metric(player,s,"return") end
 	if s.clientReady then beginRound(player,s) end
 end
-local function haltForLease(player,s,status)
-	s.ready=false; s.leaseLost=true; s.saveStatus="Reconnect to protect your collection"
-	warn("[Spark] progression halted: "..tostring(status))
-	feedback(player,"Error","Collection connection lost. Rejoin to continue safely.")
-	if player.Parent==Players then player:Kick("Your collection connection expired. Please rejoin; this server will not overwrite another session.") end
-end
+
 
 finalize=function(player,s)
 	clearStarters(player.UserId)
@@ -423,7 +431,7 @@ RunService.Heartbeat:Connect(function(dt)
 	local now=os.clock()
 	for player,s in pairs(sessions) do
 		if not s.ready then continue end
-		if now-(s.leaseAt or now)>=110 then haltForLease(player,s,"lease renewal timeout"); continue end
+		if not Lifecycle.leaseValid(persistence:leaseDeadline(player.UserId),os.time()) then haltForLease(player,s,"acknowledged lease expired"); continue end
 		local root,humanoid=rootOf(player)
 		if root and humanoid then
 			local arena=world.arenas[s.biome]
@@ -538,9 +546,10 @@ task.spawn(function()
 				if not ran then warn("[Spark] unexpected save error: "..tostring(ok)); ok=false; status="unavailable" end
 				s.saving=false
 				Lifecycle.saveResult(s,ok,snapshotRevision,RunService:IsStudio())
-				if ok then s.leaseAt=os.clock()
-				elseif status=="lease-lost" or status=="not-loaded" then haltForLease(player,s,status)
-				else warn("[Spark] save failed "..tostring(status)) end
+				if not ok then
+					if status=="lease-lost" or status=="not-loaded" then haltForLease(player,s,status)
+					else warn("[Spark] save failed "..tostring(status)) end
+				end
 				if sessions[player]==s then send(player,s) end
 			end)
 		end

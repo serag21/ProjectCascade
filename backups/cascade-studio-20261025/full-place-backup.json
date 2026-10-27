@@ -1,0 +1,20 @@
+{
+  "file": "pre-refresh-place-20261026-evening.rbxl",
+  "bytes": 136090,
+  "sha256": "81596f787935f27ca2edf661f5eed4486dac2a71ba559b19f16ef916eb572254",
+  "source_place_id": 127090454461830,
+  "source_universe_id": 10769277416,
+  "contains": "Initial integrated Spark sources plus preserved Cascade scripts/recovery objects; before latest source refresh",
+  "reopened_in_studio": true,
+  "local_copy_place_id": 0,
+  "local_copy_universe_id": 0,
+  "rollback_rehearsal": {
+    "studio_id": "9198099a-cc34-49ee-b49a-5a1b27082b61",
+    "method": "Inject table value into final source assignment; run generated transactional installer in local recovery copy with expectedPlace=0",
+    "observed_error": "Unable to assign property Source. ProtectedString expected, got table; rollback failures=0",
+    "script_sources_and_enabled_states_restored": 12,
+    "scope": "Partial source-write failure before activation; does not prove process-crash recovery or every failure mode"
+  },
+  "backup_hash_unchanged_after_rehearsal": true,
+  "public_publish": false
+}
