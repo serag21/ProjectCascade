@@ -87,4 +87,61 @@ test("nil and future-version saves cannot replace a loaded profile",function()
 	assert(not a:save(20,nil) and not a:save(20,{version=2}))
 	assert(store.calls==calls and store.values["player:20"].data.coins==20)
 end)
+test("load response arriving at expiry cannot create a writable session",function()
+	local store,clock,adapter=fixture();local a=adapter("A");local original=store.UpdateAsync
+	function store:UpdateAsync(key,fn)
+		local result=original(self,key,fn);clock.now+=120;return result
+	end
+	local p,status=a:load(30)
+	assert(p==nil and status=="lease-lost" and a:leaseDeadline(30)==nil)
+	local calls=store.calls;assert(not a:save(30,Profile.new()) and store.calls==calls)
+end)
+test("renewal response arriving expired cannot confirm a new earning window",function()
+	local store,clock,adapter=fixture();local a=adapter("A");local p=a:load(31)
+	assert(a:leaseDeadline(31)==1120)
+	clock.now=1030;local original=store.UpdateAsync
+	function store:UpdateAsync(key,fn)
+		local result=original(self,key,fn);clock.now+=121;return result
+	end
+	p.coins=9;local ok,status=a:save(31,p)
+	assert(not ok and status=="lease-lost" and a:leaseDeadline(31)==nil)
+	assert(store.values["player:31"].data.coins==9) -- write may have committed; lease is still unusable
+	local calls=store.calls;assert(not a:save(31,p) and store.calls==calls)
+end)
+test("valid delayed responses expose only their remaining absolute lease",function()
+	local store,clock,adapter=fixture();local a=adapter("A");local original=store.UpdateAsync
+	function store:UpdateAsync(key,fn)
+		local result=original(self,key,fn);clock.now+=40;return result
+	end
+	local p=a:load(32);assert(p and clock.now==1040 and a:leaseDeadline(32)==1120)
+	assert(a:save(32,p) and clock.now==1080 and a:leaseDeadline(32)==1160)
+end)
+test("failed renewal cannot move the last acknowledged deadline",function()
+	local store,clock,adapter=fixture();local a=adapter("A");local p=a:load(33)
+	clock.now=1030;store.failures=3
+	assert(not a:save(33,p) and a:leaseDeadline(33)==1120)
+	assert(a:leaseDeadline("bad")==nil)
+end)
+test("server takeover during a delayed load is not overwritten",function()
+	local store,clock,adapter=fixture();local a,b=adapter("A"),adapter("B")
+	local original=store.UpdateAsync;local waiting=false
+	function store:UpdateAsync(key,fn)
+		local result=original(self,key,fn)
+		if not waiting then
+			waiting=true;clock.now+=121
+			local p=b:load(34);assert(p);p.coins=77;assert(b:save(34,p))
+		end
+		return result
+	end
+	local p,status=a:load(34);assert(not p and status=="lease-lost")
+	assert(store.values["player:34"].lease.id=="B" and store.values["player:34"].data.coins==77)
+end)
+test("late release acknowledgement is still final and creates no local lease",function()
+	local store,clock,adapter=fixture();local a=adapter("A");local p=a:load(35);local original=store.UpdateAsync
+	function store:UpdateAsync(key,fn)
+		local result=original(self,key,fn);clock.now+=121;return result
+	end
+	local ok,status=a:release(35,p)
+	assert(ok and status=="released" and a:leaseDeadline(35)==nil and store.values["player:35"].lease==nil)
+end)
 print(string.format("SparkPersistence: %d tests passed",tests))

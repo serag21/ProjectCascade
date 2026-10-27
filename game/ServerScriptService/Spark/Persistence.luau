@@ -78,9 +78,12 @@ function Persistence:load(userId)
 	self.busy[key] = nil
 	if not ok then return nil, "unavailable" end
 	if reason ~= "ready" or type(record) ~= "table" then return nil, reason end
-	local profile = Profile.sanitize(record.data)
+	local profile, lease = unpackRecord(record)
 	if not profile then return nil, "corrupt" end
-	self.sessions[key] = {profile=profile,expiresAt=record.lease.expiresAt}
+	-- The service can yield after committing the transform. A returned lease may
+	-- already be expired (or superseded); never grant a new local earning window.
+	if not lease or lease.id ~= self.id or lease.expiresAt <= self.clock() then return nil, "lease-lost" end
+	self.sessions[key] = {profile=profile,expiresAt=lease.expiresAt}
 	return profile, "ready"
 end
 
@@ -111,11 +114,24 @@ function Persistence:_write(userId, profile, release)
 	if release then
 		self.sessions[key]=nil
 	else
-		session.expiresAt=record.lease.expiresAt
+		local stored, lease = unpackRecord(record)
+		if not stored or not lease or lease.id ~= self.id or lease.expiresAt <= self.clock() then
+			self.sessions[key]=nil
+			return false, "lease-lost"
+		end
+		session.expiresAt=lease.expiresAt
 		-- Keep live profile reference: caller may legitimately mutate it while the request yields.
 		session.profile=profile
 	end
 	return true, reason
+end
+
+-- Absolute acknowledged deadline, not response-arrival time. A pending request
+-- never extends it until a valid future lease is actually returned.
+function Persistence:leaseDeadline(userId)
+	local key = keyFor(userId)
+	local session = key and self.sessions[key]
+	return session and session.expiresAt or nil
 end
 
 function Persistence:save(userId, profile) return self:_write(userId, profile, false) end
