@@ -64,4 +64,48 @@ m=motion();m.dashStarted=0;m.dashUntil=.35
 for step=1,3 do check(Rules.movement(m,{x=step*6.5,y=3,z=0},step*.1,limits),"authorized dash movement") end
 check(not Rules.movement(m,{x=40,y=3,z=0},.4,limits),"dash does not authorize arbitrary teleport")
 check(Rules.distance(nil,{x=0,y=0,z=0})==math.huge,"malformed distance fails closed")
+
+for banked=0,5 do
+	local session={}
+	check(Rules.issueStarters(session,banked)==math.max(0,3-banked),"starter allowance is limited by persistent progress")
+	for _=1,20 do
+		session.phase="Results";session.phase="Playing"
+		check(Rules.issueStarters(session,banked)==0,"Replay cannot renew starter allocation")
+	end
+end
+check(Rules.issueStarters({},0/0)==0,"malformed progress cannot allocate starters")
+check(Rules.issueStarters({},-1)==0,"negative progress cannot enlarge allowance")
+local owners={}
+local totalStarters=0
+for userId=1,4 do
+	owners[userId]={}
+	totalStarters+=Rules.issueStarters(owners[userId],0)
+end
+check(totalStarters==12,"four fresh players add at most twelve finite starters to regular herd")
+player={phase="Playing",ready=true,carry=0,biome=1,userId=42,totalBanked=0,position={x=0,y=3,z=38}}
+creature={claimed=false,biome=1,starterOwner=42,position={x=0,y=2.2,z=30}}
+check(Rules.canCapture(player,creature,10,10,8),"fresh owner can reach immediate starter")
+player.userId=43
+check(not Rules.canCapture(player,creature,10,10,8),"other players cannot consume onboarding allowance")
+player.userId=42;player.totalBanked=3
+check(not Rules.canCapture(player,creature,10,10,8),"stale starter rejected after third banked creature")
+player.totalBanked=nil
+check(not Rules.canCapture(player,creature,10,10,8),"missing authoritative progress fails closed")
+player.totalBanked=2;creature.claimed=true
+check(not Rules.canCapture(player,creature,10,10,8),"claimed starter cannot duplicate")
+local bankPosition={x=0,y=0,z=44}
+for angle=0,359,3 do
+	for radius=10,43,3 do
+		local spawn=Rules.herdSpawn(math.rad(angle),radius)
+		check(spawn.z<=12 and Rules.distance(spawn,bankPosition)>31,"ordinary spawns require entering active arena")
+	end
+end
+for x=-35,35,5 do
+	for z=10,65,5 do
+		local safe=Rules.outsideBank({x=x,y=2.2,z=z},bankPosition)
+		check(math.sqrt(safe.x^2+(safe.z-44)^2)>=28-.0001,"normal herd stays outside bank catch envelope")
+		-- Explicit banking permits12 studs; max magnet radius is14.5. Clearance28 excludes both.
+		check(math.sqrt(safe.x^2+(safe.z-44)^2)>12+14.5,"bank-camping reach cannot overlap normal herd")
+	end
+end
 print("SparkRules: "..total.." assertions passed (pure rules; NOT engine multiplayer)")

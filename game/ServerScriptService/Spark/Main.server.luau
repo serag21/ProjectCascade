@@ -113,11 +113,18 @@ local function rootOf(player)
 	local char = player.Character
 	return char and char:FindFirstChild("HumanoidRootPart"), char and char:FindFirstChildOfClass("Humanoid")
 end
+local function clearStarters(userId)
+	for id,c in pairs(herd) do
+		if c.starterOwner==userId then c.model:Destroy(); herd[id]=nil end
+	end
+	for owner,s in pairs(sessions) do if owner.UserId==userId then s.starterRemaining=0 end end
+end
+local issueStarters
 local function objective(s)
 	if not s.ready then return "Connecting your collection…" end
 	if s.phase == "Results" then return "Round banked! Upgrade or chase again • "..s.saveStatus end
 	if #s.carry > 0 then return "Bring your parade to the glowing BANK gate" end
-	if s.profile.totalBanked == 0 then return "Move toward a Spark • CATCH when close" end
+	if (s.starterRemaining or 0)>0 then return "CATCH your named first Sparks • then chase into the arena" end
 	return "Chase Sparks • Dash to flank • Bank a group for a bonus"
 end
 local function send(player,s)
@@ -131,6 +138,7 @@ local function send(player,s)
 	player:SetAttribute("SparkSpecies",Profile.speciesCount(s.profile))
 	player:SetAttribute("SparkRounds",s.profile.rounds)
 	player:SetAttribute("SparkSaveStatus",s.saveStatus)
+	player:SetAttribute("SparkStartersRemaining",s.starterRemaining or 0)
 	State:FireClient(player,{
 		phase=s.phase,remaining=math.max(0,math.ceil(Config.RoundSeconds-elapsed)),
 		biome=s.biome,carry=#s.carry,capacity=capacity(s),score=s.score,
@@ -184,6 +192,7 @@ local function bank(player,s,automatic)
 	local catches=s.carry; s.carry={}
 	parade(player,s)
 	local reward,newSpecies=Profile.bank(s.profile,catches)
+	if s.profile.totalBanked>=3 then clearStarters(player.UserId) end
 	s.score+=reward
 	metric(player,s,"first_bank")
 	feedback(player,"Bank",string.format("+%d glow • %d Sparks banked%s",reward,#catches,if newSpecies>0 then " • NEW ALBUM ENTRY!" else ""))
@@ -196,10 +205,11 @@ local function beginRound(player,s)
 	s.phase="Playing"; s.started=os.clock(); s.carry={}; s.score=0; s.buckets={}
 	parade(player,s)
 	teleport(player,s)
+	issueStarters(player,s)
 	feedback(player,"Round","CHASE • CATCH • BANK   |   110 seconds!")
 	send(player,s)
 end
-local function spawnCreature(biome,index)
+local function spawnCreature(biome,index,starterPlayer)
 	local defs={}
 	for _,def in ipairs(Config.Creatures) do
 		if def.biome==Config.Biomes[biome].id or def.biome==biome then table.insert(defs,def) end
@@ -209,17 +219,34 @@ local function spawnCreature(biome,index)
 	local arena=world.arenas[biome]
 	local angle=random:NextNumber(0,math.pi*2)
 	local radius=random:NextNumber(10,43)
-	local position=arena.origin+Vector3.new(math.cos(angle)*radius,2.2,math.sin(angle)*radius)
-	-- Three explicit-catch targets stay within the starting 10-stud capture radius.
-	-- Small home circles preserve gentle animation without drifting away during onboarding.
-	if index<=3 then position=arena.origin+Vector3.new((index-2)*4,2.2,30) end
+	local offset=Rules.herdSpawn(angle,radius)
+	local position=arena.origin+Vector3.new(offset.x,offset.y,offset.z)
+	-- Finite owner-specific starters are separate from the 54 normal herd slots.
+	if starterPlayer then position=arena.origin+Vector3.new((index-2)*4,2.2,30) end
 	local model=World.creature(def,creaturesFolder)
 	nextCreatureId+=1
 	model.Name="Spark_"..nextCreatureId
 	model:SetAttribute("CreatureId",nextCreatureId); model:SetAttribute("Species",def.id)
+	if starterPlayer then
+		model:SetAttribute("StarterOwnerId",starterPlayer.UserId)
+		local cue=Instance.new("BillboardGui")
+		cue.Name="FirstCatchCue"; cue.Size=UDim2.fromOffset(180,38); cue.StudsOffset=Vector3.new(0,3.3,0)
+		cue.MaxDistance=38; cue.LightInfluence=0; cue.Parent=model.PrimaryPart
+		local title=Instance.new("TextLabel")
+		title.Size=UDim2.fromScale(1,1); title.BackgroundColor3=Color3.fromRGB(28,35,66)
+		title.BackgroundTransparency=.12; title.TextColor3=Color3.fromRGB(255,219,90)
+		title.TextSize=13; title.Font=Enum.Font.GothamBold; title.TextWrapped=true
+		title.Text="FIRST CATCH • "..starterPlayer.DisplayName; title.Parent=cue
+	end
 	model:PivotTo(CFrame.new(position))
 	herd[nextCreatureId]={id=nextCreatureId,def=def,model=model,biome=biome,
-		position=position,home=position,beginner=index<=3,heading=angle,seed=random:NextNumber(0,20),claimed=false,index=index}
+		position=position,home=position,beginner=starterPlayer~=nil,starterOwner=starterPlayer and starterPlayer.UserId,
+		heading=angle,seed=random:NextNumber(0,20),claimed=false,index=index}
+end
+issueStarters=function(player,s)
+	local allowance=Rules.issueStarters(s,s.profile.totalBanked)
+	s.starterRemaining=allowance
+	for index=1,allowance do spawnCreature(s.biome,index,player) end
 end
 for biome=1,#world.arenas do
 	for index=1,18 do spawnCreature(biome,index) end
@@ -235,9 +262,9 @@ local function capture(player,s)
 	local radius=Config.CaptureRadius+(s.profile.upgrades.magnet or 0)*1.5
 	local nearest,best=nil,math.huge
 	for _,creature in pairs(herd) do
-		local allowed=Rules.canCapture({phase=s.phase,ready=s.ready,carry=#s.carry,biome=s.biome,
+		local allowed=Rules.canCapture({phase=s.phase,ready=s.ready,carry=#s.carry,biome=s.biome,userId=player.UserId,totalBanked=s.profile.totalBanked,
 			position=xyz(root.Position),suspiciousUntil=s.suspiciousUntil},
-			{claimed=creature.claimed,biome=creature.biome,position=xyz(creature.position)},os.clock(),radius,capacity(s))
+			{claimed=creature.claimed,biome=creature.biome,starterOwner=creature.starterOwner,position=xyz(creature.position)},os.clock(),radius,capacity(s))
 		local offset=creature.position-root.Position
 		-- Wide forward arc rewards steering; close targets remain touch-friendly.
 		if allowed and (offset.Magnitude<4 or root.CFrame.LookVector:Dot(offset.Unit)>-0.2) and offset.Magnitude<best then
@@ -249,13 +276,16 @@ local function capture(player,s)
 		return
 	end
 	nearest.claimed=true -- atomic claim before effects and respawn scheduling
+	if nearest.starterOwner then s.starterRemaining=math.max(0,(s.starterRemaining or 0)-1) end
 	table.insert(s.carry,nearest.def.id)
 	parade(player,s)
 	nearest.model:Destroy(); herd[nearest.id]=nil
 	metric(player,s,"first_catch")
 	feedback(player,"Catch","Caught "..nearest.def.name.."!",nearest.def,nearest.position)
 	send(player,s)
-	task.delay(2,function() spawnCreature(nearest.biome,nearest.index) end)
+	if not nearest.starterOwner then
+		task.delay(2,function() if not lifecycle.closing then spawnCreature(nearest.biome,nearest.index) end end)
+	end
 end
 
 Action.OnServerEvent:Connect(function(player,action,payload)
@@ -352,6 +382,7 @@ local function haltForLease(player,s,status)
 end
 
 finalize=function(player,s)
+	clearStarters(player.UserId)
 	local deadline=math.min(os.clock()+22,lifecycle.deadline or math.huge)
 	if not s.profile or s.leaseLost then return end
 	if not Lifecycle.beginFinalize(lifecycle,s) then
@@ -402,6 +433,7 @@ RunService.Heartbeat:Connect(function(dt)
 		if s.phase=="Playing" then
 			local phase=Rules.roundPhase(s.started,now,Config.RoundSeconds)
 			if phase=="Results" then
+				clearStarters(player.UserId)
 				bank(player,s,true); s.phase="Results"; s.profile.rounds+=1; Lifecycle.markDirty(s)
 				metric(player,s,"first_round"); feedback(player,"Results","Round complete! Your parade earned "..s.score.." glow")
 				send(player,s)
@@ -410,6 +442,7 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 	local centroids={}
 	for _,c in pairs(herd) do
+		if c.starterOwner then continue end
 		local center=centroids[c.biome] or {sum=Vector3.zero,count=0}
 		center.sum+=c.position; center.count+=1; centroids[c.biome]=center
 	end
@@ -421,7 +454,7 @@ RunService.Heartbeat:Connect(function(dt)
 		local nearest,dist=nil,26
 		local eventScale=if c.beginner then .55 else sharedScale
 		for player,s in pairs(sessions) do
-			if s.ready and s.phase=="Playing" and s.biome==c.biome then
+			if s.ready and s.phase=="Playing" and s.biome==c.biome and (not c.starterOwner or c.starterOwner==player.UserId) then
 				local root=rootOf(player)
 				if root and Rules.validPosition(xyz(root.Position)) then local d=(root.Position-c.position).Magnitude; if d<dist then nearest=root.Position; dist=d end end
 			end
@@ -447,6 +480,9 @@ RunService.Heartbeat:Connect(function(dt)
 		local delta=c.position-arena.origin
 		local flat=Vector3.new(delta.X,0,delta.Z)
 		if flat.Magnitude>48 then direction=-flat.Unit end
+		if not c.starterOwner and (c.position-arena.bank).Magnitude<32 then
+			direction=direction+Vector3.new(0,0,-2)
+		end
 		if c.beginner then
 			local toHome=c.home-c.position; toHome=Vector3.new(toHome.X,0,toHome.Z)
 			if toHome.Magnitude>.65 then direction=toHome.Unit end
@@ -476,6 +512,10 @@ RunService.Heartbeat:Connect(function(dt)
 					c.position=island+push*7
 				end
 			end
+		end
+		if not c.starterOwner then
+			local safe=Rules.outsideBank(xyz(c.position),xyz(arena.bank))
+			c.position=Vector3.new(safe.x,safe.y,safe.z)
 		end
 		c.position=Vector3.new(c.position.X,2.2+math.sin(time*4)*0.35,c.position.Z)
 		c.model:PivotTo(CFrame.lookAt(c.position,c.position+direction)*CFrame.Angles(0,0,math.sin(time*4)*0.08))

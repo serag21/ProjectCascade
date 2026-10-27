@@ -52,10 +52,37 @@ function Rules.allow(bucket, key, now, interval)
 	return true
 end
 
+-- One finite onboarding allocation per loaded session. Replay never resets it;
+-- persistent totalBanked prevents returning players from renewing free catches.
+function Rules.issueStarters(session, totalBanked)
+	if session.starterIssued then return 0 end
+	session.starterIssued=true
+	if not Rules.finite(totalBanked) or totalBanked<0 then return 0 end
+	return math.max(0,3-math.floor(totalBanked))
+end
+
+function Rules.herdSpawn(angle, radius)
+	return {x=math.cos(angle)*radius,y=2.2,z=math.min(12,math.sin(angle)*radius)}
+end
+
+-- Ordinary creatures stay beyond bank reach even with a fully upgraded magnet.
+-- Starter creatures use separate finite home circles and do not call this helper.
+function Rules.outsideBank(position, bank)
+	local dx,dz=position.x-bank.x,position.z-bank.z
+	local distance=math.sqrt(dx*dx+dz*dz)
+	if distance>=28 then return position end
+	-- Re-enter toward the infield, also clear of the southern steering islands.
+	return {x=position.x,y=position.y,z=bank.z-28}
+end
+
 function Rules.canCapture(player, creature, now, radius, capacity)
 	if player.phase ~= "Playing" or player.ready ~= true then return false, "Not playing" end
 	if player.carry >= capacity then return false, "Bank your parade first" end
 	if creature.claimed then return false, "Already caught" end
+	if creature.starterOwner~=nil then
+		if creature.starterOwner~=player.userId then return false, "Another player's first catch" end
+		if not Rules.finite(player.totalBanked) or player.totalBanked>=3 then return false, "Starter allowance complete" end
+	end
 	if player.biome ~= creature.biome then return false, "Different arena" end
 	if not Rules.finite(now) or not Rules.finite(radius) or radius <= 0 then return false, "Invalid" end
 	if player.suspiciousUntil and now < player.suspiciousUntil then return false, "Movement settling" end
