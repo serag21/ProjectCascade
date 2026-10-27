@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local DataStoreService = game:GetService("DataStoreService")
 local HttpService = game:GetService("HttpService")
+local Debris = game:GetService("Debris")
 local Shared = ReplicatedStorage:WaitForChild("Spark")
 local Config = require(Shared.Config)
 local Profile = require(Shared.Profile)
@@ -152,9 +153,16 @@ local function send(player,s)
 			dash=math.max(0,dashCooldown(s)-(now-(s.buckets.dash or -math.huge)))},
 	})
 end
+local function stopDash(root)
+	for _,name in ipairs({"SparkDashVelocity","SparkDashAttachment"}) do
+		local item=root:FindFirstChild(name)
+		if item then item:Destroy() end
+	end
+end
 local function teleport(player,s)
 	local root,humanoid = rootOf(player)
 	if root then
+		stopDash(root)
 		local arena=world.arenas[s.biome]
 		root.CFrame=CFrame.lookAt(arena.spawn,arena.origin+Vector3.new(0,3,0))
 		root.AssemblyLinearVelocity=Vector3.zero
@@ -178,6 +186,7 @@ local function validApproach(player,s)
 			teleport(player,s)
 			s.motion.blockedUntil=now+1.5; s.suspiciousUntil=now+1.5
 		else
+			stopDash(root)
 			local safe=s.motion.position
 			root.CFrame=CFrame.new(safe.x,safe.y,safe.z)
 			root.AssemblyLinearVelocity=Vector3.zero
@@ -232,14 +241,19 @@ local function spawnCreature(biome,index,starterPlayer)
 	model:SetAttribute("CreatureId",nextCreatureId); model:SetAttribute("Species",def.id)
 	if starterPlayer then
 		model:SetAttribute("StarterOwnerId",starterPlayer.UserId)
-		local cue=Instance.new("BillboardGui")
-		cue.Name="FirstCatchCue"; cue.Size=UDim2.fromOffset(180,38); cue.StudsOffset=Vector3.new(0,3.3,0)
-		cue.MaxDistance=38; cue.LightInfluence=0; cue.Parent=model.PrimaryPart
-		local title=Instance.new("TextLabel")
-		title.Size=UDim2.fromScale(1,1); title.BackgroundColor3=Color3.fromRGB(28,35,66)
-		title.BackgroundTransparency=.12; title.TextColor3=Color3.fromRGB(255,219,90)
-		title.TextSize=13; title.Font=Enum.Font.GothamBold; title.TextWrapped=true
-		title.Text="FIRST CATCH • "..starterPlayer.DisplayName; title.Parent=cue
+		-- One compact cue introduces the group without covering all three silhouettes.
+		-- Index 1 also exists for returning players with only one starter remaining.
+		if index==1 then
+			local cue=Instance.new("BillboardGui")
+			cue.Name="FirstCatchCue"; cue.Size=UDim2.fromOffset(100,26); cue.StudsOffset=Vector3.new(0,3.3,0)
+			cue.MaxDistance=38; cue.LightInfluence=0; cue.Parent=model.PrimaryPart
+			local title=Instance.new("TextLabel")
+			title.Size=UDim2.fromScale(1,1); title.BackgroundColor3=Color3.fromRGB(28,35,66)
+			title.BackgroundTransparency=.12; title.TextColor3=Color3.fromRGB(255,219,90)
+			title.BorderSizePixel=0; title.TextSize=12; title.Font=Enum.Font.GothamBold
+			title.Text="FIRST CATCH"; title.Parent=cue
+			local corner=Instance.new("UICorner"); corner.CornerRadius=UDim.new(0,8); corner.Parent=title
+		end
 	end
 	model:PivotTo(CFrame.new(position))
 	herd[nextCreatureId]={id=nextCreatureId,def=def,model=model,biome=biome,
@@ -325,7 +339,20 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 			direction=Vector3.new(direction.X,0,direction.Z)
 			if direction.Magnitude<0.01 then return end
 			s.motion.dashStarted=os.clock(); s.motion.dashUntil=s.motion.dashStarted+0.35
-			root.AssemblyLinearVelocity=direction.Unit*65+Vector3.new(0,root.AssemblyLinearVelocity.Y,0)
+			-- A one-frame server velocity write is overwritten by client-owned
+			-- character simulation. Replicate a short planar actuator instead;
+			-- gravity/jumping stay free and collisions remain physical.
+			local attachment=Instance.new("Attachment")
+			attachment.Name="SparkDashAttachment"; attachment.Parent=root
+			local dash=Instance.new("LinearVelocity")
+			dash.Name="SparkDashVelocity"; dash.Attachment0=attachment
+			dash.RelativeTo=Enum.ActuatorRelativeTo.World
+			dash.VelocityConstraintMode=Enum.VelocityConstraintMode.Plane
+			dash.PrimaryTangentAxis=Vector3.xAxis; dash.SecondaryTangentAxis=Vector3.zAxis
+			dash.PlaneVelocity=Vector2.new(direction.Unit.X,direction.Unit.Z)*65
+			dash.ForceLimitsEnabled=true; dash.ForceLimitMode=Enum.ForceLimitMode.Magnitude
+			dash.MaxForce=root.AssemblyMass*2500; dash.Parent=root
+			Debris:AddItem(dash,0.28); Debris:AddItem(attachment,0.28)
 			metric(player,s,"first_action"); feedback(player,"Dash","WHOOSH!")
 		end
 	elseif action=="Bank" and s.phase=="Playing" and os.clock()>s.suspiciousUntil then
