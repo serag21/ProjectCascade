@@ -1,5 +1,15 @@
 # AGENTS.md — Project Cascade repository / Game #1 production
 
+## Mandatory operating correction — owner instruction, 2026-10-27 PDT
+These rules override older autonomy/Studio-testing guidance below.
+- Work code-first and offline by default. No foreground Computer Use, physical mouse/keyboard injection, window activation, or desktop interference without explicit permission for that specific task. Native MCP virtual input is a separate capability; do not assume it needs foreground control, and do not use focus workarounds without permission.
+- No Studio play mode or local server/client launch during the initial corrective session. Unattended simulations and scheduled GUI testing remain DISABLED. Scheduling is paused by the owner; only the owner may authorize resumption.
+- Before any future unattended testing: independently prove a separate supervisor survives agent interruption, enforces short deadlines, sends normal MCP stop, verifies Edit/stopped state, validates exact Studio ID plus process identity, monitors resources, and logs failure. Agent try/finally is insufficient. Mock tests alone cannot certify live cleanup. If a hung Studio cannot safely be stopped, unattended testing stays disabled.
+- Never terminate unrelated Studio processes, Roblox games, GPU workloads or user apps. No blanket process-name cleanup. No local GPU-heavy generation or lengthy graphical sessions by default. No automatic force-kill fallback.
+- Preserve `backups/cascade-studio-20261025/pre-refresh-place-20261026-evening.rbxl` in place. Do not overwrite, move or delete without a verified independent backup. Known SHA256: `81596f787935f27ca2edf661f5eed4486dac2a71ba559b19f16ef916eb572254`.
+- Keep tested playable milestones recoverable. Offline builds do not activate themselves in Studio. Read `docs/GAME1_WORKFLOW_CORRECTION.md` and `docs/GAME1_TEST_SUPERVISOR.md` before future engine testing.
+- Prioritize mastery: precision, dash timing, recoverable misses, combos, personal bests and varied solo challenges. Earned collection supports active skill; it must not become passive click-to-collect grinding.
+
 ## Current decision (2026-10-24)
 The owner has pivoted the FIRST ROBLOX RELEASE away from atmospheric horror/puzzle Project Cascade to a bright, immediately gratifying, social/solo arcade collection game. Existing Cascade is NOT a failed code experiment and MUST NOT be deleted: exact snapshot preserved on `archive/cascade-pre-game1-pivot-20261024`. Existing `main` is the working branch for Game #1. Read `docs/GAME1_PRODUCT_CHARTER.md` before editing. The existing `docs/MVP.md`, `docs/BUILD_PLAN.md`, and `docs/ARCHITECTURE.md` describe the archived Cascade idea, not current Game #1.
 
