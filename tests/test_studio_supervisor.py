@@ -1,0 +1,125 @@
+"""Independent worker tests with lightweight subprocess fixtures; never starts Studio."""
+import importlib.util
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+MODULE = ROOT / 'tools/studio_supervisor.py'
+spec = importlib.util.spec_from_file_location('supervisor', MODULE)
+supervisor = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(supervisor)
+
+
+class Tests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.manifest = dict(studio_id='fixture-only', pid=123, process_created='exact-start',
+            image='fixture-not-Studio', place_id=127090454461830, run_token='test-token',
+            timeout_seconds=.3, poll_seconds=.04, call_timeout_seconds=.2,
+            cpu_percent_limit=25, rss_mb_limit=1024)
+        self.state = dict(self.manifest, mode='Play', cpu_percent=0, rss_mb=10)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_case(self, patch=None):
+        state = dict(self.state, **(patch or {}))
+        path = self.root/'state.json'
+        supervisor.write_json(path, state)
+        worker = supervisor.Supervisor(self.manifest, supervisor.FixtureAdapter(path),
+                                       self.root/'log.jsonl', self.root/'report.json')
+        return worker.run(), json.loads(path.read_text())
+
+    def test_deadline_normal_stop_and_verify(self):
+        result, state = self.run_case()
+        self.assertTrue(result['stopped_verified'])
+        self.assertEqual(state['stop_requests'], 1)
+
+    def test_pid_reuse_and_wrong_studio_never_stopped(self):
+        for patch in ({'pid':124}, {'process_created':'new'}, {'studio_id':'other'},
+                      {'run_token':'other'}, {'image':'other'}, {'place_id':1}):
+            result, state = self.run_case(patch)
+            self.assertFalse(result['stopped_verified'])
+            self.assertNotIn('stop_requests', state)
+
+    def test_resource_budget_requests_early_stop(self):
+        result, _ = self.run_case({'cpu_percent':80})
+        self.assertEqual(result['reason'], 'resource budget exceeded')
+        result, _ = self.run_case({'rss_mb':2048})
+        self.assertTrue(result['stopped_verified'])
+
+    def test_stop_ack_is_not_stopped_evidence(self):
+        result, state = self.run_case({'ignore_stop':True})
+        self.assertFalse(result['stopped_verified'])
+        self.assertEqual(state['stop_requests'], 2)
+
+    def test_hung_status_or_stop_is_bounded_and_reported(self):
+        for operation in ('status', 'stop'):
+            before = time.monotonic()
+            result, _ = self.run_case({'hang':operation})
+            self.assertFalse(result['stopped_verified'])
+            self.assertLess(time.monotonic()-before, 3)
+
+    def test_already_stopped_does_not_mutate(self):
+        result, state = self.run_case({'mode':'Edit'})
+        self.assertTrue(result['stopped_verified'])
+        self.assertNotIn('stop_requests', state)
+
+    def test_invalid_or_unbounded_manifest(self):
+        for key, value in [('timeout_seconds',3600), ('timeout_seconds',float('nan')),
+                           ('poll_seconds',0), ('run_token','')]:
+            with self.assertRaises(ValueError):
+                supervisor.Supervisor(dict(self.manifest, **{key:value}), None, '', '')
+
+    def test_live_capability_is_disabled(self):
+        result = subprocess.run([sys.executable,str(MODULE),'live'],capture_output=True,text=True)
+        self.assertEqual(result.returncode,2)
+        self.assertIn('DISABLED',result.stderr)
+
+    def test_worker_survives_launcher_exit(self):
+        paths = [self.root/name for name in ('manifest.json','state.json','log.jsonl','report.json')]
+        supervisor.write_json(paths[0], dict(self.manifest,timeout_seconds=.7))
+        supervisor.write_json(paths[1], self.state)
+        # The launcher exits immediately: independent worker still must stop and report.
+        code = ('import sys;sys.path.insert(0,sys.argv[1]);import studio_supervisor as s;'
+                's.launch_fixture_worker(*sys.argv[2:])')
+        launch = subprocess.run([sys.executable,'-c',code,str(ROOT/'tools'),*map(str,paths)],
+                                capture_output=True,text=True,timeout=3)
+        self.assertEqual(launch.returncode,0,launch.stderr)
+        deadline = time.monotonic()+5
+        while not paths[3].exists() and time.monotonic()<deadline:
+            time.sleep(.05)
+        self.assertTrue(paths[3].exists(),'Independent worker did not report after launcher exited')
+        result=json.loads(paths[3].read_text())
+        self.assertTrue(result['stopped_verified'])
+        self.assertEqual(json.loads(paths[1].read_text())['mode'],'Edit')
+
+    def test_worker_survives_launcher_termination(self):
+        paths = [self.root/name for name in ('manifest.json','state.json','log.jsonl','report.json')]
+        supervisor.write_json(paths[0], dict(self.manifest,timeout_seconds=.8))
+        supervisor.write_json(paths[1], self.state)
+        code = ('import sys,time;sys.path.insert(0,sys.argv[1]);import studio_supervisor as s;'
+                's.launch_fixture_worker(*sys.argv[2:]);time.sleep(5)')
+        launcher = subprocess.Popen([sys.executable,'-c',code,str(ROOT/'tools'),*map(str,paths)],
+                                    creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+        try:
+            deadline=time.monotonic()+3
+            while not paths[2].exists() and time.monotonic()<deadline: time.sleep(.02)
+            self.assertTrue(paths[2].exists(),'Worker must be armed before simulated interruption')
+        finally:
+            # Only this newly created disposable Python launcher; never any Studio/app.
+            launcher.terminate(); launcher.wait(timeout=2)
+        deadline=time.monotonic()+5
+        while not paths[3].exists() and time.monotonic()<deadline: time.sleep(.05)
+        self.assertTrue(paths[3].exists())
+        self.assertTrue(json.loads(paths[3].read_text())['stopped_verified'])
+
+
+if __name__ == '__main__':
+    unittest.main()

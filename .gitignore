@@ -11,3 +11,4 @@ Thumbs.db
 *.log
 .tools/
 build/
+__pycache__/
