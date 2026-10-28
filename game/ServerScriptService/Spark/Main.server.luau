@@ -9,6 +9,7 @@ local Shared = ReplicatedStorage:WaitForChild("Spark")
 local Config = require(Shared.Config)
 local Profile = require(Shared.Profile)
 local Rules = require(Shared.Rules)
+local Challenge = require(Shared.Challenge)
 local World = require(script.Parent.World)
 local Persistence = require(script.Parent.Persistence)
 
@@ -128,8 +129,8 @@ local function objective(s)
 	if not s.ready then return "Connecting your collection…" end
 	if s.phase == "Results" then return "Round banked! Upgrade or chase again • "..s.saveStatus end
 	if #s.carry > 0 then return "Bring your parade to the glowing BANK gate" end
-	if (s.starterRemaining or 0)>0 then return "CATCH your named first Sparks • then chase into the arena" end
-	return "Chase Sparks • Dash to flank • Bank a group for a bonus"
+	if (s.starterRemaining or 0)>0 then return "CATCH your first Sparks • then chase into the arena" end
+	return "Close + facing = precision • Dash then catch • Bank your bonus"
 end
 local function send(player,s)
 	if not s.profile or player.Parent~=Players then return end
@@ -143,10 +144,27 @@ local function send(player,s)
 	player:SetAttribute("SparkRounds",s.profile.rounds)
 	player:SetAttribute("SparkSaveStatus",s.saveStatus)
 	player:SetAttribute("SparkStartersRemaining",s.starterRemaining or 0)
+	local mastery=s.challenge and Challenge.snapshot(s.challenge,now)
+	local hazard=if mastery and s.phase=="Playing" and s.profile.totalBanked>=3 then Challenge.hazard(elapsed,mastery.difficulty) else {visible=false,active=false}
+	if hazard.visible then hazard.position=world.arenas[s.biome].origin+Vector3.new(hazard.x,0.25,hazard.z) end
+	player:SetAttribute("SparkSkillScore",mastery and mastery.score or 0)
+	local ranking={}
+	if s.profile.settings.competition then
+		for other,session in pairs(sessions) do
+			if session.ready and session.challenge and session.profile.settings.competition then
+				table.insert(ranking,{name=other.DisplayName,score=Challenge.snapshot(session.challenge,now).score,userId=other.UserId})
+			end
+		end
+		table.sort(ranking,function(a,b) return a.score>b.score or (a.score==b.score and a.userId<b.userId) end)
+		while #ranking>4 do table.remove(ranking) end
+	end
 	State:FireClient(player,{
 		phase=s.phase,remaining=math.max(0,math.ceil(Config.RoundSeconds-elapsed)),
 		biome=s.biome,carry=#s.carry,capacity=capacity(s),score=s.score,
 		profile=s.profile,saveStatus=s.saveStatus,event=arenaEvent(),objective=objective(s),
+		mastery=mastery,personalBest=s.newPersonalBest or false,ranking=ranking,
+		startersRemaining=s.starterRemaining or 0,
+		hazard=hazard,
 		bankPosition=world.arenas[s.biome].bank,ready=s.ready,
 		captureCooldown=Config.CaptureCooldown,dashCooldown=dashCooldown(s),
 		cooldowns={capture=math.max(0,Config.CaptureCooldown-(now-(s.buckets.capture or -math.huge))),
@@ -180,6 +198,7 @@ local function validApproach(player,s)
 		minY=arena.origin.Y-4,maxY=arena.origin.Y+24,speed=speed(s)+2,burst=10})
 	s.suspiciousUntil=s.motion.blockedUntil or 0
 	if not valid then
+		if s.challenge then Challenge.miss(s.challenge,now,"recovery") end
 		if reason=="Arena bounds" or (reason=="Height bounds" and root.Position.Y<arena.origin.Y-4) then
 			-- A last valid point below the floor would trap a fallen player forever.
 			-- Rescue to the authored spawn, retaining the action quarantine.
@@ -206,8 +225,9 @@ local function bank(player,s,automatic)
 	local reward,newSpecies=Profile.bank(s.profile,catches)
 	if s.profile.totalBanked>=3 then clearStarters(player.UserId) end
 	s.score+=reward
+	local skillPoints=if s.challenge then Challenge.bank(s.challenge,os.clock()) else 0
 	metric(player,s,"first_bank")
-	feedback(player,"Bank",string.format("+%d glow • %d Sparks banked%s",reward,#catches,if newSpecies>0 then " • NEW ALBUM ENTRY!" else ""))
+	feedback(player,"Bank",string.format("+%d glow • %d skill secured%s",reward,skillPoints,if newSpecies>0 then " • NEW SPARK!" else ""))
 	Lifecycle.markDirty(s)
 	send(player,s)
 end
@@ -215,6 +235,8 @@ local function beginRound(player,s)
 	if not s.ready then return end
 	if s.started then metric(player,s,"replay") end
 	s.phase="Playing"; s.started=os.clock(); s.carry={}; s.score=0; s.buckets={}
+	s.challenge=Challenge.new(s.profile.rounds+1); s.newPersonalBest=false; s.challengeBiome=s.biome
+	s.hazardUntil=0
 	parade(player,s)
 	teleport(player,s)
 	issueStarters(player,s)
@@ -271,6 +293,8 @@ for biome=1,#world.arenas do
 end
 
 local function capture(player,s)
+	if s.phase~="Playing" then return end
+	if os.clock()<(s.hazardUntil or 0) then return end
 	if not Rules.allow(s.buckets,"capture",os.clock(),Config.CaptureCooldown) then return end
 	if not validApproach(player,s) then return end
 	local root,humanoid=rootOf(player)
@@ -289,7 +313,10 @@ local function capture(player,s)
 		end
 	end
 	if not nearest then
+		-- A full pack is a return-to-bank prompt, not a failed aiming attempt.
+		if #s.carry<capacity(s) and s.challenge then Challenge.miss(s.challenge,os.clock(),"miss") end
 		feedback(player,"Hint",if #s.carry>=capacity(s) then "Parade full! Follow BANK" else "Get closer and face a Spark")
+		send(player,s)
 		return
 	end
 	nearest.claimed=true -- atomic claim before effects and respawn scheduling
@@ -298,7 +325,16 @@ local function capture(player,s)
 	parade(player,s)
 	nearest.model:Destroy(); herd[nearest.id]=nil
 	metric(player,s,"first_catch")
-	feedback(player,"Catch","Caught "..nearest.def.name.."!",nearest.def,nearest.position)
+	local offset=nearest.position-root.Position
+	local _,skill=Challenge.capture(s.challenge,os.clock(),{
+		distance=best,facing=if offset.Magnitude>.001 then math.clamp(root.CFrame.LookVector:Dot(offset.Unit),-1,1) else 1,
+		dashAge=if s.motion.dashStarted then os.clock()-s.motion.dashStarted else nil,
+		value=nearest.def.value,starter=nearest.starterOwner~=nil,captureId=nearest.id})
+	local message="Caught "..nearest.def.name.."!"
+	if type(skill)=="table" and not skill.starter then
+		message=string.format("+%d skill • %s%sx%d",skill.points,if skill.precision then "PRECISE • " else "",if skill.dash then "DASH CATCH • " else "",skill.multiplier)
+	end
+	feedback(player,"Catch",message,nearest.def,nearest.position)
 	send(player,s)
 	if not nearest.starterOwner then
 		task.delay(2,function() if not lifecycle.closing then spawnCreature(nearest.biome,nearest.index) end end)
@@ -367,12 +403,13 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 		feedback(player,if ok then "Quest" else "Hint",message); send(player,s)
 	elseif action=="Settings" and type(payload)=="table" then
 		local changed=false
-		for _,key in ipairs({"reducedMotion","music","sfx"}) do
+		for _,key in ipairs({"reducedMotion","music","sfx","competition"}) do
 			if type(payload[key])=="boolean" and payload[key]~=s.profile.settings[key] then s.profile.settings[key]=payload[key]; changed=true end
 		end
 		if changed then Lifecycle.markDirty(s) end
 		send(player,s)
 	elseif action=="Biome" and type(payload)=="number" and payload%1==0 and Config.Biomes[payload] then
+		if s.phase=="Playing" then feedback(player,"Hint","Choose your next arena after this round"); return end
 		if #s.carry>0 then feedback(player,"Hint","Bank your parade before travelling"); return end
 		if s.profile.totalBanked < Config.Biomes[payload].unlock then feedback(player,"Hint","Bank more Sparks to unlock this arena"); return end
 		s.biome=payload; teleport(player,s); send(player,s)
@@ -391,7 +428,10 @@ local function join(player)
 	player.CameraMinZoomDistance=9; player.CameraMaxZoomDistance=27
 	player.CharacterAdded:Connect(function()
 		task.wait(0.25)
-		if sessions[player]==s and s.ready then teleport(player,s) end
+		if sessions[player]==s and s.ready then
+			if s.challenge then Challenge.miss(s.challenge,os.clock(),"respawn") end
+			teleport(player,s)
+		end
 	end)
 	local ran,profile,status=pcall(function() return persistence:load(player.UserId) end)
 	if not ran then warn("[Spark] unexpected load error: "..tostring(profile)); profile=nil; status="unavailable" end
@@ -463,6 +503,18 @@ RunService.Heartbeat:Connect(function(dt)
 		if root and humanoid then
 			local arena=world.arenas[s.biome]
 			local accepted=validApproach(player,s)
+			if accepted and s.phase=="Playing" and s.profile.totalBanked>=3 and now>=(s.hazardNext or 0) then
+				local hazard=Challenge.hazard(now-s.started,s.challenge.difficulty)
+				if hazard.active then
+					local center=arena.origin+Vector3.new(hazard.x,0,hazard.z)
+					local delta=root.Position-center
+					if Vector3.new(delta.X,0,delta.Z).Magnitude<hazard.radius and math.abs(delta.Y)<5 then
+						local _,lost=Challenge.miss(s.challenge,now,"sweep")
+						s.hazardUntil=now+.8; s.hazardNext=now+2.5
+						feedback(player,"Hint",string.format("BUMP! %d bonus lost • Dash clear and recover",lost)); send(player,s)
+					end
+				end
+			end
 			if accepted and s.phase=="Playing" and (root.Position-arena.bank).Magnitude<10 then bank(player,s,false) end
 		end
 		if s.phase=="Playing" then
@@ -470,6 +522,8 @@ RunService.Heartbeat:Connect(function(dt)
 			if phase=="Results" then
 				clearStarters(player.UserId)
 				bank(player,s,true); s.phase="Results"; s.profile.rounds+=1; Lifecycle.markDirty(s)
+				local summary=Challenge.finish(s.challenge,os.clock())
+				s.newPersonalBest=Profile.recordMastery(s.profile,Config.Biomes[s.challengeBiome].id,summary)
 				metric(player,s,"first_round"); feedback(player,"Results","Round complete! Your parade earned "..s.score.." glow")
 				send(player,s)
 			end

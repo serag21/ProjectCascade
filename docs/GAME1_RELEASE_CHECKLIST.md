@@ -2,6 +2,17 @@
 
 Created 2026-10-25. **Release candidate: NO. Public publishing and monetization: NOT AUTHORIZED.**
 
+## Operational gate added October 28 PDT
+
+- [x] Foreground desktop control and unattended Studio launches prohibited in AGENTS; queued automation prompt corrected and kept PAUSED.
+- [x] Owner's evening backup rehashed unchanged; prior playable source preserved on a recovery branch.
+- [x] Independent cleanup worker tested offline, including launcher termination and bounded failure reports. Live entry point refuses execution.
+- [ ] Exact Studio/process ownership, independent MCP stop and stopped-state verification proven in an explicitly approved engine test.
+- [ ] GPU/CPU/resource containment and hung-engine cleanup proven without touching unrelated apps.
+- [ ] Owner authorizes any future scheduling resumption. **Until then: offline only, no unattended play.**
+
+New mastery/score/sweep code is staged offline and has not been activated. Earlier checkmarks do not establish quality of these new mechanics. See [incident audit](GAME1_WORKFLOW_CORRECTION.md) and [mastery scope](GAME1_MASTERY.md).
+
 This is a gate ledger, not a test report. An unchecked item is not passed. Implementation, static inspection, pure-module tests, scripted engine tests, real client interaction and human usability feedback are different evidence classes. When checking an item, link the dated report/artifact and exact commit. See `GAME1_PROGRESS.md` for the latest production state; this document initially records requirements without claiming tests that another agent may be running.
 
 ## G0 — recoverable source and Studio
@@ -87,4 +98,4 @@ Performance acceptance is not satisfied by an unmeasured claim of stable frame r
 
 ## Current honest blockers
 
-Latest continuation: October27 PDT. Studio reconnected, full-place backup/recovery verified, sources installed and read back. Solo UI quest/upgrade/replay transactions and the subsequent measured dash repair are recorded in the [live report](qa/2026-10-27/live-studio.md). One scripted run met action/reward timing thresholds from server join; delayed runs did not. None proves human comprehension. Actual 2/4 clients, ten-round soak, audible audio, real platform persistence, device performance and final packaging remain open. Twenty offline checks passed for the recorded dirty 862e91a snapshot with visibility fixes; subsequent dash edits require full regression. See [issue ledger](GAME1_ISSUES.md) and [production log](GAME1_PROGRESS.md). G4 is not ready; no candidate or public publication approval is implied.
+October28 PDT: foreground control and unattended play are disabled; scheduling remains paused. The cleanup worker passes ten offline fault tests but is not live-certified. Twenty-four offline checks pass for the staged mastery build; it has not been activated. Earlier solo and partial two-client results do not close contention, four-client, shutdown, soak, audio, platform persistence, device or packaging gates. No human-comprehension or candidate-quality claim is implied. See [incident audit](GAME1_WORKFLOW_CORRECTION.md), [issue ledger](GAME1_ISSUES.md) and [production log](GAME1_PROGRESS.md).

@@ -9,16 +9,25 @@
                        "audible playback",
                        "device performance"
                    ],
-    "started_utc":  "2026-10-27T23:56:35.3548546Z",
-    "completed_utc":  "2026-10-27T23:56:39.3453241Z",
-    "git_revision":  "45144f89c888ed1b4c9857333518da7ca19ad6b8",
+    "started_utc":  "2026-10-28T15:12:48.8943165Z",
+    "completed_utc":  "2026-10-28T15:13:04.6513334Z",
+    "git_revision":  "7ad1bca29fe1e7864fb6e4ff23098c9c4010014d",
     "dirty":  true,
     "git_status":  [
                        " M docs/GAME1_ISSUES.md",
                        " M docs/GAME1_PROGRESS.md",
                        " M docs/GAME1_RELEASE_CHECKLIST.md",
+                       " M docs/qa/2026-10-27/live-studio.md",
+                       " M docs/qa/latest-checks.json",
+                       " M game/ReplicatedStorage/Spark/Profile.luau",
                        " M game/ServerScriptService/Spark/Main.server.luau",
-                       "?? docs/qa/2026-10-27/"
+                       " M game/StarterPlayer/StarterPlayerScripts/Spark/Client.client.luau",
+                       " M tools/run_checks.ps1",
+                       "?? docs/GAME1_MASTERY.md",
+                       "?? docs/qa/2026-10-27/incident-log-excerpts.json",
+                       "?? game/ReplicatedStorage/Spark/Challenge.luau",
+                       "?? tests/SparkChallenge.spec.luau",
+                       "?? tests/SparkMasteryIntegration.spec.luau"
                    ],
     "environment":  {
                         "os":  "Microsoft Windows NT 10.0.26300.0",
@@ -32,7 +41,7 @@
                     },
     "status":  "passed",
     "exit_code":  0,
-    "check_count":  20,
+    "check_count":  24,
     "failed_count":  0,
     "excluded_suites":  [
                             {
@@ -45,26 +54,31 @@
                                    ],
     "source_sha256":  {
                           "game/ReplicatedStorage/Spark/AudioCatalog.luau":  "2b6f2dba257e3682f4ec3a35e46fd5e8183d120926b3d4dc1709ae15e6736022",
+                          "game/ReplicatedStorage/Spark/Challenge.luau":  "9a6c0cdb305ad567e92fcb219926abc9177c86b2baeeee554ababb1590d5a5a2",
                           "game/ReplicatedStorage/Spark/Config.luau":  "1657db13081bcac57edaab9467ec0c614f0f27e87c733e4487b3a18140d3123a",
-                          "game/ReplicatedStorage/Spark/Profile.luau":  "7ce8f57f10db2486a8f09b8bb6e7a25037ac8833d6b5471d3586206db86154f9",
+                          "game/ReplicatedStorage/Spark/Profile.luau":  "056cb16979e57268950017e4ecf641a045fae74196721991c30b1b82541fa1d0",
                           "game/ReplicatedStorage/Spark/Rules.luau":  "7f9b0244a28e86316cfe53143c67324aef2797711f83bf601122b631b01e352f",
-                          "game/ServerScriptService/Spark/Main.server.luau":  "7d0d9ffeea372d15fe8cdb6f941855768d61205921bfba6432ef63df288b212e",
+                          "game/ServerScriptService/Spark/Main.server.luau":  "41a04763a7416ab0bd058430112c7cefca1c2ba97222e767c91f1ffc36e78533",
                           "game/ServerScriptService/Spark/Persistence.luau":  "695deb13b31b126fe9a5fd6f339a1401941a07d126083b6d02057bd0837308f6",
                           "game/ServerScriptService/Spark/World.luau":  "c3ea5c4c1be9ec9bc32e8d85478c6735ea9dbe5a8a4137badcf949309b01b8ad",
-                          "game/StarterPlayer/StarterPlayerScripts/Spark/Client.client.luau":  "a5c898c3ed46978a28c1e0c2734977b5e3c43e08da384ecedf295f1e96baa4be",
+                          "game/StarterPlayer/StarterPlayerScripts/Spark/Client.client.luau":  "326dc46a72c8acfc9bcbc66b75b3887359c3689db5fff5b1d6415dc159fcbbc0",
                           "tools/StudioInstaller.luau":  "21547f4236625cbf1fece101b9e36a9fa4b9798041f81ee1ee871b6e98cb6b6d",
                           "tests/CascadeState.spec.luau":  "fc1a78796e45d57cf10f7372b2de22af7cdcc97db72f6b779c0262591c7c1464",
+                          "tests/SparkChallenge.spec.luau":  "7996ed176c1c2b865feddfbe4c92b371abdd7c07dffc5d817032d38450e4832b",
                           "tests/SparkInstaller.spec.luau":  "c3c36ff4c972fd3d63ed67582d0b93defded3616358d5f25dcd28e774020b42a",
+                          "tests/SparkMasteryIntegration.spec.luau":  "e7d4be2c520b480c93ebc58af83f84e4a8a1ff1b8a413271f72f49f943e91391",
                           "tests/SparkPersistence.spec.luau":  "08e27c6770a6b928d4c80be6b456ccec27c4b55705352bbf8cf96782afbd33b1",
                           "tests/SparkProfile.spec.luau":  "9328454b3bb34d1421273316035af6d7c9e0e687ff10eedde11030295143364b",
                           "tests/SparkRules.spec.luau":  "b7ce1fae3807a38c3d8d4b112d810bd83e3a82823d9d3bc8b9382d2927620dd0",
                           "tests/SparkSessionSimulation.spec.luau":  "04872a8c24a3c24d9ede1e54ec343d4d70de9a1d925b75833c74b5ad38243eb0",
                           "tests/test_spark_lifecycle.py":  "17ddf9eb235ea297fc967acfb84ebeb5ea6119f02466f9c7aaa87ca4e6958875",
+                          "tests/test_studio_supervisor.py":  "a26c39f38b73aab4a756d40c9799a14b1c5bed4e7d1b656f50112b8d4377c1fa",
                           "tests/SparkClientLayoutSmoke.ps1":  "7725db5b35eb79602e36345f560a17b4201e3357e938f69be4f1be9a63650a25",
                           "tests/SparkStarterVisibilitySmoke.ps1":  "bfce1de0d97abcf0b065d02cc81a5f839185a13ad071c678c534593b24d98fa0",
                           "tests/SparkWorldSmoke.ps1":  "1216185b0f29d1f7b3497bb6c913c134797f2df34b04a241a0a06e33c4e63b45",
-                          "tools/run_checks.ps1":  "020133d8fb40b18782ccc2b34709df5282d9495374dfed8b2d1ecba04aa93c49",
+                          "tools/run_checks.ps1":  "42c875039ac7a5ca1e3096a20c587f0385512b5aabb3ac628460fbbe7e3f36ba",
                           "tools/generate_audio.py":  "8d788c3ca6e116cb2a00d78891cd927ce02669b16566b117f0b6af65b9cedbf7",
+                          "tools/studio_supervisor.py":  "319a25217a3206c75f0ae2ac53a945c450f356e9767f28ee6aa3f3c5998bb4c2",
                           "assets/audio/manifest.json":  "1a13b2db38828d0fd2b5fd21d73aa5e8dd37e15fd8aa1d30af818fe6a2f2da69"
                       },
     "checks":  [
@@ -79,8 +93,24 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.02,
+                       "seconds":  0.015,
                        "output":  "Compiled 0 KLOC into 0 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)",
+                       "output_characters":  75,
+                       "output_truncated":  false
+                   },
+                   {
+                       "id":  "compile:game/ReplicatedStorage/Spark/Challenge.luau",
+                       "executable":  "C:\\Users\\serag\\source\\repos\\ProjectCascade\\.tools\\luau\\luau-compile.exe",
+                       "arguments":  [
+                                         "--null",
+                                         "game/ReplicatedStorage/Spark/Challenge.luau"
+                                     ],
+                       "exit_code":  0,
+                       "expected_exit_code":  0,
+                       "passed":  true,
+                       "timed_out":  false,
+                       "seconds":  0.015,
+                       "output":  "Compiled 0 KLOC into 6 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)",
                        "output_characters":  75,
                        "output_truncated":  false
                    },
@@ -95,7 +125,7 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.019,
+                       "seconds":  0.013,
                        "output":  "Compiled 0 KLOC into 4 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)",
                        "output_characters":  75,
                        "output_truncated":  false
@@ -111,8 +141,8 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.032,
-                       "output":  "Compiled 0 KLOC into 4 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)",
+                       "seconds":  0.014,
+                       "output":  "Compiled 0 KLOC into 5 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)",
                        "output_characters":  75,
                        "output_truncated":  false
                    },
@@ -127,7 +157,7 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.02,
+                       "seconds":  0.014,
                        "output":  "Compiled 0 KLOC into 4 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)",
                        "output_characters":  75,
                        "output_truncated":  false
@@ -143,8 +173,8 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.019,
-                       "output":  "Compiled 0 KLOC into 29 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)",
+                       "seconds":  0.014,
+                       "output":  "Compiled 0 KLOC into 33 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)",
                        "output_characters":  76,
                        "output_truncated":  false
                    },
@@ -159,7 +189,7 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.017,
+                       "seconds":  0.013,
                        "output":  "Compiled 0 KLOC into 5 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)",
                        "output_characters":  75,
                        "output_truncated":  false
@@ -175,7 +205,7 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.016,
+                       "seconds":  0.075,
                        "output":  "Compiled 0 KLOC into 20 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)",
                        "output_characters":  76,
                        "output_truncated":  false
@@ -191,8 +221,8 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.017,
-                       "output":  "Compiled 0 KLOC into 33 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)",
+                       "seconds":  0.122,
+                       "output":  "Compiled 0 KLOC into 36 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)",
                        "output_characters":  76,
                        "output_truncated":  false
                    },
@@ -207,9 +237,24 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.015,
+                       "seconds":  0.059,
                        "output":  "Compiled 0 KLOC into 6 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)",
                        "output_characters":  75,
+                       "output_truncated":  false
+                   },
+                   {
+                       "id":  "suite:tests/SparkChallenge.spec.luau",
+                       "executable":  "C:\\Users\\serag\\source\\repos\\ProjectCascade\\.tools\\luau\\luau.exe",
+                       "arguments":  [
+                                         "tests/SparkChallenge.spec.luau"
+                                     ],
+                       "exit_code":  0,
+                       "expected_exit_code":  0,
+                       "passed":  true,
+                       "timed_out":  false,
+                       "seconds":  0.062,
+                       "output":  "PASS SparkChallenge: 3970 assertions (pure Luau, no Studio)",
+                       "output_characters":  59,
                        "output_truncated":  false
                    },
                    {
@@ -222,9 +267,24 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.02,
+                       "seconds":  0.076,
                        "output":  "PASS SparkInstaller: 45 assertions; mocked preflight, write rollback, preservation and repeat install",
                        "output_characters":  101,
+                       "output_truncated":  false
+                   },
+                   {
+                       "id":  "suite:tests/SparkMasteryIntegration.spec.luau",
+                       "executable":  "C:\\Users\\serag\\source\\repos\\ProjectCascade\\.tools\\luau\\luau.exe",
+                       "arguments":  [
+                                         "tests/SparkMasteryIntegration.spec.luau"
+                                     ],
+                       "exit_code":  0,
+                       "expected_exit_code":  0,
+                       "passed":  true,
+                       "timed_out":  false,
+                       "seconds":  0.018,
+                       "output":  "PASS SparkMasteryIntegration: 2246 assertions (pure production modules; no engine/rendering)",
+                       "output_characters":  92,
                        "output_truncated":  false
                    },
                    {
@@ -237,7 +297,7 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.02,
+                       "seconds":  0.018,
                        "output":  "PASS new load save release and rejoin restore progression\r\nPASS live lease excludes concurrent server; expiry permits safe takeover\r\nPASS failed load never permits write or release overwrite\r\nPASS transient failures retry and updates tolerate repeated transform\r\nPASS corrupt and future records are never replaced\r\nPASS save failure preserves stored data and permits subsequent safe retry\r\nPASS reentrant save cannot overwrite a pending write\r\nPASS release failure keeps lease; success is final and cannot be written again\r\nPASS legacy profiles migrate; negative Studio ids work; invalid ids do not write\r\nPASS expired local session cannot pretend a repeated load is ready\r\nPASS nil and future-version saves cannot replace a loaded profile\r\nPASS load response arriving at expiry cannot create a writable session\r\nPASS renewal response arriving expired cannot confirm a new earning window\r\nPASS valid delayed responses expose only their remaining absolute lease\r\nPASS failed renewal cannot move the last acknowledged deadline\r\nPASS server takeover during a delayed load is not overwritten\r\nPASS late release acknowledgement is still final and creates no local lease\r\nSparkPersistence: 17 tests passed",
                        "output_characters":  1199,
                        "output_truncated":  false
@@ -252,7 +312,7 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.018,
+                       "seconds":  0.016,
                        "output":  "PASS content has twelve unique species, three arenas and distinct silhouettes\r\nPASS defaults do not share nested state\r\nPASS sanitization rejects future versions and non records\r\nPASS sanitization clamps malformed data and removes unknown keys/cycles\r\nPASS banking awards value, trio bonus, discoveries and deterministic mutations\r\nPASS upgrades debit once and enforce valid keys costs and level cap\r\nPASS quests cannot claim early or twice and derive collection goals\r\nPASS balances and counts remain bounded\r\nSparkProfile: 8 tests passed",
                        "output_characters":  539,
                        "output_truncated":  false
@@ -267,7 +327,7 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.018,
+                       "seconds":  0.015,
                        "output":  "SparkRules: 2045 assertions passed (pure rules; NOT engine multiplayer)",
                        "output_characters":  71,
                        "output_truncated":  false
@@ -282,7 +342,7 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.038,
+                       "seconds":  0.034,
                        "output":  "PASS contenders=1 rounds=10 player_rounds=10 unique_captures=240 contested_attempts=240 replay_rejections=240 reconnects=2 store_calls=69\r\nPASS contenders=2 rounds=10 player_rounds=20 unique_captures=480 contested_attempts=960 replay_rejections=480 reconnects=3 store_calls=136\r\nPASS contenders=4 rounds=10 player_rounds=40 unique_captures=960 contested_attempts=3840 replay_rejections=960 reconnects=5 store_calls=274\r\nSparkSessionSimulation: 12456 assertions passed; 70 simulated player-rounds. PURE MODULES ONLY; NOT STUDIO MULTIPLAYER.",
                        "output_characters":  539,
                        "output_truncated":  false
@@ -299,9 +359,24 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.108,
+                       "seconds":  0.094,
                        "output":  "PASS detached removal finalizer remains tracked after active session removal\r\nPASS shutdown waits for a pending load and its subsequent lease release\r\nPASS player leaving during load still releases the acquired lease\r\nPASS closing rejects new loads and failed late loads need no release\r\nPASS ordinary load becomes active without residual pending work\r\nPASS concurrent removal and shutdown do not start a second finalizer\r\nPASS multiple detached saves and pending loads remain independently tracked\r\nPASS new progress during an in-flight save must not display Saved\r\nPASS next save of current revision clears dirty state\r\nPASS failed save cannot advance the acknowledged revision\r\nPASS Studio acknowledgment is explicitly temporary and stale save cannot regress revision\r\nPASS actions stop at the acknowledged deadline, not response time\r\nSparkLifecycle: 12 production-helper tests passed (NOT Roblox shutdown/DataStore integration)",
                        "output_characters":  932,
+                       "output_truncated":  false
+                   },
+                   {
+                       "id":  "python-suite:tests/test_studio_supervisor.py",
+                       "executable":  "python",
+                       "arguments":  [
+                                         "tests/test_studio_supervisor.py"
+                                     ],
+                       "exit_code":  0,
+                       "expected_exit_code":  0,
+                       "passed":  true,
+                       "timed_out":  false,
+                       "seconds":  5.789,
+                       "output":  "..........\r\n----------------------------------------------------------------------\r\nRan 10 tests in 5.664s\r\n\r\nOK",
+                       "output_characters":  112,
                        "output_truncated":  false
                    },
                    {
@@ -320,7 +395,7 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.26,
+                       "seconds":  0.192,
                        "output":  "PASS pure client layout: 11 usable-canvas cases, 181 geometric assertions\r\nNOT TESTED: Roblox rendering, font measurement, actual CoreGui bounds, touch input, gamepad focus or safe-area reporting",
                        "output_characters":  195,
                        "output_truncated":  false
@@ -341,7 +416,7 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.267,
+                       "seconds":  0.189,
                        "output":  "PASS starter visibility: 11 assertions with event doubles\r\nNOT TESTED: Roblox replication timing, rendering or real multiplayer clients",
                        "output_characters":  135,
                        "output_truncated":  false
@@ -362,7 +437,7 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.231,
+                       "seconds":  0.203,
                        "output":  "PASS offline constructor smoke: 3 arenas, 12 distinct shape ids, 609 world instances, 565 world parts, 123 colliders, 206 creature parts, 27 construction yields\r\nNOT TESTED: Roblox rendering, physics, camera, client FPS, device scaling, live navigation, gameplay, sound",
                        "output_characters":  269,
                        "output_truncated":  false
@@ -378,7 +453,7 @@
                        "expected_exit_code":  0,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  0.373,
+                       "seconds":  0.34,
                        "output":  "PASS: six WAVs; bounded peaks, no clipping, DC bounds, edge/loop checks, \u003c10 MB, manifest hashes",
                        "output_characters":  96,
                        "output_truncated":  false,
@@ -398,7 +473,7 @@
                                          "-File",
                                          "C:\\Users\\serag\\source\\repos\\ProjectCascade\\tools\\run_checks.ps1",
                                          "-ReportPath",
-                                         "C:\\Users\\serag\\AppData\\Local\\Temp\\spark check failure d8233d1d0eb944079762410ab48c90a4\\report.json",
+                                         "C:\\Users\\serag\\AppData\\Local\\Temp\\spark check failure 7a82f7216eb54acb87c561a64dcca774\\report.json",
                                          "-LuauPath",
                                          "C:\\Users\\serag\\source\\repos\\ProjectCascade\\.tools\\luau\\luau.exe",
                                          "-CompilerPath",
@@ -406,13 +481,13 @@
                                          "-Python",
                                          "python",
                                          "-AdditionalSuite",
-                                         "C:\\Users\\serag\\AppData\\Local\\Temp\\spark check failure d8233d1d0eb944079762410ab48c90a4\\intentional-failure.luau"
+                                         "C:\\Users\\serag\\AppData\\Local\\Temp\\spark check failure 7a82f7216eb54acb87c561a64dcca774\\intentional-failure.luau"
                                      ],
                        "exit_code":  1,
                        "expected_exit_code":  1,
                        "passed":  true,
                        "timed_out":  false,
-                       "seconds":  2.058,
+                       "seconds":  7.996,
                        "output":  "Expected child exit 1; JSON status=failed; intentional additional suite exit=1",
                        "output_characters":  78,
                        "output_truncated":  false,

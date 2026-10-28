@@ -23,7 +23,8 @@ end
 function Profile.new()
 	return {version=1, coins=0, totalBanked=0, rounds=0, album={}, mutations={},
 		upgrades={boots=0,magnet=0,basket=0}, quests={},
-		settings={reducedMotion=false,music=true,sfx=true}, lastSeen=0}
+		mastery={bestScore=0,bestChain=0,completed=0,bestByBiome={}},
+		settings={reducedMotion=false,music=true,sfx=true,competition=false}, lastSeen=0}
 end
 
 -- Whitelist every persisted key. Never retain unknown nested values, Instances or cycles.
@@ -37,6 +38,16 @@ function Profile.sanitize(raw)
 	result.totalBanked = integer(raw.totalBanked, MAX_COUNT)
 	result.rounds = integer(raw.rounds, MAX_COUNT)
 	result.lastSeen = integer(raw.lastSeen, 4102444800)
+	if type(raw.mastery)=="table" then
+		for _,key in ipairs({"bestScore","bestChain","completed"}) do
+			result.mastery[key]=integer(raw.mastery[key],MAX_COUNT)
+		end
+		if type(raw.mastery.bestByBiome)=="table" then
+			for _,biome in ipairs(Config.Biomes) do
+				result.mastery.bestByBiome[biome.id]=integer(raw.mastery.bestByBiome[biome.id],MAX_COUNT)
+			end
+		end
+	end
 	if type(raw.album) == "table" then
 		for id in pairs(species) do
 			local count = integer(raw.album[id], MAX_COUNT)
@@ -64,6 +75,24 @@ function Profile.speciesCount(profile)
 	local count = 0
 	for id in pairs(species) do if (profile.album[id] or 0) > 0 then count += 1 end end
 	return count
+end
+
+-- A completed server-owned round summary only; never accepts a client score.
+function Profile.recordMastery(profile,biomeId,summary)
+	if type(summary)~="table" or summary.finished~=true then return false end
+	local known=false
+	for _,biome in ipairs(Config.Biomes) do if biome.id==biomeId then known=true; break end end
+	if not known then return false end
+	local score=integer(summary.score,MAX_COUNT)
+	local mastery=profile.mastery
+	local improved=score>mastery.bestScore
+	mastery.bestScore=math.max(mastery.bestScore,score)
+	mastery.bestChain=math.max(mastery.bestChain,integer(summary.bestChain,MAX_COUNT))
+	mastery.bestByBiome[biomeId]=math.max(mastery.bestByBiome[biomeId] or 0,score)
+	if type(summary.challenge)=="table" and summary.challenge.complete==true then
+		mastery.completed=math.min(MAX_COUNT,mastery.completed+1)
+	end
+	return improved
 end
 
 -- Only call with the server's validated carry list. Never accept client-provided catches.

@@ -1,6 +1,6 @@
 # SPARK STAMPEDE production issues
 
-Updated 2026-10-27 PDT. This ledger distinguishes implemented fixes from engine-verified closure. G4 is not reached.
+Updated 2026-10-28 PDT. **Offline only; scheduling paused; unattended Studio disabled.** This ledger distinguishes implemented fixes from engine-verified closure. G4 is not reached.
 
 | ID | Priority | Issue and next acceptance evidence | State |
 | --- | --- | --- | --- |
@@ -9,7 +9,7 @@ Updated 2026-10-27 PDT. This ledger distinguishes implemented fixes from engine-
 | SS-03 | P1 | A completed older save could show Saved for newer rewards. Revision-aware acknowledgments and pending feedback implemented; results no longer assert unconditional safety. Inject a concurrent bank during delayed persistence in engine. | Fixed offline; live verification pending |
 | SS-04 | P1 | Revised solo run recorded action/catch0.464s, bank0.514s from server join. Second run had focus-delayed action36.196s/catch36.197s/bank36.198s. Both retained; tool timing does not establish independent human comprehension or visible-spawn timing. | Improved scripted sample; usability gate pending |
 | SS-05 | P1 | Music/SFX asset IDs blank. Six original WAVs exist and pass file analysis. Bind through supported permitted workflow and verify actual playback, balance, settings and asset access. | Open |
-| SS-06 | P1 | Real two-/four-client tests and ten-round engine soak absent. Test same-target contention, late joins, disconnect, mixed phases, replay, death and invalid remotes; capture each client's evidence. | Open |
+| SS-06 | P1 | Prior two clients independently banked, with starter isolation/mixed phases/replay observed; a third joined. No four-client or same-target contention proof, soak, or verified session shutdown. Complete matrix only after owner-approved supervision. | Partial evidence; live testing disabled |
 | SS-07 | P1 | Studio uses isolated memory profiles. Cross-session production persistence and failure behavior have no real platform evidence. Use a separate safe test store when supported; never enable production Studio writes casually. | Open |
 | SS-08 | P1 | Touch controls could overlap movement/jump; narrow menus clipped and gamepad lacked menu focus. 3e8b28a fixes layout/focus; 11 usable-canvas geometry cases pass. Render and operate portrait/landscape, safe areas, gamepad selection and menu refresh. | Fixed offline; device verification pending |
 | SS-09 | P1 | Transactional installer has45 mocked assertions and a real local-copy partial-source-write rehearsal: injected final Source failure restored12 source/attribute/enabled snapshots, rollback failures0, backup hash unchanged. Process-crash and every failure mode are outside this result. | Tested failure path closed |
@@ -22,4 +22,7 @@ Updated 2026-10-27 PDT. This ledger distinguishes implemented fixes from engine-
 | SS-16 | P2 | Private starters share spawn positions for fresh players, risking overlapping models/labels and misleading targets. Client visibility fix 45144f8 has 11 event-double assertions. In the follow-up live build, a replicated foreign-owner probe hid 15 parts and one billboard in the real client; probe removed. Actual multiple-client views remain untested. | Single-client injected-model test passed; multiplayer pending |
 | SS-17 | P1 | Live 862e91a dash feedback produced no displacement. Follow-up planar LinearVelocity fix moved z 38→27.259985, peak speed 65.8760 over 61 inspected samples; actuator removed afterward, normal capture/bank still worked. Git 45144f8 plus uncommitted Main hash recorded in report. Test repeated dash, collision and multiplayer/latency next. | Reproduced defect fixed and solo-retested; broader regression pending |
 
-Evidence: [production log](GAME1_PROGRESS.md), [October27 live report](qa/2026-10-27/live-studio.md), [offline report](qa/latest-checks.json), [client QA](GAME1_CLIENT_QA.md), [release gates](GAME1_RELEASE_CHECKLIST.md). Pure/model tests are not live Studio, audible, human usability or device-performance passes. Latest report:20 offline checks passed at dirty862e91a with client visibility changes, before subsequent dash edits.
+| SS-18 | P0 operational | Abandoned simulations/focus interference. AGENTS now forbids foreground control and unattended launch; scheduler remains paused. Independent worker passes offline interruption/timeout/identity tests, but live process binding/GPU/hung-Studio cleanup is unproven. | Unattended capability disabled; live safety gate OPEN |
+| SS-19 | P1 product | Insufficient mastery/variety. Precision, dash timing, chains, recoverable bonus loss, rotating goals, personal bests, opt-in session scores and telegraphed sweeps are source-integrated. Pure/module tests pass; gameplay feel and warnings not engine-verified. | Staged offline; balance/engine review pending |
+
+Evidence: [production log](GAME1_PROGRESS.md), [incident audit](GAME1_WORKFLOW_CORRECTION.md), [supervisor limits](GAME1_TEST_SUPERVISOR.md), [offline report](qa/latest-checks.json). Model/process-fixture tests are not live Studio cleanup, rendering, audio, human usability or device-performance passes.

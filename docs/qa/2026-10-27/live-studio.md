@@ -1,5 +1,7 @@
 # Studio recovery and solo progression evidence — October 27, 2026
 
+Historical report, superseded for current operating status by [the incident audit](../../GAME1_WORKFLOW_CORRECTION.md). A later befffcf local server/two-client partial run and third join were left without verified shutdown; four-client QA was not completed. Unattended testing is now disabled. The later dash fix was committed as befffcf; its final source includes actuator cleanup and compact onboarding labels beyond the intermediate hash below.
+
 User-local report date: October 27 PDT. Continuation heartbeat: 2026-10-27T23:49:01.941Z. Session actions span continuations; absolute UTC times for each input were not retained in this report. Funnel values below are the actual recorded elapsed seconds after server join. They must not be interpreted as independently timed visible-spawn or human-comprehension results.
 
 ## Environment and scope

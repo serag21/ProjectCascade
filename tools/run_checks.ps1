@@ -106,6 +106,7 @@ $sourceFiles = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'game') -Filter
 $sourceFiles += Get-Item -LiteralPath (Join-Path $repoRoot 'tools/StudioInstaller.luau')
 $suites = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'tests') -Filter '*.spec.luau' -File | Sort-Object FullName)
 $pythonSuites = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'tests') -Filter 'test_spark_*.py' -File | Sort-Object FullName)
+$pythonSuites += Get-Item -LiteralPath (Join-Path $repoRoot 'tests/test_studio_supervisor.py')
 $smokeSuites = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'tests') -Filter 'Spark*Smoke.ps1' -File | Sort-Object FullName)
 $excludedSuites = @([ordered]@{path = 'tests/CascadeState.spec.luau';
     reason = 'Archived Cascade engine-only suite requires game.ReplicatedStorage; outside Spark offline scope. Not passed by this runner.'})
@@ -114,7 +115,7 @@ foreach ($file in @($sourceFiles) + @($suites) + @($pythonSuites) + @($smokeSuit
     $relative = $file.FullName.Substring($repoRoot.Length + 1).Replace('\', '/')
     $hashes[$relative] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 }
-foreach ($relative in @('tools/run_checks.ps1', 'tools/generate_audio.py', 'assets/audio/manifest.json')) {
+foreach ($relative in @('tools/run_checks.ps1', 'tools/generate_audio.py', 'tools/studio_supervisor.py', 'assets/audio/manifest.json')) {
     $hashes[$relative] = (Get-FileHash -LiteralPath (Join-Path $repoRoot $relative) -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 

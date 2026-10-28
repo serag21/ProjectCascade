@@ -279,6 +279,14 @@ renderPanel=function()
 			b.Name="UpgradeButton"
 		end
 	elseif selectedPanel=="Quests" then
+		if latest.mastery then
+			local goal=latest.mastery.challenge
+			local r=row(120,"RoundChallenge")
+			rowText(r,goal.name.." • "..goal.progress.." / "..goal.target,17,5)
+			rowText(r,goal.description,13,34)
+			rowText(r,if goal.complete then "COMPLETE • 100 skill secured" else "Bank to secure 100 bonus skill • No glow cost",13,65)
+			rowText(r,"Best chain: "..p.mastery.bestChain.." • Goals cleared: "..p.mastery.completed,12,91)
+		end
 		for _,quest in ipairs(Config.Quests) do
 			local progress=Profile.questProgress(p,quest)
 			local claimed=p.quests[quest.id]
@@ -296,7 +304,7 @@ renderPanel=function()
 			b.Name="TravelButton"
 		end
 	elseif selectedPanel=="Settings" then
-		for _,setting in ipairs({{"reducedMotion","Reduced motion"},{"music","Music"},{"sfx","Sound effects"}}) do
+		for _,setting in ipairs({{"reducedMotion","Reduced motion"},{"music","Music"},{"sfx","Sound effects"},{"competition","Opt in: session scores"}}) do
 			local r=row(64,"Setting_"..setting[1])
 			local b=button(r,setting[2]..": "..(if p.settings[setting[1]] then "ON" else "OFF"),UDim2.fromOffset(12,10),UDim2.new(1,-24,0,44),palette.mint,function() Action:FireServer("Settings",{[setting[1]]=not p.settings[setting[1]]}) end); b.ZIndex=9
 			b.Name="ToggleButton"
@@ -304,6 +312,16 @@ renderPanel=function()
 		local r=row(96,"ControlsHelp"); rowText(r,"Move: WASD / thumbstick • Jump: Space / A",14,7)
 		rowText(r,"Catch: E / X • Dash: Shift / B • Bank: R / Y",14,34)
 		rowText(r,"Collection: M / Select • All rewards earned in play",13,61)
+		local help=row(112,"MasteryHelp")
+		rowText(help,"Aim close + face your Spark for precision",13,7)
+		rowText(help,"Dash then catch • Chain catches within 6 seconds",13,33)
+		rowText(help,"Misses / orange sweeps lose carried skill bonus",13,59)
+		rowText(help,"Banked score, glow and collection stay safe",13,85)
+		if p.settings.competition then
+			local scores=row(130,"SessionScores")
+			rowText(scores,"Optional session scores • current rounds",14,4)
+			for index,entry in ipairs(latest.ranking or {}) do rowText(scores,entry.name.." • "..entry.score,13,8+index*24) end
+		end
 	end
 	local firstAction=nil
 	for _,r in ipairs(content:GetChildren()) do
@@ -433,6 +451,13 @@ local function sound(kind)
 	task.delay(math.clamp((entry.duration or 2)+1,1,12),function() retire(cue) end)
 end
 local effects=make("Folder",workspace,{Name="SparkLocalEffects"})
+-- One local telegraph, no flashing or screen shake. Server decides every hit.
+local sweep=make("Part",effects,{Name="SweepWarning",Shape=Enum.PartType.Cylinder,
+	Size=Vector3.new(.15,7,7),Anchored=true,CanCollide=false,CanTouch=false,CanQuery=false,
+	Material=Enum.Material.SmoothPlastic,Color=Color3.fromRGB(255,157,65),Transparency=1})
+local sweepCue=make("BillboardGui",sweep,{Size=UDim2.fromOffset(120,28),StudsOffset=Vector3.new(0,2,0),MaxDistance=50,Enabled=false})
+local sweepText=label(sweepCue,"",13,UDim2.new(),UDim2.fromScale(1,1),palette.ink)
+sweepText.TextXAlignment=Enum.TextXAlignment.Center
 local effectCount=0
 local function burst(position)
 	if effectCount>=24 or (latest and latest.profile.settings.reducedMotion) then return end
@@ -462,8 +487,26 @@ State.OnClientEvent:Connect(function(data)
 	glow.Text=data.profile.coins.." GLOW"
 	carry.Text=string.format("PARADE %d / %d",data.carry,data.capacity)
 	objective.Text=data.objective
+	if data.mastery then
+		local m=data.mastery
+		brand.Text=string.format("SCORE %d\nBEST %d",m.score,data.profile.mastery.bestScore)
+		if data.phase=="Playing" and (data.startersRemaining or 0)==0 then
+			objective.Text=data.objective..string.format("\nx%d • %d carried skill • %s %d/%d",m.multiplier,m.pending,m.challenge.name,m.challenge.progress,m.challenge.target)
+		end
+	end
 	saveLabel.Text=data.saveStatus
 	resultScore.Text=string.format("+%d glow this round\n%d / 12 Sparks discovered",data.score,Profile.speciesCount(data.profile))
+	if data.mastery then
+		resultTitle.Text=if data.personalBest then "NEW PERSONAL BEST!" else data.mastery.medal.." PARADE"
+		resultScore.Text=string.format("%d skill • Best %d\n+%d glow • Chain %d",data.mastery.score,data.profile.mastery.bestScore,data.score,data.mastery.bestChain)
+	end
+	local h=data.hazard
+	sweep.Transparency=if h and h.visible then (if h.active then .25 else .65) else 1
+	sweepCue.Enabled=h~=nil and h.visible==true
+	if h and h.visible then
+		sweep.CFrame=CFrame.new(h.position)*CFrame.Angles(0,0,math.pi/2)
+		sweepText.Text=if h.active then "DODGE SWEEP" else "SWEEP IN "..math.ceil(h.seconds)
+	end
 	syncOverlays()
 	if previousPhase~=data.phase and controllerActive() and not selectedPanel then
 		GuiService.SelectedObject=if data.phase=="Results" then replayButton else nil
@@ -481,7 +524,9 @@ State.OnClientEvent:Connect(function(data)
 		if not music.IsPlaying then music:Play() end
 	else music:Stop() end
 	if not data.profile.settings.sfx then while #voices>0 do retire(voices[1]) end end
-	local fingerprint=table.concat({data.profile.coins,data.profile.totalBanked,data.profile.rounds,tostring(data.profile.settings.reducedMotion),tostring(data.profile.settings.music),tostring(data.profile.settings.sfx)},":")
+	local rankSignature={}
+	for _,entry in ipairs(data.ranking or {}) do table.insert(rankSignature,tostring(entry.userId).."="..entry.score) end
+	local fingerprint=table.concat({data.profile.coins,data.profile.totalBanked,data.profile.rounds,tostring(data.profile.settings.reducedMotion),tostring(data.profile.settings.music),tostring(data.profile.settings.sfx),tostring(data.profile.settings.competition),data.mastery and data.mastery.challenge.progress or 0,tostring(data.mastery and data.mastery.challenge.complete),table.concat(rankSignature,",")},":")
 	if selectedPanel and fingerprint~=lastFingerprint then renderPanel() end
 	lastFingerprint=fingerprint
 end)

@@ -1,6 +1,20 @@
 # Game #1 — durable production log
 
-Updated 2026-10-27 PDT. **STUDIO RECONNECTED; RECOVERY REHEARSED; SOLO QUEST/UPGRADE/REPLAY VERIFIED; DASH MOVEMENT FIX ENGINE-RETESTED. Not a release candidate.**
+Updated 2026-10-28 PDT. **OFFLINE ONLY. SCHEDULING PAUSED. UNATTENDED STUDIO TESTS DISABLED. New mastery gameplay is staged, not activated. Not a release candidate.**
+
+## Owner correction and current work — takes precedence over historical testing notes
+
+- Owner reported the abandoned simulation consumed resources for hours, Studio hung, and they force-closed it. The transcript has an unclosed local server/three-client session followed by a usage-limit error, with no independent cleanup. Local server logs span 23:57:31Z boot to a 01:58:28Z hang report. A graphics warning does not prove the cause of later display instability. [Incident audit](GAME1_WORKFLOW_CORRECTION.md).
+- No foreground Computer Use, window focus, physical input, Studio launch/play or GPU-heavy work in this corrective session. Native MCP inventory/state reads found the intended place in **Edit**, instance f45da579-dc54-4292-b9ff-9cfe9a3c8aa2. No new activation. Do not use earlier Studio IDs without rechecking.
+- Owner's protected evening backup rehashed unchanged: 81596f787935f27ca2edf661f5eed4486dac2a71ba559b19f16ef916eb572254, 136090 bytes. Never overwrite/move/delete it. Cascade archive is intact. Branch codex/playable-before-workflow-correction-20261027 preserves befffcf, the last installed source milestone.
+- 0d178b2 commits the operating rules and audit, preserving pending historical reports/screenshots. 7ad1bca adds an independent cleanup-only worker and ten offline fault tests, including launcher exit/termination, timeout, identity mismatch, resource ceilings and stop verification. **Live mode is hard-disabled.** Real MCP/PID binding, GPU monitoring and hung-engine containment are not proven; this is not authorization for unattended tests. [Supervisor limits](GAME1_TEST_SUPERVISOR.md).
+- New staged gameplay: server-owned precision/dash timing score, six-second chains with x3 cap, recoverable misses, rotating challenges, bronze/silver/gold results, persistent personal/per-arena bests, opt-in session scores, and a telegraphed infield sweep. Saved collection/glow are unaffected by mistakes. UI explains the loop; all code remains offline. [Mastery design](GAME1_MASTERY.md).
+- Offline evidence: **24 checks passed, zero failed**, 2026-10-28 15:12:48–15:13:04 UTC, tested dirty 7ad1bca snapshot with exact source hashes and no source changes during the run. Includes Challenge 3970 assertions, mastery/profile/hazard integration 2246 assertions and supervisor ten tests. The deliberate runner failure returned exit 1 as expected. [Exact report](qa/latest-checks.json). No new live gameplay, audio, mobile, actual DataStore or device-performance result is claimed.
+- The owner-paused automation was confirmed PAUSED and its stale prompt replaced with explicit offline-only/no-launch/no-desktop restrictions. Queued heartbeats do not authorize resumption. Only the owner can authorize scheduling again.
+
+### Prior multiplayer batch, now accurately recorded
+
+Build befffcf was installed with eight readbacks (Main f912bb57c605d70e205e79a41deda9de01bb5bf540a2182b0bcee5bd85a6f897). Local server a018c177-8cbf-4aba-a313-8c575991029b hosted Player1/Player2 plus a later Player3. The first two independently caught/banked one Bunvolt through real MCP E input (4 glow each), and each hid the other's private starters. Mixed Playing/Results phases and replay were observed. A scripted chase captured six distinct normal creature IDs for Player1; Player2's round ended during that diagnostic, so it did not prove same-target contention. The third client joined, but no four-client test completed. Normal shutdown was NOT verified. These partial results do not close G3 and must not be repeated unattended.
 
 ## Recovery and source
 
@@ -19,7 +33,7 @@ Updated 2026-10-27 PDT. **STUDIO RECONNECTED; RECOVERY REHEARSED; SOLO QUEST/UPG
 - e39c3e6: three themed procedural arenas, twelve silhouettes, reproducible mock constructor smoke.
 - 0321166 / 6fd5a1d: authoritative captures/banking, 110s rounds, shared events, herd behavior/obstacle avoidance, movement validation, serialized final saves, responsive HUD/menu/controls/parades/settings.
 - bd23b31: live backup, installer/workflow, pure 1/2/4-contender simulation.
-- 7b0cf69: fallen-player rescue, starter targets near spawn, public QA attributes. da87ae0: stable GUI paths, M menu key, player-list overlap prevention. Included in the current installed build; rescue still awaits an engine test.
+- 7b0cf69/da87ae0: rescue, starter placement, QA attributes and stable UI paths. The later bounded injected-fall test below verified one rescue case, not death/rejoin coverage.
 
 ## Latest completed implementation batch — 2026-10-26/27
 
@@ -29,7 +43,7 @@ Updated 2026-10-27 PDT. **STUDIO RECONNECTED; RECOVERY REHEARSED; SOLO QUEST/UPG
 - tools/run_checks.ps1 now includes compilation, all Spark Luau suites, production lifecycle harness, world/layout mock smoke and audio checks, with timestamp/HEAD/dirty/source hashes/exit codes. Final run at 2026-10-27 05:22:53–05:23:35UTC passed all19 checks (0failed); intentional child failure returned exit1 and was correctly recorded as failed. No tested source changed during the run. See docs/qa/latest-checks.json for exact commands, hashes and outputs.
 - b191aa8 and 862e91a: reject expired lease acknowledgments after delayed DataStore responses; Main gates progression on the last acknowledged absolute lease deadline. Seventeen persistence tests and twelve lifecycle helper tests pass. Real platform latency/takeover remains unverified.
 - e0e90a2: finite owner-only first catches, no replay refill, and ordinary herd clearance from the bank prevent stationary starter farming. Rules suite expanded to 2,045 assertions. Current solo input evidence supports the limited camping case below; multiplayer ownership and overlapping starter visuals still need live review.
-- 45144f8: client visibility hides other players' private starter creatures; eleven assertions with event doubles pass. Not installed in the current live 862e91a session, and not yet multiplayer-rendered.
+- 45144f8: client visibility hides other players' private starter creatures; eleven event-double assertions and later two-client visibility checks passed. See current correction notes for the incomplete multiplayer batch.
 - Latest complete runner: **20 checks passed**, zero failures, 2026-10-27T23:53:27.7074851Z–23:53:32.0634716Z. Report records dirty HEAD 862e91a with client visibility changes, exact source hashes and no source changes during the run; intentional child failure returned exit 1 as expected. This is the tested snapshot subsequently committed as the visibility milestone, not a claim that later dash edits passed.
 - Durable issue ledger: docs/GAME1_ISSUES.md. Offline fixes are not marked engine-verified closure.
 
@@ -84,7 +98,7 @@ Two fresh solo sessions used isolated memory profiles. Inputs were actual MCP ke
 - Run 2: viewport focus delayed input; first_action 36.196s, first_catch 36.197s, first_bank 36.198s; first_round 110.046s. After focusing the game viewport, movement/capture pulses reached three banked catches, 12 glow, three discovered species and zero remaining starters. The delayed run is retained as a failed timing sample, not discarded as a pass.
 - Native quest UI: first-haul claim changed 12→22 glow; repeated click left 22 unchanged. First-round claim changed 22→37. Native upgrade UI: boots purchase changed 37→17 glow and level 0→1; another unaffordable purchase attempt left 17 / level 1 unchanged. Screenshots: [quests](qa/2026-10-27/quests-claimed.png), [boots](qa/2026-10-27/boots-upgrade.png).
 - Actual native Chase Again click hid Results and started Playing with timer 1:48; 17 glow, three species, three banked, zero starters and one completed round were retained. Client state confirmed boots level 1, dash cooldown 2.65 and both quests claimed. The replay did not refill starter allowance. First-upgrade/replay telemetry at 28,167.895s / 28,212.321s reflects a long interrupted idle session, not first-session pacing.
-- **New live dash defect:** accepted Shift feedback produced no meaningful character movement. A five-second client sample contained 69 observations with z min=max=38 and maximum speed approximately 0.0000065254. Earlier dash feedback alone did not prove displacement. Fix and engine retest are in progress; current dash movement fails acceptance.
+- **Historical dash defect:** accepted Shift feedback produced no meaningful movement (69 observations, z min=max=38). The subsequent planar-actuator test below demonstrated displacement; befffcf committed that fix and cleanup on correction/teleport. Broader regression is pending.
 - Follow-up live build: 45144f8 plus uncommitted Main planar LinearVelocity dash fix, all eight source readbacks matched. Actual Shift input moved the character from z 38 to 27.259985, with peak speed 65.8760 across 61 inspected samples; two samples observed the actuator. Subsequent E/S capture/bank awarded 4 glow / one catch, and server inspection found no remaining SparkDashVelocity or attachment. Inspected console reported no game errors. This closes the reproduced zero-displacement case; high-latency, collision, multiplayer and repeated-dash lifecycle tests remain open. Exact hashes and scope are in the live report.
 - Diagnostic-run first_action 13.070s / first_catch 30.772s / first_bank 33.758s include focus/instrumentation delays and are not a fresh-hook success sample. Actual 2/4-client, platform persistence, device/audio and ten-round engine tests remain outstanding.
 - Explicit engine-script diagnostics on that follow-up build: replicated foreign-starter probe hid all 15 parts and one billboard in the real client; injected fall from y=-30 rescued to y=2.998046875 with health 100 and unchanged 4 glow / one banked catch; malformed/unearned request batch (including 100 first-haul requests) left progression unchanged, and subsequent actual E input reached 7 glow / two catches. Probes were removed. This is single-client script injection, not actual two-player or death/rejoin coverage; detailed inputs are in the live report.
@@ -96,16 +110,15 @@ Two fresh solo sessions used isolated memory profiles. Inputs were actual MCP ke
 | G0 | Identity/archive/full local backup/mappings/two-way probe verified; local-copy partial-write rollback rehearsed; eight-source activation readback verified |
 | G1 | Live captures/banking, 110s rounds, quest idempotence, boots debit, replay and repaired dash displacement observed; broader movement regression and independent comprehension pending |
 | G2 | Broad implementation exists; audio binding, gameplay/art polish and complete live audit pending |
-| G3 | Pure tests and additional solo interaction evidence; actual 2/4 clients, soak, device, security and engine persistence pending |
+| G3 | Offline suites and partial solo/two-client evidence; four clients, contention, cleanup, soak, device and engine persistence incomplete. Live testing disabled |
 | G4 | NOT READY; no owner candidate playtest requested |
 | G5 | NOT AUTHORIZED |
 
-1. Commit and broaden regression coverage for the engine-verified dash fix; continue arena navigation/unlocks, fall/death recovery and invalid-remote tests. Re-list Studio and inspect current mode before actions. Do not assume a successful input tool response means the viewport received input.
-2. Rerun the complete check runner for the latest committed sources; integrate staged client fixes through the same stop/build/install/readback workflow, then retest affected behavior.
-3. Save a separate local candidate copy without overwriting the recovery backup. Use Studio Test Server/Clients for actual 2/4-client contention, ownership, late-join/disconnect and mixed-phase tests; MCP start_stop_play only exposes solo.
-4. Bind original audio through supported free permitted workflow and audit playback/permissions. Create real marketing artifacts. No Robux/public publishing/monetization.
-5. Fix observed weaknesses, measure performance and run10 genuine rounds; append evidence and update release checklist.
+1. Continue offline game development and integration tests: creature variety, arena-specific challenges, animation/readability, co-op scoring and progression balance.
+2. Keep engine tests and new source activation queued. No GUI launch or play mode during the initial correction. Independent cleanup prototype is not live certification.
+3. Future owner-approved supervised test must first prove exact process ownership, independent normal stop, stopped-state verification and resource monitoring. Keep unattended use disabled if hang cleanup cannot be made safe.
+4. Prepare original audio bindings and packaging offline; audible/mobile/performance/soak tests remain pending. No publication, account changes, Robux or monetization.
 
 ## Continuation
 
-Desktop heartbeat continue-spark-stampede-production is ACTIVE every4 hours in this chat, notifying only meaningful changes. Local work requires awake host/app and reachable Studio. Some subagent turns hit account usage limits; commits survived. Scheduling is not unlimited compute. No credentials committed, Robux spent, monetization or public publication enabled.
+Desktop heartbeat continue-spark-stampede-production is **PAUSED BY OWNER**. Confirmed and retained paused; prompt now prohibits queued launches or desktop control. No automatic resumption. Manual offline work may continue under the corrected rules. Subagent usage limits interrupted this correction too; root completed the supervisor prototype and gameplay integration without launching Studio. No credentials, Robux spending, monetization or public publishing.

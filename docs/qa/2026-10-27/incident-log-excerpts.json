@@ -1,0 +1,30 @@
+{
+  "source_name": "0.744.0.7441077_20261027T235657Z_Studio_FA0EF_last.log",
+  "sha256": "6D8E02F69235C1E5CE32E0422C89B49D1A8EC53E7AD5DC8CE7B8CED88AC75749",
+  "scope": "Selected existing Studio log excerpts; no live test performed during collection; no causal GPU/display diagnosis",
+  "lines": [
+    "2026-10-27T23:57:13.065Z,16.065437,cffc,6,Warning [FLog::StudioHangMonitor] Hang In Progress. HangId: 8B7594EC-6CAB-4462-9AF2-9039C3CCD5A7, ServiceId: MainThreadHangs, _mod_faulting_tid: 34080, LastTimeAlive: Tue, 27 Oct 2026 23:57:13 GMT",
+    "2026-10-27T23:57:18.065Z,21.065523,cffc,6,Warning [FLog::StudioHangMonitor] Hang In Progress. HangId: 8B7594EC-6CAB-4462-9AF2-9039C3CCD5A7, ServiceId: MainThreadHangs, _mod_faulting_tid: 34080, LastTimeAlive: Tue, 27 Oct 2026 23:57:18 GMT",
+    "2026-10-27T23:57:23.065Z,26.065750,cffc,6,Warning [FLog::StudioHangMonitor] Hang In Progress. HangId: 8B7594EC-6CAB-4462-9AF2-9039C3CCD5A7, ServiceId: MainThreadHangs, _mod_faulting_tid: 34080, LastTimeAlive: Tue, 27 Oct 2026 23:57:23 GMT",
+    "2026-10-27T23:57:28.066Z,31.066418,5014,6,Warning [FLog::StudioHangMonitor] Hang In Progress. HangId: 8B7594EC-6CAB-4462-9AF2-9039C3CCD5A7, ServiceId: MainThreadHangs, _mod_faulting_tid: 85884, LastTimeAlive: Tue, 27 Oct 2026 23:57:28 GMT",
+    "2026-10-27T23:57:31.262Z,34.262661,8520,6,Info [FLog::CreatorOutput] [Spark] Studio memory persistence; real cross-server durability NOT being tested",
+    "2026-10-27T23:57:31.549Z,34.549725,de74,6,Info [FLog::CreatorOutput] [Spark] Staged build booted; 3 arenas, 54 moving Sparks; publishing remains unauthorized",
+    "2026-10-27T23:57:49.231Z,52.231979,cffc,6,Info [FLog::CreatorOutput] [SparkMetric] user=-1 event=join elapsed=0.000",
+    "2026-10-27T23:58:08.044Z,71.044113,cffc,6,Info [FLog::CreatorOutput] [SparkMetric] user=-1 event=first_action elapsed=18.812",
+    "2026-10-27T23:58:08.044Z,71.044113,cffc,6,Info [FLog::CreatorOutput] [SparkMetric] user=-1 event=first_catch elapsed=18.812",
+    "2026-10-27T23:58:08.079Z,71.079262,cffc,6,Info [FLog::CreatorOutput] [SparkMetric] user=-1 event=first_bank elapsed=18.847",
+    "2026-10-27T23:58:39.629Z,102.629761,9020,6,Info [FLog::CreatorOutput] [SparkMetric] user=-2 event=join elapsed=0.000",
+    "2026-10-27T23:58:59.360Z,122.360275,cffc,6,Info [FLog::CreatorOutput] [SparkMetric] user=-2 event=first_action elapsed=19.730",
+    "2026-10-27T23:58:59.360Z,122.360275,cffc,6,Info [FLog::CreatorOutput] [SparkMetric] user=-2 event=first_catch elapsed=19.731",
+    "2026-10-27T23:58:59.409Z,122.409225,8520,6,Info [FLog::CreatorOutput] [SparkMetric] user=-2 event=first_bank elapsed=19.779",
+    "2026-10-27T23:59:39.408Z,162.408875,de74,6,Info [FLog::CreatorOutput] [SparkMetric] user=-1 event=first_round elapsed=110.176",
+    "2026-10-27T23:59:56.674Z,179.674118,cffc,6,Info [FLog::CreatorOutput] [SparkMetric] user=-1 event=replay elapsed=127.442",
+    "2026-10-28T00:00:29.865Z,212.865936,cffc,6,Info [FLog::CreatorOutput] [SparkMetric] user=-2 event=first_round elapsed=110.236",
+    "2026-10-28T00:00:55.725Z,238.725830,5014,6,Info [FLog::CreatorOutput] [SparkMetric] user=-3 event=join elapsed=0.000",
+    "2026-10-28T00:00:56.624Z,239.624268,cffc,6,Info [FLog::CreatorOutput] [SparkMetric] user=-2 event=replay elapsed=136.994",
+    "2026-10-28T00:02:45.846Z,348.846649,cffc,6,Info [FLog::CreatorOutput] [SparkMetric] user=-3 event=first_round elapsed=110.121",
+    "2026-10-28T01:57:23.827Z,7226.827148,14f7c,6,Warning [FLog::Graphics] WARNING: D3D Frame query much longer than expected (409.9 ms).",
+    "2026-10-28T01:58:23.844Z,7286.844727,cffc,6,Warning [FLog::StudioHangMonitor] Hang In Progress. HangId: 8B7594EC-6CAB-4462-9AF2-9039C3CCD5A7, ServiceId: MainThreadHangs, _mod_faulting_tid: 85884, LastTimeAlive: Wed, 28 Oct 2026 01:58:24 GMT",
+    "2026-10-28T01:58:28.845Z,7291.845703,cffc,6,Warning [FLog::StudioHangMonitor] Hang In Progress. HangId: 8B7594EC-6CAB-4462-9AF2-9039C3CCD5A7, ServiceId: MainThreadHangs, _mod_faulting_tid: 85884, LastTimeAlive: Wed, 28 Oct 2026 01:58:29 GMT"
+  ]
+}
