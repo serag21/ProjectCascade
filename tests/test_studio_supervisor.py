@@ -1,5 +1,7 @@
 """Independent worker tests with lightweight subprocess fixtures; never starts Studio."""
 import importlib.util
+import contextlib
+import io
 import json
 from pathlib import Path
 import subprocess
@@ -76,6 +78,99 @@ class Tests(unittest.TestCase):
                            ('poll_seconds',0), ('run_token','')]:
             with self.assertRaises(ValueError):
                 supervisor.Supervisor(dict(self.manifest, **{key:value}), None, '', '')
+
+    def test_strict_identity_and_limits_reject_bool_and_invalid_types(self):
+        for key, value in [('pid', True), ('pid', '123'), ('place_id', -1),
+                           ('studio_id', ['fixture-only']), ('timeout_seconds', True),
+                           ('poll_seconds', .00001), ('rss_mb_limit', float('inf'))]:
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                supervisor.Supervisor(dict(self.manifest, **{key:value}), None, '', '')
+        # Local unpublished places have ID 0 and are valid exact identities.
+        supervisor.Supervisor(dict(self.manifest, place_id=0), None, '', '')
+
+    def test_missing_resources_still_stop_exact_known_session(self):
+        for patch in ({'cpu_percent':None}, {'rss_mb':-1}, {'cpu_percent':True}):
+            result, state = self.run_case(patch)
+            self.assertTrue(result['stopped_verified'])
+            self.assertEqual(result['reason'], 'resource monitoring unavailable')
+            self.assertEqual(state['stop_requests'], 1)
+
+    def test_edit_verification_does_not_depend_on_resource_sampler(self):
+        result, state = self.run_case({'mode':'Edit', 'cpu_percent':None})
+        self.assertTrue(result['stopped_verified'])
+        self.assertNotIn('stop_requests', state)
+
+    def test_logging_failure_does_not_skip_cleanup(self):
+        path = self.root/'state.json'
+        supervisor.write_json(path, self.state)
+        blocked = self.root/'blocked'
+        blocked.write_text('not a directory')
+        worker = supervisor.Supervisor(self.manifest, supervisor.FixtureAdapter(path),
+                                       blocked/'log', self.root/'report.json')
+        result = worker.run()
+        self.assertTrue(result['stopped_verified'])
+        self.assertFalse(result['evidence_complete'])
+        self.assertEqual(result['reason'], 'evidence persistence failed')
+        self.assertTrue(result['evidence_errors'])
+
+    def test_delayed_worker_does_not_reset_session_budget(self):
+        path = self.root/'state.json'
+        supervisor.write_json(path, self.state)
+        worker = supervisor.Supervisor(dict(self.manifest, timeout_seconds=60),
+            supervisor.FixtureAdapter(path), self.root/'log', self.root/'report',
+            launch_deadline=time.monotonic()-.01)
+        started = time.monotonic()
+        result = worker.run()
+        self.assertTrue(result['stopped_verified'])
+        self.assertLess(time.monotonic()-started, 2)
+        self.assertFalse(any(e['event']=='sample' for e in result['events']))
+
+    def test_manifest_cannot_be_mutated_after_arming(self):
+        path = self.root/'state.json'
+        supervisor.write_json(path, self.state)
+        worker = supervisor.Supervisor(self.manifest, supervisor.FixtureAdapter(path),
+                                       self.root/'log', self.root/'report')
+        self.manifest['pid'] = 999
+        self.assertTrue(worker.run()['stopped_verified'])
+
+    def test_identity_change_between_inspection_and_stop_refuses_mutation(self):
+        path = self.root/'state.json'
+        supervisor.write_json(path, self.state)
+        adapter = supervisor.FixtureAdapter(path)
+        def racing_adapter(operation, timeout, identity=None):
+            if operation == 'stop':
+                changed = json.loads(path.read_text())
+                changed['process_created'] = 'reused-process'
+                supervisor.write_json(path, changed)
+            return adapter(operation, timeout, identity)
+        result = supervisor.Supervisor(self.manifest, racing_adapter,
+            self.root/'log', self.root/'report', launch_deadline=0).run()
+        self.assertFalse(result['stopped_verified'])
+        self.assertNotIn('stop_requests', json.loads(path.read_text()))
+
+    def test_report_failure_is_explicit_after_successful_cleanup(self):
+        path = self.root/'state.json'
+        supervisor.write_json(path, self.state)
+        blocked = self.root/'blocked'
+        blocked.write_text('not a directory')
+        diagnostics = io.StringIO()
+        with contextlib.redirect_stderr(diagnostics):
+            result = supervisor.Supervisor(self.manifest, supervisor.FixtureAdapter(path),
+                self.root/'log', blocked/'report').run()
+        self.assertTrue(result['stopped_verified'])
+        self.assertFalse(result['evidence_complete'])
+        self.assertIn('final report', diagnostics.getvalue())
+
+    def test_invalid_worker_startup_reports_without_mutation(self):
+        paths = [self.root/name for name in ('manifest.json','state.json','log','report')]
+        supervisor.write_json(paths[0], dict(self.manifest, pid=True))
+        supervisor.write_json(paths[1], self.state)
+        result = subprocess.run([sys.executable,str(MODULE),'fixture-worker',
+            '--manifest',str(paths[0]),'--state',str(paths[1]),
+            '--log',str(paths[2]),'--report',str(paths[3])], capture_output=True,text=True,timeout=2)
+        self.assertEqual(result.returncode,1)
+        self.assertEqual(json.loads(paths[3].read_text())['status'],'startup_failed')
+        self.assertNotIn('stop_requests',json.loads(paths[1].read_text()))
 
     def test_live_capability_is_disabled(self):
         result = subprocess.run([sys.executable,str(MODULE),'live'],capture_output=True,text=True)
