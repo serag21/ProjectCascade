@@ -1,6 +1,6 @@
 # SPARK STAMPEDE production issues
 
-Updated 2026-10-28 PDT. **Offline only; scheduling paused; unattended Studio disabled.** This ledger distinguishes implemented fixes from engine-verified closure. G4 is not reached.
+Updated 2026-10-29 PDT. **Offline only; scheduling paused; unattended Studio disabled.** This ledger distinguishes implemented fixes from engine-verified closure. G4 is not reached.
 
 | ID | Priority | Issue and next acceptance evidence | State |
 | --- | --- | --- | --- |
@@ -23,6 +23,9 @@ Updated 2026-10-28 PDT. **Offline only; scheduling paused; unattended Studio dis
 | SS-17 | P1 | Live 862e91a dash feedback produced no displacement. Follow-up planar LinearVelocity fix moved z 38→27.259985, peak speed 65.8760 over 61 inspected samples; actuator removed afterward, normal capture/bank still worked. Git 45144f8 plus uncommitted Main hash recorded in report. Test repeated dash, collision and multiplayer/latency next. | Reproduced defect fixed and solo-retested; broader regression pending |
 
 | SS-18 | P0 operational | Abandoned simulations/focus interference. AGENTS now forbids foreground control and unattended launch; scheduler remains paused. Independent worker passes offline interruption/timeout/identity tests, but live process binding/GPU/hung-Studio cleanup is unproven. | Unattended capability disabled; live safety gate OPEN |
-| SS-19 | P1 product | Insufficient mastery/variety. Precision, dash timing, chains, recoverable bonus loss, rotating goals, personal bests, opt-in session scores and telegraphed sweeps are source-integrated. Pure/module tests pass; gameplay feel and warnings not engine-verified. | Staged offline; balance/engine review pending |
+| SS-19 | P1 product | Mastery now includes precision/dash timing, chains, recoverable bonus loss, goals, PBs, optional scores, shared solo/co-op rally, five finite skill quests and advisory target outline. Exact Main transaction harness passes 16 cases; actual gameplay feel/warnings and multiplayer remain unverified. | Staged offline; balance/engine review pending |
+| SS-20 | P1 | Expired rounds could accept actions or hazard penalties before periodic phase update. Direct deadline checks and settlement-before-hazards added; exact production-function boundary/idempotence tests pass. | Fixed offline; engine timing pending |
+| SS-21 | P1 | Late onboarding could enable an active sweep without warning. Eligibility now starts fresh grace/warning timeline; production helper regression passes. | Fixed offline; visual warning pending |
+| SS-22 | P0 operational | Scheduler read ACTIVE after previously reading PAUSED and receiving queued heartbeats; cause unknown. Restored PAUSED via supported tool, preserving restrictive prompt. No graphical work launched. | Restored paused; never infer owner resumption |
 
 Evidence: [production log](GAME1_PROGRESS.md), [incident audit](GAME1_WORKFLOW_CORRECTION.md), [supervisor limits](GAME1_TEST_SUPERVISOR.md), [offline report](qa/latest-checks.json). Model/process-fixture tests are not live Studio cleanup, rendering, audio, human usability or device-performance passes.

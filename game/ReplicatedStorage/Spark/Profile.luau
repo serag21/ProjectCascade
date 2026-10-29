@@ -23,7 +23,7 @@ end
 function Profile.new()
 	return {version=1, coins=0, totalBanked=0, rounds=0, album={}, mutations={},
 		upgrades={boots=0,magnet=0,basket=0}, quests={},
-		mastery={bestScore=0,bestChain=0,completed=0,bestByBiome={}},
+		mastery={bestScore=0,bestChain=0,completed=0,precision=0,dashCatches=0,lastRecordedRound=0,bestByBiome={}},
 		settings={reducedMotion=false,music=true,sfx=true,competition=false}, lastSeen=0}
 end
 
@@ -39,15 +39,19 @@ function Profile.sanitize(raw)
 	result.rounds = integer(raw.rounds, MAX_COUNT)
 	result.lastSeen = integer(raw.lastSeen, 4102444800)
 	if type(raw.mastery)=="table" then
-		for _,key in ipairs({"bestScore","bestChain","completed"}) do
+		for _,key in ipairs({"bestScore","bestChain","completed","precision","dashCatches"}) do
 			result.mastery[key]=integer(raw.mastery[key],MAX_COUNT)
 		end
+		-- Records predating round receipts are already accounted for. Start their
+		-- receipt at completed rounds; do not let migration replay old summaries.
+		result.mastery.lastRecordedRound=if raw.mastery.lastRecordedRound==nil then result.rounds
+			else math.min(result.rounds,integer(raw.mastery.lastRecordedRound,MAX_COUNT))
 		if type(raw.mastery.bestByBiome)=="table" then
 			for _,biome in ipairs(Config.Biomes) do
 				result.mastery.bestByBiome[biome.id]=integer(raw.mastery.bestByBiome[biome.id],MAX_COUNT)
 			end
 		end
-	end
+	else result.mastery.lastRecordedRound=result.rounds end
 	if type(raw.album) == "table" then
 		for id in pairs(species) do
 			local count = integer(raw.album[id], MAX_COUNT)
@@ -78,16 +82,31 @@ function Profile.speciesCount(profile)
 end
 
 -- A completed server-owned round summary only; never accepts a client score.
-function Profile.recordMastery(profile,biomeId,summary)
+-- Main supplies its incremented profile.rounds as roundSerial. This persisted
+-- receipt makes retries idempotent across sanitization/save/load. Three-argument
+-- calls are retained for old pure-module callers, which must ensure exactly once.
+function Profile.recordMastery(profile,biomeId,summary,roundSerial)
 	if type(summary)~="table" or summary.finished~=true then return false end
 	local known=false
 	for _,biome in ipairs(Config.Biomes) do if biome.id==biomeId then known=true; break end end
 	if not known then return false end
+	for _,key in ipairs({"score","bestChain","captures","precision","dashCatches"}) do
+		local value=summary[key]
+		if type(value)~="number" or value~=value or value<0 or value==math.huge then return false end
+	end
 	local score=integer(summary.score,MAX_COUNT)
 	local mastery=profile.mastery
+	if roundSerial~=nil then
+		if type(roundSerial)~="number" or roundSerial~=roundSerial or roundSerial%1~=0
+			or roundSerial<=mastery.lastRecordedRound or roundSerial>profile.rounds or roundSerial>MAX_COUNT then return false end
+		mastery.lastRecordedRound=roundSerial
+	end
+	local captures=integer(summary.captures,512)
 	local improved=score>mastery.bestScore
 	mastery.bestScore=math.max(mastery.bestScore,score)
-	mastery.bestChain=math.max(mastery.bestChain,integer(summary.bestChain,MAX_COUNT))
+	mastery.bestChain=math.max(mastery.bestChain,math.min(captures,integer(summary.bestChain,512)))
+	mastery.precision=math.min(MAX_COUNT,mastery.precision+math.min(captures,integer(summary.precision,512)))
+	mastery.dashCatches=math.min(MAX_COUNT,mastery.dashCatches+math.min(captures,integer(summary.dashCatches,512)))
 	mastery.bestByBiome[biomeId]=math.max(mastery.bestByBiome[biomeId] or 0,score)
 	if type(summary.challenge)=="table" and summary.challenge.complete==true then
 		mastery.completed=math.min(MAX_COUNT,mastery.completed+1)
@@ -130,10 +149,29 @@ function Profile.buy(profile, key)
 	return true, upgrade.name .. " upgraded"
 end
 
+-- Called only for the authoritative ArenaRally completion's contributor list.
+-- The rally controller owns once-per-cycle authorization; no client amount.
+function Profile.rewardRally(profile)
+	local applied=math.min(8,MAX_COINS-profile.coins)
+	profile.coins+=applied
+	return applied
+end
+
 function Profile.questProgress(profile, quest)
 	if quest.metric == "species" then return Profile.speciesCount(profile) end
 	if quest.metric == "totalBanked" then return profile.totalBanked end
 	if quest.metric == "rounds" then return profile.rounds end
+	if quest.metric == "precision" then return profile.mastery.precision end
+	if quest.metric == "dashCatches" then return profile.mastery.dashCatches end
+	if quest.metric == "bestChain" then return profile.mastery.bestChain end
+	if quest.metric == "challenges" then return profile.mastery.completed end
+	if quest.metric == "bronzeArenas" then
+		local count=0
+		for _,biome in ipairs(Config.Biomes) do
+			if (profile.mastery.bestByBiome[biome.id] or 0)>=150 then count+=1 end
+		end
+		return count
+	end
 	return 0
 end
 

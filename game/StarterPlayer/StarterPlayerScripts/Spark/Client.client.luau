@@ -22,6 +22,7 @@ end)
 local Shared=ReplicatedStorage:WaitForChild("Spark")
 local Config=require(Shared:WaitForChild("Config"))
 local Profile=require(Shared:WaitForChild("Profile"))
+local Targeting=require(Shared:WaitForChild("Targeting"))
 local remotes=Shared:WaitForChild("Remotes")
 local Action=remotes:WaitForChild("Action")
 local State=remotes:WaitForChild("State")
@@ -279,6 +280,14 @@ renderPanel=function()
 			b.Name="UpgradeButton"
 		end
 	elseif selectedPanel=="Quests" then
+		if latest.rally then
+			local rally=latest.rally
+			local r=row(112,"ArenaRally")
+			rowText(r,"ARENA RALLY • "..rally.total.." / "..rally.target.." banked",17,5)
+			rowText(r,"Solo or together: bank ordinary Sparks in 45 seconds",13,34)
+			rowText(r,"Each active contributor earns 8 glow • First catches excluded",12,60)
+			rowText(r,if rally.complete then "COMPLETE • Next rally in "..rally.remaining.."s" else "Your contribution: "..rally.contribution.." • "..rally.remaining.."s left",12,84)
+		end
 		if latest.mastery then
 			local goal=latest.mastery.challenge
 			local r=row(120,"RoundChallenge")
@@ -290,8 +299,9 @@ renderPanel=function()
 		for _,quest in ipairs(Config.Quests) do
 			local progress=Profile.questProgress(p,quest)
 			local claimed=p.quests[quest.id]
-			local r=row(104,"Quest_"..quest.id); rowText(r,quest.name.." • "..math.min(progress,quest.target).." / "..quest.target,17,5)
-			local b=button(r,if claimed then "COMPLETE" elseif progress>=quest.target then "CLAIM "..quest.reward.." GLOW" else "Reward: "..quest.reward.." glow",UDim2.fromOffset(14,53),UDim2.new(1,-28,0,38),if progress>=quest.target then palette.gold else palette.mint,function() Action:FireServer("Quest",quest.id) end); b.ZIndex=9
+			local r=row(if quest.description then 136 else 104,"Quest_"..quest.id); rowText(r,quest.name.." • "..math.min(progress,quest.target).." / "..quest.target,17,5)
+			if quest.description then rowText(r,quest.description,13,35) end
+			local b=button(r,if claimed then "COMPLETE" elseif progress>=quest.target then "CLAIM "..quest.reward.." GLOW" else "Reward: "..quest.reward.." glow",UDim2.fromOffset(14,if quest.description then 85 else 53),UDim2.new(1,-28,0,38),if progress>=quest.target then palette.gold else palette.mint,function() Action:FireServer("Quest",quest.id) end); b.ZIndex=9
 			b.Name="ClaimButton"
 		end
 	elseif selectedPanel=="Arenas" then
@@ -458,6 +468,44 @@ local sweep=make("Part",effects,{Name="SweepWarning",Shape=Enum.PartType.Cylinde
 local sweepCue=make("BillboardGui",sweep,{Size=UDim2.fromOffset(120,28),StudsOffset=Vector3.new(0,2,0),MaxDistance=50,Enabled=false})
 local sweepText=label(sweepCue,"",13,UDim2.new(),UDim2.fromScale(1,1),palette.ink)
 sweepText.TextXAlignment=Enum.TextXAlignment.Center
+-- One advisory aim outline, updated at 10Hz. Never sends a target or score to the server.
+-- Occluded geometry stays occluded; shape/text accompany the color change.
+local aimOutline=make("Highlight",effects,{Name="CatchAim",Enabled=false,FillTransparency=1,
+	OutlineTransparency=.15,DepthMode=Enum.HighlightDepthMode.Occluded})
+local aimCue=make("BillboardGui",gui,{Name="CatchAimCue",Size=UDim2.fromOffset(132,24),StudsOffset=Vector3.new(0,3.3,0),
+	MaxDistance=22,AlwaysOnTop=false,Enabled=false})
+local aimText=label(aimCue,"",12,UDim2.new(),UDim2.fromScale(1,1),palette.ink)
+aimText.TextXAlignment=Enum.TextXAlignment.Center; aimText.BackgroundColor3=palette.paper; aimText.BackgroundTransparency=.1; round(aimText,8)
+local aimAt=0
+local stateAt=0
+local function aimPreview(now)
+	if now-aimAt<.1 then return end
+	aimAt=now
+	local target,best=nil,nil
+	local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	local humanoid=player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	local world=workspace:FindFirstChild("SparkWorld")
+	local herd=world and world:FindFirstChild("Creatures")
+	if root and humanoid and humanoid.Health>0 and herd and latest and latest.phase=="Playing" and not selectedPanel and latest.carry<latest.capacity then
+		local function xyz(v) return {x=v.X,y=v.Y,z=v.Z} end
+		local radius=Config.CaptureRadius+(latest.profile.upgrades.magnet or 0)*1.5
+		for _,model in ipairs(herd:GetChildren()) do
+			local id,owner=model:GetAttribute("CreatureId"),model:GetAttribute("StarterOwnerId")
+			local def=defs[model:GetAttribute("Species")]
+			if id and model.PrimaryPart and def and def.biome==latest.biome and (not owner or (owner==player.UserId and latest.profile.totalBanked<3)) then
+				local aim=Targeting.measure(xyz(root.Position),xyz(root.CFrame.LookVector),xyz(model.PrimaryPart.Position),radius)
+				if Targeting.better(aim,id,best,target and target:GetAttribute("CreatureId")) then target=model; best=aim end
+			end
+		end
+	end
+	aimOutline.Adornee=target; aimOutline.Enabled=target~=nil
+	aimCue.Adornee=target and target.PrimaryPart; aimCue.Enabled=target~=nil
+	if target then
+		local precise=best.precision and target:GetAttribute("StarterOwnerId")==nil
+		aimOutline.OutlineColor=if precise then palette.gold else palette.mint
+		aimText.Text=if precise then "◆ PRECISE CATCH" else "○ CATCH"
+	end
+end
 local effectCount=0
 local function burst(position)
 	if effectCount>=24 or (latest and latest.profile.settings.reducedMotion) then return end
@@ -481,9 +529,13 @@ end)
 State.OnClientEvent:Connect(function(data)
 	local previousPhase=latest and latest.phase
 	latest=data
+	stateAt=os.clock()
 	local seconds=data.remaining or 0
 	timer.Text=string.format("%d:%02d",math.floor(seconds/60),seconds%60)
 	eventLabel.Text=data.event or "CHASE TIME"
+	if data.rally and data.phase=="Playing" and data.profile.totalBanked>=3 then
+		eventLabel.Text=if data.rally.complete then "RALLY COMPLETE" else string.format("RALLY %d/%d • %ds",data.rally.total,data.rally.target,data.rally.remaining)
+	end
 	glow.Text=data.profile.coins.." GLOW"
 	carry.Text=string.format("PARADE %d / %d",data.carry,data.capacity)
 	objective.Text=data.objective
@@ -526,8 +578,17 @@ State.OnClientEvent:Connect(function(data)
 	if not data.profile.settings.sfx then while #voices>0 do retire(voices[1]) end end
 	local rankSignature={}
 	for _,entry in ipairs(data.ranking or {}) do table.insert(rankSignature,tostring(entry.userId).."="..entry.score) end
-	local fingerprint=table.concat({data.profile.coins,data.profile.totalBanked,data.profile.rounds,tostring(data.profile.settings.reducedMotion),tostring(data.profile.settings.music),tostring(data.profile.settings.sfx),tostring(data.profile.settings.competition),data.mastery and data.mastery.challenge.progress or 0,tostring(data.mastery and data.mastery.challenge.complete),table.concat(rankSignature,",")},":")
+	local fingerprint=table.concat({data.profile.coins,data.profile.totalBanked,data.profile.rounds,tostring(data.profile.settings.reducedMotion),tostring(data.profile.settings.music),tostring(data.profile.settings.sfx),tostring(data.profile.settings.competition),data.mastery and data.mastery.challenge.progress or 0,tostring(data.mastery and data.mastery.challenge.complete),table.concat(rankSignature,","),data.rally and data.rally.total or 0,data.rally and data.rally.cycle or 0},":")
 	if selectedPanel and fingerprint~=lastFingerprint then renderPanel() end
+	-- Keep the countdown current without rebuilding menu controls or stealing gamepad selection.
+	if selectedPanel=="Quests" and data.rally then
+		local rallyRow=content:FindFirstChild("ArenaRally")
+		local countdown=rallyRow and rallyRow:FindFirstChild("Line_84")
+		if countdown then
+			countdown.Text=if data.rally.complete then "COMPLETE • Next rally in "..data.rally.remaining.."s"
+				else "Your contribution: "..data.rally.contribution.." • "..data.rally.remaining.."s left"
+		end
+	end
 	lastFingerprint=fingerprint
 end)
 
@@ -557,6 +618,14 @@ end)
 local guideAt=0
 RunService.RenderStepped:Connect(function()
 	local now=os.clock()
+	aimPreview(now)
+	if latest and latest.mastery and latest.phase=="Playing" and (latest.startersRemaining or 0)==0 then
+		local m=latest.mastery
+		local chainTime=math.max(0,m.chainSeconds-(now-stateAt))
+		local factor=if chainTime>0 then m.multiplier else 1
+		objective.Text=latest.objective..string.format("\nx%d • %d skill carried • %s",factor,m.pending,
+			if chainTime>0 then string.format("CHAIN %.1fs",chainTime) else "Close + face for precision")
+	end
 	for action,b in pairs({Capture=captureButton,Dash=dashButton}) do
 		local remaining=math.max(0,cooldownUntil[action]-now)
 		local name=if action=="Capture" then "CATCH" else "DASH"

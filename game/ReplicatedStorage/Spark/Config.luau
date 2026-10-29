@@ -34,6 +34,11 @@ local Config = {
 	Quests = {
 		{id="first_haul", name="A parade begins", metric="totalBanked", target=3, reward=10},
 		{id="first_round", name="Take a victory lap", metric="rounds", target=1, reward=15},
+		{id="precision_path", name="Precision path", description="Finish rounds with 6 close, facing catches total.", metric="precision", target=6, reward=20},
+		{id="dash_rhythm", name="Dash rhythm", description="Finish rounds with 3 dash catches total.", metric="dashCatches", target=3, reward=20},
+		{id="chain_artist", name="Chain artist", description="Chain 6 catches within 6 seconds each; finish the round.", metric="bestChain", target=6, reward=30},
+		{id="challenge_trio", name="Challenge trio", description="Bank the goal in 3 completed rounds.", metric="challenges", target=3, reward=35},
+		{id="arena_medalist", name="Arena medalist", description="Finish a round with at least 150 skill in each arena.", metric="bronzeArenas", target=3, reward=50},
 		{id="meadow_album", name="Meet the meadow", metric="species", target=4, reward=30},
 		{id="herd_helper", name="Herd helper", metric="totalBanked", target=30, reward=40},
 		{id="three_laps", name="Encore explorer", metric="rounds", target=3, reward=45},

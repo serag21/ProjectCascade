@@ -11,7 +11,7 @@ Created 2026-10-25. **Release candidate: NO. Public publishing and monetization:
 - [ ] GPU/CPU/resource containment and hung-engine cleanup proven without touching unrelated apps.
 - [ ] Owner authorizes any future scheduling resumption. **Until then: offline only, no unattended play.**
 
-New mastery/score/sweep code is staged offline and has not been activated. Earlier checkmarks do not establish quality of these new mechanics. See [incident audit](GAME1_WORKFLOW_CORRECTION.md) and [mastery scope](GAME1_MASTERY.md).
+New mastery/score/sweep, rally, target preview and skill milestone code is staged offline and has not been activated. Twenty-eight offline checks include 16 production transaction cases and 19 cleanup fixture tests; none certify live operation. Earlier checkmarks do not establish quality of these new mechanics. See [incident audit](GAME1_WORKFLOW_CORRECTION.md) and [mastery scope](GAME1_MASTERY.md).
 
 This is a gate ledger, not a test report. An unchecked item is not passed. Implementation, static inspection, pure-module tests, scripted engine tests, real client interaction and human usability feedback are different evidence classes. When checking an item, link the dated report/artifact and exact commit. See `GAME1_PROGRESS.md` for the latest production state; this document initially records requirements without claiming tests that another agent may be running.
 
