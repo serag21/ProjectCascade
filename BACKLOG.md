@@ -19,14 +19,15 @@ Priority-ordered remaining work. Updated 2026-11-04 by the cloud production sess
 
 | ID | Item | State |
 | --- | --- | --- |
-| B-10 | Client UI overhaul for new systems (combo meter, encounter visuals, results breakdown, Play/Goals/Style/Records tabs) | In progress (this session) |
-| B-11 | Headless fake-engine harness booting real Main/World/Client scripts with API-validated instances | In progress (this session) |
+| B-10 | Client UI overhaul for new systems (combo meter, encounter visuals, results breakdown, Play/Goals/Style/Records tabs) | Done offline; render/touch/gamepad review needs Studio (B-06) |
+| B-11 | Headless fake-engine harness booting real Main/World/Client scripts with API-validated instances | Done (9 scenarios) |
 | B-12 | Glow surplus after ~14 h (see `docs/GAME1_ECONOMY.md`): add seasonal earned cosmetic sets | Planned post-launch |
-| B-13 | Replace primitive creature animation (bob/tilt) with per-behavior hop/squash and catch pop on the client | Not started |
-| B-14 | Per-arena lighting/ColorCorrection tint on the client when travelling | Not started |
+| B-13 | Creature motion smoothness: server moves welded roots at 10 Hz (anchored, no client interpolation). Evaluate in Studio; options: client-side visual interpolation of creatures in the player's arena, or 20 Hz root updates now that replication is ~20x cheaper. Also per-behavior hop/squash. | Needs Studio judgement |
+| B-14 | Per-arena colour grade on the client | Done offline |
 | B-15 | Thumbnail/icon/trailer capture from the candidate build (needs Studio) | Blocked on B-01 |
+| B-17 | Tune from real play: dash path radius (4.5), static speed/cap, gate radius/path, herd surplus (+5/player), medal thresholds, buzzer warning | Needs Studio + playtests |
 | B-16 | Roblox badges for achievements (needs owner-created badge IDs; `Progression.Achievements` ready) | Blocked on owner |
 
 ## Done this session (offline)
 
-Merged interrupted WIP; perks/heat/loadout; Challenge v2 (x4, dash-through, herd, golden, pops, assists, haul, finale, buzzer, Radiant); encounters (gate, stampede run, golden, statics); progression (rank, achievements, daily/weekly goals, trails/titles, profile v2 + migration); server integration; services (analytics, leaderboards); economy model + calibration; canyon lanes, records boards; lint gate; portable runner; Rojo mapping; packaging v2 copy; monetization proposal (not enabled).
+Merged interrupted WIP; perks/heat/loadout; Challenge v2 (x4, dash-through, herd, golden, pops, assists, haul, finale, buzzer, Radiant); encounters (gate, stampede run, golden, statics); progression (rank, achievements, daily/weekly goals, trails/titles, profile v2 + migration); server integration; services (analytics, leaderboards); economy model + calibration; canyon lanes, records boards; lint gate; API-name check; portable runner; Rojo mapping; packaging v2 copy; monetization proposal (not enabled); client overhaul; headless engine harness + 3 bug fixes; welded creature roots; herd density scaling; first-encounter hints; owner playtest guide.

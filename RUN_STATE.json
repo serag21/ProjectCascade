@@ -9,21 +9,40 @@
     "backup_file": "backups/cascade-studio-20261025/pre-refresh-place-20261026-evening.rbxl",
     "backup_sha256": "81596f787935f27ca2edf661f5eed4486dac2a71ba559b19f16ef916eb572254"
   },
-  "gates": {"G0": "verified earlier (Oct 27)", "G1": "partial (live Oct 27, pre-mastery build)", "G2": "offline implementation broad; engine audit pending", "G3": "offline only", "G4": "not ready", "G5": "not authorized"},
+  "gates": {
+    "G0": "verified earlier (Oct 27)",
+    "G1": "partial (live Oct 27, pre-mastery build)",
+    "G2": "offline implementation broad; engine audit pending",
+    "G3": "offline only",
+    "G4": "not ready",
+    "G5": "not authorized"
+  },
   "milestones": {
     "M0_spec_and_artifacts": "done",
     "M1_core_skill_depth": "done offline",
     "M2_progression": "done offline",
-    "M3_client_overhaul": "in progress",
-    "M4_world_services": "partly done (lanes, records boards, analytics, leaderboards)",
-    "M5_qa_docs": "in progress"
+    "M3_client_overhaul": "done offline",
+    "M4_world_services": "done offline (lanes, boards, analytics, leaderboards, welded roots, density)",
+    "M5_qa_docs": "done offline (44/44 checks)"
   },
   "commands": {
     "all_checks": "python3 tools/run_checks.py",
     "lint": "python3 tools/lint_luau.py",
     "economy": ".tools/luau/luau tests/SparkEconomy.spec.luau",
     "installer": "python3 tools/build_studio_install.py",
-    "luau_setup": "download https://github.com/luau-lang/luau/releases/download/0.744/luau-ubuntu.zip (or luau-windows.zip) into .tools/luau/"
+    "luau_setup": "download https://github.com/luau-lang/luau/releases/download/0.744/luau-ubuntu.zip (or luau-windows.zip) into .tools/luau/",
+    "headless": "python3 tests/test_spark_headless.py [--scenario NAME]",
+    "api_names": "python3 tools/check_api_names.py (needs .tools/api/Full-API-Dump.json)"
   },
-  "next_actions": ["finish M3 client", "integrate headless engine tests", "full run_checks", "update progress/issues/checklist", "owner: fix GitHub access, then Studio install + B-01..B-08"]
+  "next_actions": [
+    "owner: fix GitHub write access (SS-23) and push branch",
+    "owner/supervised session: follow docs/GAME1_PLAYTEST_GUIDE.md (B-01..B-08)",
+    "tune B-17 values from real play",
+    "post-launch: seasonal cosmetic sinks (B-12)"
+  ],
+  "last_check_run": {
+    "command": "python3 tools/run_checks.py",
+    "result": "44/44 passed",
+    "report": "docs/qa/latest-checks.json"
+  }
 }

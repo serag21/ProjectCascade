@@ -1,5 +1,25 @@
 # Game #1 — durable production log
 
+Updated 2026-11-04 (cloud production session, branch `claude/awesome-brown-27rwqo`). **OFFLINE ONLY (cloud container, no Studio). SCHEDULING PAUSED. UNATTENDED STUDIO TESTS DISABLED. Not a release candidate. Commits NOT pushed: GitHub returned 403 for both git and the connector (issue SS-23).**
+
+## Cloud production session — 2026-11-04
+
+Scope: autonomous milestone work requested by the owner (mastery depth, long-term progression, presentation, QA). No Studio, desktop control, GPU work, publishing, monetization or account actions. Protected backup and Cascade archive untouched.
+
+- **Merged** `wip/spark-interrupted-20261103` (biome arena events, PB split checkpoints) after review; completed its interrupted supervisor change (25 supervisor tests pass).
+- **Design spec v2** (`GAME1_DESIGN_SPEC.md`): critique of v1, pillars, verbs, round arc, arena identities, progression, acceptance criteria A1–A12. Durable `PROJECT_CHARTER.md`, `BACKLOG.md`, `DECISIONS.md`, `RUN_STATE.json` at repo root. Market snapshot `research/market_research_2026-11-04.md` (search-summary based; chart sites blocked by network policy).
+- **Mastery depth (server-authoritative):** dash-through multi-catch on the movement-validated dash path; x4 STAMPEDE chain tier (tiers every 5 catches); personal Static Puffs (pop with dash, zap otherwise); zaps/sweeps scatter carried sparks back into the arena (recatchable, no saved progress lost); Spark Gate herding with flank ASSIST (Meadow/Aurora); Stampede Run lanes (Canyon); golden finale (any species → Gilded collection); haul and finale bank bonuses; buzzer forfeits unbanked style; herd density scales with players; first-encounter coaching hints.
+- **Choices and difficulty:** eight perk side-grades (each with upside and downside), 2–3 slots by rank; Heat 0–5 personal difficulty ladder unlocked by Silver medals; loadout/heat locked during a round.
+- **Long-term progression:** rank 1–50 (sqrt-score XP), 25 achievements with titles, daily (3) and weekly (3) goals with no streaks, 21 earned/guaranteed-price trails, records per arena × heat, optional all-time/weekly leaderboards (OrderedDataStore; memory doubles in Studio), AnalyticsService funnel/economy events. Profile schema v2 with v1 migration.
+- **Economy calibrated** by `tools/economy_model.luau` driving the real modules; first run showed runaway inflation (rank 50 in 3.5 h, upgrades maxed in 3 rounds). Rebalanced medals (300/1,000/2,500/5,000), XP curve, upgrade costs, trail prices; 22 pacing bounds in `tests/SparkEconomy.spec.luau`. Known post-14 h glow surplus documented (`GAME1_ECONOMY.md`).
+- **Client overhaul:** combo meter, floating tags, encounter visuals, golden compass, results breakdown with XP/rank/unlocks, seven-tab menu (Play/Goals/Album/Upgrades/Style/Records/Settings), per-arena colour grade, unverified built-in placeholder SFX.
+- **World:** canyon lane landmarks, records boards; creature/static parts welded to one anchored root (≈20× fewer replicated CFrames, to be confirmed in Studio).
+- **QA tooling:** `tools/run_checks.py` (portable fail-closed runner), `tools/lint_luau.py` (official luau-analyze undefined-global gate + module-member check), `tools/check_api_names.py` and a headless fake-Roblox engine (`tests/engine`, `docs/qa/HEADLESS_ENGINE.md`) that boots the real server and client scripts with API-dump validation. It found and we fixed: rejoin inheriting herding credit, scattered sparks never expiring, Replay swallowed by the shared rate limiter. The economy model and runner also caught balance-test drift and a NaN analytics guard.
+- **Evidence:** `python3 tools/run_checks.py` → **44/44 passed**, sources unchanged during run (`qa/latest-checks.json`, Linux, Luau 0.744). Includes 9/9 headless scenarios (boot, onboarding, full round, 4-player contention/leave/rejoin, 10-round soak with flat instance counts, production DataStore path with injected failures, client boot, remote abuse). **None of this is Studio, physics, rendering, audio, device or human evidence.**
+- **Next:** owner fixes GitHub write access; then follow `GAME1_PLAYTEST_GUIDE.md` (install, solo, 2/4 clients) and report; tune dash path radius, gate difficulty and static readability from real play.
+
+## Previous state (2026-10-29)
+
 Updated 2026-10-29 PDT. **OFFLINE ONLY. SCHEDULING PAUSED. UNATTENDED STUDIO TESTS DISABLED. New mastery gameplay is staged, not activated. Not a release candidate.**
 
 ## Latest manual offline batch — October 28–29 PDT

@@ -1,6 +1,16 @@
 # SPARK STAMPEDE — release checklist
 
-Created 2026-10-25. **Release candidate: NO. Public publishing and monetization: NOT AUTHORIZED.**
+Created 2026-10-25; updated 2026-11-04. **Release candidate: NO. Public publishing and monetization: NOT AUTHORIZED.**
+
+## Cloud production session — 2026-11-04 (offline only)
+
+New offline-implemented systems (dash-through, statics, Spark Gate, Stampede Run, golden finale, buzzer, perks, Heat, rank, achievements, daily/weekly goals, trails, leaderboards, analytics, client overhaul) are **not** checked off below: every G1–G3 item requires live Studio evidence. Offline evidence: 44/44 checks including 9 headless fake-engine scenarios (`qa/latest-checks.json`, `qa/HEADLESS_ENGINE.md`), economy bounds (`GAME1_ECONOMY.md`). Owner procedure: `GAME1_PLAYTEST_GUIDE.md`.
+
+- [x] Design specification with acceptance criteria (`GAME1_DESIGN_SPEC.md`).
+- [x] Economy model and pacing bounds from the real modules (`GAME1_ECONOMY.md`).
+- [x] Store description draft v2 matching the new mechanics, pending QA (`GAME1_PACKAGING.md`); monetization proposal only (`GAME1_MONETIZATION_PLAN.md`).
+- [ ] Session branch pushed to GitHub (blocked: 403, issue SS-23).
+- [ ] New mechanics installed and played in Studio (B-01/B-02).
 
 ## Operational gate added October 28 PDT
 
