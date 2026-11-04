@@ -13,6 +13,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import uuid
 
 LIVE_CERTIFIED = False
 MAX_SECONDS = 60
@@ -32,6 +33,22 @@ def write_json(path, value):
         stream.flush()
         os.fsync(stream.fileno())
     os.replace(temporary, path)
+
+
+def diagnostic(value):
+    """The detached launcher retains this separate inherited file descriptor."""
+    print(json.dumps(value, allow_nan=False), file=sys.stderr, flush=True)
+    try:
+        os.fsync(sys.stderr.fileno())
+    except (OSError, AttributeError, ValueError):
+        pass  # Interactive/captured stderr need not be a regular file.
+
+
+def distinct_paths(paths, atomic_outputs):
+    resolved = [Path(path).resolve() for path in paths]
+    resolved += [Path(path).resolve().with_suffix(Path(path).suffix + '.tmp') for path in atomic_outputs]
+    if len(set(resolved)) != len(resolved):
+        raise ValueError('Refusing overlapping input/evidence/temporary paths')
 
 
 class Supervisor:
@@ -103,15 +120,16 @@ class Supervisor:
             self.evidence_errors.append('final report: ' + str(error))
             result['evidence_complete'] = False
             # Last-resort bounded diagnostic; callers must preserve stderr.
-            print(json.dumps(result), file=sys.stderr, flush=True)
+            diagnostic(result)
         return result
 
-    def run(self):
+    def run(self, on_ready=None):
         deadline = self.clock() + self.spec['timeout_seconds']
         if self.launch_deadline is not None:
             deadline = min(deadline, self.launch_deadline)
         self.log('armed', deadline=deadline, studio_id=self.spec['studio_id'], pid=self.spec['pid'])
         reason = 'deadline'
+        acknowledged = False
         while self.clock() < deadline:
             try:
                 value = self.status()
@@ -132,6 +150,16 @@ class Supervisor:
             if value['cpu_percent'] > self.spec['cpu_percent_limit'] or value['rss_mb'] > self.spec['rss_mb_limit']:
                 reason = 'resource budget exceeded'
                 break
+            if on_ready is not None and not acknowledged:
+                try:
+                    if self.clock() >= deadline:
+                        break
+                    on_ready(deadline)
+                    acknowledged = True
+                except (OSError, ValueError) as error:
+                    self.evidence_errors.append('readiness: ' + str(error))
+                    reason = 'readiness acknowledgement failed'
+                    break
             self.sleep(min(self.spec['poll_seconds'], max(0, deadline-self.clock())))
         # Two finite attempts, fresh identity check before each mutation. Never kill Studio.
         for attempt in range(2):
@@ -188,18 +216,57 @@ def fixture_request(path, operation, expected_identity=None):
     print(json.dumps(value))
 
 
-def launch_fixture_worker(manifest, state, log, report):
-    """Detach a TEST-ONLY worker. It lives beyond its launcher and never starts Studio."""
+class FixtureReadinessError(RuntimeError):
+    def __init__(self, message, worker):
+        super().__init__(message)
+        self.worker = worker  # Exact disposable child handle for fixture callers to reap.
+
+
+def launch_fixture_worker(manifest, state, log, report, *, ready=None, diagnostics=None, ready_timeout=2):
+    """Return only after THIS fixture worker acknowledges arming; never starts Studio.
+
+    Readiness failure raises and does not kill the independent cleanup worker.
+    The worker still owns its original short deadline, even after launcher exit.
+    """
+    if not finite_number(ready_timeout) or not 0 < ready_timeout <= 3:
+        raise ValueError('Readiness timeout must be positive and <=3 seconds')
+    manifest, state, log, report = [Path(path).resolve() for path in (manifest, state, log, report)]
+    ready = Path(ready).resolve() if ready else Path(str(report) + '.ready.json')
+    diagnostics = Path(diagnostics).resolve() if diagnostics else Path(str(report) + '.diagnostic.jsonl')
+    distinct_paths([manifest, state, log, report, ready, diagnostics], [report, ready, state])
     spec = json.loads(Path(manifest).read_text(encoding='utf-8'))
     Supervisor(spec, None, log, report)  # Validate before detaching.
     deadline = time.monotonic() + spec['timeout_seconds']
+    nonce = uuid.uuid4().hex
     flags = (getattr(subprocess, 'CREATE_NO_WINDOW', 0) |
              getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0))
-    return subprocess.Popen([sys.executable, str(Path(__file__).resolve()),
-        'fixture-worker', '--manifest', str(manifest), '--state', str(state),
-        '--log', str(log), '--report', str(report), '--deadline-monotonic', str(deadline)], stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True,
-        creationflags=flags, start_new_session=os.name != 'nt')
+    diagnostics.parent.mkdir(parents=True, exist_ok=True)
+    # Open before spawning. If the fallback sink is unavailable, create no worker.
+    with diagnostics.open('a', encoding='utf-8') as sink:
+        sink.write(json.dumps({'event':'launch_requested', 'nonce':nonce, 'deadline':deadline})+'\n')
+        sink.flush(); os.fsync(sink.fileno())
+        process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()),
+            'fixture-worker', '--manifest', str(manifest), '--state', str(state),
+            '--log', str(log), '--report', str(report), '--deadline-monotonic', str(deadline),
+            '--ready', str(ready), '--ready-nonce', nonce], stdin=subprocess.DEVNULL,
+            stdout=sink, stderr=sink, close_fds=True,
+            creationflags=flags, start_new_session=os.name != 'nt')
+    until = min(deadline, time.monotonic()+ready_timeout)
+    while time.monotonic() < until:
+        try:
+            ack = json.loads(ready.read_text(encoding='utf-8'))
+            if (ack.get('nonce') == nonce and ack.get('supervisor_pid') == process.pid
+                    and ack.get('deadline') == deadline
+                    and ack.get('identity') == {key:spec[key] for key in IDENTITY_KEYS}
+                    and process.poll() is None):
+                return process
+        except (OSError, ValueError):
+            pass
+        if process.poll() is not None:
+            break
+        time.sleep(.01)
+    raise FixtureReadinessError('Fixture worker readiness unconfirmed; no launch authorized. '
+                       'Independent cleanup continues until its original deadline; inspect '+str(diagnostics))
 
 
 def main():
@@ -210,6 +277,8 @@ def main():
     for key in ('manifest', 'state', 'log', 'report'):
         parser.add_argument('--' + key)
     parser.add_argument('--deadline-monotonic', type=float)
+    parser.add_argument('--ready')
+    parser.add_argument('--ready-nonce')
     args = parser.parse_args()
     if args.mode == 'status':
         print(json.dumps({'unattended_enabled': False, 'live_certified': LIVE_CERTIFIED,
@@ -219,13 +288,22 @@ def main():
         parser.exit(2, 'DISABLED: live supervision/testing is not certified or owner-authorized.\n')
     if not all((args.manifest, args.state, args.log, args.report)):
         parser.error('fixture-worker requires manifest/state/log/report')
-    paths = [Path(value).resolve() for value in (args.manifest, args.state, args.log, args.report)]
-    if len(set(paths)) != 4:
-        parser.exit(2, 'Refusing overlapping manifest/state/evidence paths. No action taken.\n')
+    paths = [value for value in (args.manifest, args.state, args.log, args.report, args.ready) if value]
+    try:
+        distinct_paths(paths, [value for value in (args.report, args.state, args.ready) if value])
+    except ValueError as error:
+        parser.exit(2, str(error)+'\n')
     try:
         spec = json.loads(Path(args.manifest).read_text(encoding='utf-8'))
+        if bool(args.ready) != bool(args.ready_nonce):
+            raise ValueError('Readiness path and nonce must be supplied together')
+        def acknowledge(deadline):
+            ack = dict(nonce=args.ready_nonce, supervisor_pid=os.getpid(), deadline=deadline,
+                       identity={key:spec[key] for key in IDENTITY_KEYS}, live_certified=False)
+            write_json(args.ready, ack)
+            diagnostic(dict(event='fixture_ready', **ack))
         outcome = Supervisor(spec, FixtureAdapter(args.state), args.log, args.report,
-                             launch_deadline=args.deadline_monotonic).run()
+                             launch_deadline=args.deadline_monotonic).run(acknowledge if args.ready else None)
     except (OSError, ValueError, TypeError) as error:
         # Startup validation never acquires authority for a stop operation.
         outcome = dict(status='startup_failed', reason=str(error), stopped_verified=False,
@@ -234,7 +312,7 @@ def main():
             write_json(args.report, outcome)
         except OSError as report_error:
             outcome['report_error'] = str(report_error)
-        print(json.dumps(outcome), file=sys.stderr, flush=True)
+    diagnostic(outcome)
     raise SystemExit(0 if outcome['stopped_verified'] and outcome['evidence_complete'] else 1)
 
 

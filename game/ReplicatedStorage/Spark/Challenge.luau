@@ -4,6 +4,8 @@ local Challenge = {}
 -- Main enforces .65s. Leave a small timing margin here because its authorization
 -- and this score transaction are sampled at different instants on the server.
 local CHAIN_SECONDS, CAPTURE_INTERVAL, MAX_SCORE = 6, 0.60, 1000000
+local CHECKPOINTS={22,44,66,88,110}
+local SAMPLE_TOLERANCE=.5
 local goals = {
 	{id="precision", name="Close Call", description="Face Sparks and catch within 4 studs", target=3},
 	{id="chain", name="Keep the Rhythm", description="Catch within 6 seconds of each other", target=6},
@@ -32,7 +34,36 @@ local function medal(score)
 	return "Unranked"
 end
 
-function Challenge.new(roundIndex)
+-- Recorded observations, not interpolated historical scores. Missing samples stay missing.
+function Challenge.sanitizeBestRun(raw)
+	local result={score=0,checkpoints={}}
+	if type(raw)~="table" or not finite(raw.score) or raw.score<0 or raw.score>MAX_SCORE then return result end
+	result.score=math.floor(raw.score)
+	if type(raw.checkpoints)~="table" or result.score==0 then return result end
+	local previous=0
+	for _,boundary in ipairs(CHECKPOINTS) do
+		local key=tostring(boundary)
+		local sample=raw.checkpoints[key]
+		if type(sample)=="table" and finite(sample.score) and sample.score%1==0
+			and sample.score>=previous and sample.score<=result.score and finite(sample.sampledAt)
+			and sample.sampledAt>=boundary and sample.sampledAt<=(if boundary==110 then 120 else boundary+SAMPLE_TOLERANCE)
+			and (boundary~=110 or sample.score==result.score) then
+			result.checkpoints[key]={score=sample.score,sampledAt=sample.sampledAt}
+			previous=sample.score
+		end
+	end
+	return result
+end
+local function copyCheckpoints(checkpoints)
+	local copy={}
+	for _,boundary in ipairs(CHECKPOINTS) do
+		local key=tostring(boundary); local sample=checkpoints[key]
+		if sample then copy[key]={score=sample.score,sampledAt=sample.sampledAt} end
+	end
+	return copy
+end
+
+function Challenge.new(roundIndex,previousBestRun)
 	local index=if finite(roundIndex) then math.clamp(math.floor(roundIndex),1,1000000) else 1
 	local difficulty=math.min(3,1+math.floor((index-1)/3))
 	local goal=goals[(index-1)%#goals+1]
@@ -40,7 +71,26 @@ function Challenge.new(roundIndex)
 		goal={id=goal.id,name=goal.name,description=goal.description,target=goal.target+difficulty-1},
 		score=0,pendingBase=0,pendingBonus=0,pendingCount=0,chain=0,bestChain=0,bestHaul=0,
 		precision=0,dashCatches=0,captures=0,misses=0,lostBonus=0,lastEvent=0,lastCatch=nil,
-		lastCapture=nil,seen={},goalComplete=false,finished=false}
+		lastCapture=nil,seen={},goalComplete=false,finished=false,
+		checkpoints={},checkpointElapsed=0,previousBest=Challenge.sanitizeBestRun(previousBestRun)}
+end
+
+-- Main samples before heartbeat transactions, and again after final auto-bank/finish.
+-- A delayed heartbeat never fabricates earlier split scores. Final observation is
+-- allowed only after finish and by 120s; a longer stall leaves that sample absent.
+function Challenge.checkpoint(state,elapsed)
+	if not finite(elapsed) or elapsed<state.checkpointElapsed or elapsed<0 or elapsed>120 then return false end
+	state.checkpointElapsed=elapsed
+	for _,boundary in ipairs(CHECKPOINTS) do
+		local key=tostring(boundary)
+		local upper=if boundary==110 then 120 else boundary+SAMPLE_TOLERANCE
+		if not state.checkpoints[key] and elapsed>=boundary and elapsed<=upper
+			and ((boundary==110 and state.finished) or (boundary~=110 and not state.finished)) then
+			state.checkpoints[key]={score=state.score,sampledAt=elapsed}
+			return true
+		end
+	end
+	return false
 end
 
 -- Telegraph before each short sweep. One bounded hazard per player; never near
@@ -59,7 +109,19 @@ end
 function Challenge.snapshot(state, now)
 	local at=if finite(now) then math.max(now,state.lastEvent) else state.lastEvent
 	local chain=if state.finished then 0 else activeChain(state,at)
+	local personalBest={target=state.previousBest.score}
+	if state.previousBest.score>0 then
+		for _,boundary in ipairs(CHECKPOINTS) do
+			local key=tostring(boundary)
+			local current,previous=state.checkpoints[key],state.previousBest.checkpoints[key]
+			if current and previous then
+				personalBest.checkpoint=boundary; personalBest.delta=current.score-previous.score
+				personalBest.sampledAt=current.sampledAt; personalBest.previousSampledAt=previous.sampledAt
+			end
+		end
+	end
 	return {score=state.score,pending=state.pendingBase+state.pendingBonus,
+		checkpoints=copyCheckpoints(state.checkpoints),personalBest=personalBest,
 		pendingBonus=state.pendingBonus,chain=chain,multiplier=multiplier(chain),
 		chainSeconds=if chain>0 then math.max(0,CHAIN_SECONDS-(at-state.lastCatch)) else 0,
 		precision=state.precision,dashCatches=state.dashCatches,bestChain=state.bestChain,
