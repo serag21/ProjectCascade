@@ -67,6 +67,7 @@ def main() -> int:
     for path in sorted((ROOT / "game").rglob("*.luau")):
         run("compile:" + path.relative_to(ROOT).as_posix(), [str(compiler), "--null", str(path)])
     run("lint:undefined-globals-and-members", [sys.executable, "tools/lint_luau.py"])
+    run("api:class-service-enum-names", [sys.executable, "tools/check_api_names.py"])
     for path in sorted((ROOT / "tests").glob("*.spec.luau")):
         if path.name.startswith("Cascade"):
             continue  # archived Cascade suite needs Studio globals; not part of Spark
