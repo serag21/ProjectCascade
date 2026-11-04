@@ -490,6 +490,27 @@ local function eventText(d)
 end
 
 local lastReduced=nil
+-- Per-arena colour grade (local only, subtle, never flashing): each arena keeps
+-- its own mood while targets stay readable. Instant in reduced motion.
+local grade=Instance.new("ColorCorrectionEffect")
+grade.Name="SparkArenaGrade"; grade.Parent=game:GetService("Lighting")
+local grades={
+	{tint=Color3.fromRGB(255,252,240),saturation=0.08,contrast=0.03},
+	{tint=Color3.fromRGB(255,240,228),saturation=0.1,contrast=0.05},
+	{tint=Color3.fromRGB(238,236,255),saturation=0.12,contrast=0.06},
+}
+local gradedBiome=nil
+local function applyGrade(biome,reduced)
+	local target=grades[biome]
+	if not target or gradedBiome==biome then return end
+	gradedBiome=biome
+	local goal={TintColor=target.tint,Saturation=target.saturation,Contrast=target.contrast}
+	if reduced then
+		for key,value in pairs(goal) do (grade :: any)[key]=value end
+	else
+		game:GetService("TweenService"):Create(grade,TweenInfo.new(1.2,Enum.EasingStyle.Sine),goal):Play()
+	end
+end
 State.OnClientEvent:Connect(function(data)
 	if type(data)~="table" then return end
 	if type(data.profile)=="table" then cachedProfile=data.profile end
@@ -497,6 +518,7 @@ State.OnClientEvent:Connect(function(data)
 	data.profile=cachedProfile
 	if not data.profile then return end -- the first state of a session always carries the profile
 	local previousPhase=latest and latest.phase
+	applyGrade(data.biome,data.profile.settings and data.profile.settings.reducedMotion)
 	latest=data
 	stateAt=os.clock()
 	local seconds=data.remaining or 0
