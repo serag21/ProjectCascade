@@ -41,6 +41,25 @@ local function disc(parent: Instance, name: string, diameter: number, height: nu
 		CFrame.new(position) * CFrame.Angles(0, 0, math.pi / 2), color, Enum.PartType.Cylinder, material, collide)
 end
 
+-- Moving models: only the anchored root replicates a CFrame; every visual part
+-- is unanchored, massless and welded to it. Moving a 20-part creature then
+-- costs one replicated CFrame instead of twenty.
+local function weldToRoot(model: Model, root: BasePart)
+	for _, item in ipairs(model:GetDescendants()) do
+		if item:IsA("BasePart") and item ~= root then
+			item.Anchored = false
+			item.Massless = true
+			item.CanCollide = false
+			local weld = Instance.new("WeldConstraint")
+			weld.Name = "RootWeld"
+			weld.Part0 = root
+			weld.Part1 = item
+			weld.Parent = item
+		end
+	end
+	root.Anchored = true
+end
+
 local function textSign(parent: Instance, name: string, position: Vector3, title: string, subtitle: string, tint: Color3)
 	local anchor = part(parent, name, Vector3.new(1, 1, 1), CFrame.new(position), tint)
 	anchor.Transparency = 1
@@ -394,6 +413,7 @@ function World.creature(def: any, parent: Instance): Model
 	local pivot = part(model, "Root", Vector3.one * 0.2, CFrame.identity, tint)
 	pivot.Transparency = 1
 	model.PrimaryPart = pivot
+	weldToRoot(model, pivot)
 	model.Parent = parent
 	return model
 end
@@ -432,8 +452,9 @@ function World.gild(model: Model)
 	local halo = part(model, "GoldenHalo", Vector3.new(0.12, 2.6, 2.6), root.CFrame * CFrame.new(0, 2.6, 0) * CFrame.Angles(0, 0, math.pi / 2),
 		GOLD, Enum.PartType.Cylinder, Enum.Material.Neon)
 	halo.Transparency = 0.25
+	halo.Anchored = false; halo.Massless = true
 	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = root; weld.Part1 = halo; weld.Parent = halo
+	weld.Name = "RootWeld"; weld.Part0 = root; weld.Part1 = halo; weld.Parent = halo
 	local light = Instance.new("PointLight")
 	light.Name = "GoldenGlow"; light.Color = GOLD; light.Brightness = 1.2; light.Range = 12; light.Parent = root
 	local sparkle = Instance.new("ParticleEmitter")
@@ -468,6 +489,7 @@ function World.static(parent: Instance, ownerId: number): Model
 		ball(model, "Pupil", Vector3.new(0.25, 0.25, 0.15), Vector3.new(side * 0.5, 0.15, -1.38), INK)
 		part(model, "Brow", Vector3.new(0.6, 0.12, 0.12), CFrame.new(side * 0.55, 0.55, -1.3) * CFrame.Angles(0, 0, side * 0.35), INK)
 	end
+	weldToRoot(model, root)
 	model.Parent = parent
 	return model
 end
