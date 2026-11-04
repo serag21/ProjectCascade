@@ -18,6 +18,22 @@ Drafted 2026-10-25. Text and art direction are ready for implementation review. 
 >
 > Move. Dash. Catch. Bank. Go again!
 
+### Revised description draft v2 (2026-11-04) — reflects the mastery/progression build
+
+Use this only after the named features pass live QA (dash-through, statics, Spark Gate, Stampede Run, golden finale, perks, Heat, daily goals). Otherwise fall back to v1 above.
+
+> A herd of sparks is on the loose! Dash into bright arenas, catch mischievous creatures and bring your haul home before the buzzer.
+>
+> Dash straight through a herd to catch several at once. Keep a chain going for bigger multipliers, pop fizzy static puffs, steer sparks through the drifting Spark Gate and race for the Golden Spark in the finale.
+>
+> Collect twelve sparks and their Glow, Prism, Radiant and Gilded forms. Rank up to unlock perks that change how you play, turn up the Heat for tougher runs, and chase your personal best in three arenas. Fresh daily and weekly goals — no streaks to lose.
+>
+> Play solo or team up with up to three friends: flank a herd together, share Arena Rallies, or opt in to compare scores.
+>
+> Move. Dash. Catch. Bank. Go again!
+
+Monetization statement for the store page: none at launch. If the owner later approves monetization, only guaranteed, clearly priced cosmetics are proposed (see `GAME1_MONETIZATION_PLAN.md`); no paid random items, no paid power.
+
 Do not add unsupported superlatives, scarcity claims, free-Robux implications, competitor names, fake review quotes or unverified performance claims. Replace the numeric claims if the approved candidate differs. Category/tag selection must reflect Roblox's available current fields at release, not a guessed API enum.
 
 ## Visual identity
@@ -46,11 +62,12 @@ Author high-resolution square and wide masters; confirm the current [Roblox prom
 | Time | Picture and actual action to capture | Sound / minimal overlay |
 | --- | --- | --- |
 | 0–3s | Spawn-facing herd; a spark reacts immediately; player begins moving | One inviting creature sound. “CHASE THE SPARKS” |
-| 3–7s | Player flanks a moving group, dashes and captures | Actual dash/capture sounds; preserve readable controls |
+| 3–7s | Player lines up a herd and dashes THROUGH it: MULTI x2 tag, chain meter climbs | Actual dash/capture sounds; preserve readable controls. “DASH THROUGH” |
 | 7–11s | Carry display grows; bank gate rewards the group | Actual reward sound and collection addition. “BANK YOUR HAUL” |
-| 11–16s | One distinct event in each of two other arenas; targets remain readable | Music rises gently; no strobe editing or artificial impact flashes |
-| 16–20s | Two/four real clients corral a herd together, then show separate rewards | “SOLO OR TOGETHER” only after multiplayer verification |
-| 20–23s | Album gains a new silhouette; earned upgrade changes the next run | Actual UI tick. “BUILD YOUR PARADE” |
+| 11–16s | Fizz Canyon Stampede Run lane crossing; Spark Gate herding in Pop Meadow; a static POP | Music rises gently; no strobe editing or artificial impact flashes |
+| 16–18s | Golden finale: player catches the Golden Spark just before the buzzer | “GOLDEN FINALE” |
+| 18–20s | Two/four real clients flank a herd through the gate (ASSIST tag) | “SOLO OR TOGETHER” only after multiplayer verification |
+| 20–23s | Results: medal, rank-up, perk unlock; album gains a Gilded mark | Actual UI tick. “BUILD YOUR PARADE” |
 | 23–25s | Replay pressed; another run begins; final title | “SPARK STAMPEDE” and one short music resolution |
 
 Footage must come from the candidate commit. Do not speed up tedious progression to imply a false first reward time. Do not stage unsupported moves or show synthetic players as verified multiplayer. Use original/licensed music only, with actual audio review and an attribution entry.
