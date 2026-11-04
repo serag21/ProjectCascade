@@ -16,6 +16,7 @@ local Profile=require("./Profile")
 local Challenge=require("./Challenge")
 local Rules=require("./Rules")
 local ArenaRally=require("./ArenaRally")
+local ArenaEvents=require("./ArenaEvents")
 local Targeting=require("./Targeting")
 local now=1
 local os={clock=function() return now end,time=function() return 1000 end}
@@ -222,7 +223,7 @@ def main() -> None:
     blocks += extract(source, "local function capture(player,s)", "local function haltForLease(")
     with tempfile.TemporaryDirectory(prefix="spark-gameplay-") as directory:
         folder = Path(directory)
-        for name in ("Config", "Profile", "Challenge", "Rules", "Targeting", "ArenaRally"):
+        for name in ("Config", "Profile", "Challenge", "Rules", "Targeting", "ArenaRally", "ArenaEvents"):
             shutil.copyfile(ROOT / f"game/ReplicatedStorage/Spark/{name}.luau", folder / f"{name}.luau")
         script = folder / "gameplay.spec.luau"
         script.write_text(PRELUDE + blocks + CASES, encoding="utf-8")

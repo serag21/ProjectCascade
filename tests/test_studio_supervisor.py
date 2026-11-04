@@ -177,6 +177,78 @@ class Tests(unittest.TestCase):
         self.assertEqual(result.returncode,2)
         self.assertIn('DISABLED',result.stderr)
 
+    def fixture_paths(self, timeout=.8):
+        paths=[self.root/name for name in ('manifest.json','state.json','log.jsonl','report.json')]
+        supervisor.write_json(paths[0],dict(self.manifest,timeout_seconds=timeout))
+        supervisor.write_json(paths[1],self.state)
+        return paths
+
+    def test_launcher_returns_only_matching_worker_readiness(self):
+        paths=self.fixture_paths()
+        process=supervisor.launch_fixture_worker(*paths)
+        ack=json.loads(Path(str(paths[3])+'.ready.json').read_text())
+        self.assertEqual(ack['supervisor_pid'],process.pid)
+        self.assertEqual(ack['identity'],{key:self.manifest[key] for key in supervisor.IDENTITY_KEYS})
+        self.assertFalse(ack['live_certified'])
+        self.assertIsNone(process.poll())
+        process.wait(timeout=3)
+        diagnostic=Path(str(paths[3])+'.diagnostic.jsonl').read_text()
+        self.assertIn('fixture_ready',diagnostic)
+        self.assertIn('"stopped_verified": true',diagnostic)
+
+    def test_stale_ack_cannot_authorize_wrong_session(self):
+        paths=self.fixture_paths()
+        supervisor.write_json(Path(str(paths[3])+'.ready.json'),dict(nonce='stale',supervisor_pid=123))
+        supervisor.write_json(paths[1],dict(self.state,run_token='wrong-session'))
+        with self.assertRaisesRegex(RuntimeError,'readiness unconfirmed'):
+            supervisor.launch_fixture_worker(*paths)
+        self.assertNotIn('stop_requests',json.loads(paths[1].read_text()))
+        diagnostic=Path(str(paths[3])+'.diagnostic.jsonl').read_text()
+        self.assertIn('cleanup_unconfirmed',diagnostic)
+
+    def test_readiness_write_failure_still_cleans_up(self):
+        paths=self.fixture_paths()
+        blocked=self.root/'blocked';blocked.write_text('not a directory')
+        with self.assertRaisesRegex(RuntimeError,'readiness unconfirmed'):
+            supervisor.launch_fixture_worker(*paths,ready=blocked/'ready.json')
+        report=json.loads(paths[3].read_text())
+        self.assertTrue(report['stopped_verified'])
+        self.assertFalse(report['evidence_complete'])
+        self.assertEqual(report['reason'],'readiness acknowledgement failed')
+
+    def test_diagnostics_survive_primary_log_and_report_failure(self):
+        manifest,state,_,_=self.fixture_paths()
+        blocked=self.root/'blocked';blocked.write_text('not a directory')
+        sink=self.root/'independent'/'diagnostic.jsonl'
+        with self.assertRaisesRegex(RuntimeError,'readiness unconfirmed'):
+            supervisor.launch_fixture_worker(manifest,state,blocked/'log',blocked/'report',
+                ready=self.root/'ready.json',diagnostics=sink)
+        output=sink.read_text()
+        self.assertIn('"stopped_verified": true',output)
+        self.assertIn('final report',output)
+        self.assertEqual(json.loads(state.read_text())['mode'],'Edit')
+
+    def test_diagnostic_failure_and_path_alias_fail_before_spawning(self):
+        paths=self.fixture_paths()
+        blocked=self.root/'blocked';blocked.write_text('not a directory')
+        with self.assertRaises(OSError):
+            supervisor.launch_fixture_worker(*paths,diagnostics=blocked/'sink')
+        with self.assertRaises(ValueError):
+            supervisor.launch_fixture_worker(*paths,diagnostics=paths[1])
+        with self.assertRaises(ValueError):
+            supervisor.launch_fixture_worker(*paths,ready=str(paths[1])+'.tmp')
+        self.assertNotIn('stop_requests',json.loads(paths[1].read_text()))
+
+    def test_readiness_wait_is_bounded_without_killing_cleanup_worker(self):
+        paths=self.fixture_paths(timeout=.5)
+        before=time.monotonic()
+        with self.assertRaisesRegex(RuntimeError,'readiness unconfirmed'):
+            supervisor.launch_fixture_worker(*paths,ready_timeout=.001)
+        self.assertLess(time.monotonic()-before,1)
+        deadline=time.monotonic()+3
+        while not paths[3].exists() and time.monotonic()<deadline: time.sleep(.02)
+        self.assertTrue(json.loads(paths[3].read_text())['stopped_verified'])
+
     def test_worker_survives_launcher_exit(self):
         paths = [self.root/name for name in ('manifest.json','state.json','log.jsonl','report.json')]
         supervisor.write_json(paths[0], dict(self.manifest,timeout_seconds=.7))

@@ -12,6 +12,7 @@ local Rules = require(Shared.Rules)
 local Challenge = require(Shared.Challenge)
 local Targeting = require(Shared.Targeting)
 local ArenaRally = require(Shared.ArenaRally)
+local ArenaEvents = require(Shared.ArenaEvents)
 local World = require(script.Parent.World)
 local Persistence = require(script.Parent.Persistence)
 
@@ -117,7 +118,7 @@ local function capacity(s) return Config.MaxCarry + (s.profile.upgrades.basket o
 local function speed(_s) return Config.WalkSpeed end
 local function dashCooldown(s) return math.max(1,Config.DashCooldown-(s.profile.upgrades.boots or 0)*Config.Upgrades.boots.cooldownReduction) end
 local function parade(player,s) player:SetAttribute("SparkParade",table.concat(s.carry,",")) end
-local function arenaEvent() return Rules.event((os.clock()-arenaEpoch)%Config.RoundSeconds) end
+local function arenaEvent(biome) return ArenaEvents.herd(os.clock()-arenaEpoch,biome) end
 local function rootOf(player)
 	local char = player.Character
 	return char and char:FindFirstChild("HumanoidRootPart"), char and char:FindFirstChildOfClass("Humanoid")
@@ -134,7 +135,7 @@ local function roundPlaying(s,now)
 end
 local function hazardFor(s,now)
 	return if roundPlaying(s,now) and s.hazardStarted and s.challenge
-		then Challenge.hazard(now-s.hazardStarted,s.challenge.difficulty) else {visible=false,active=false}
+		then ArenaEvents.hazard(now-s.hazardStarted,s.challenge.difficulty,s.biome) else {visible=false,active=false}
 end
 local function objective(s)
 	if not s.ready then return "Connecting your collection…" end
@@ -156,6 +157,7 @@ local function send(player,s)
 	player:SetAttribute("SparkSaveStatus",s.saveStatus)
 	player:SetAttribute("SparkStartersRemaining",s.starterRemaining or 0)
 	local mastery=s.challenge and Challenge.snapshot(s.challenge,now)
+	local event=arenaEvent(s.biome)
 	local hazard=hazardFor(s,now)
 	if hazard.visible then hazard.position=world.arenas[s.biome].origin+Vector3.new(hazard.x,0.25,hazard.z) end
 	player:SetAttribute("SparkSkillScore",mastery and mastery.score or 0)
@@ -172,8 +174,8 @@ local function send(player,s)
 	State:FireClient(player,{
 		phase=s.phase,remaining=math.max(0,math.ceil(Config.RoundSeconds-elapsed)),
 		biome=s.biome,carry=#s.carry,capacity=capacity(s),score=s.score,
-		profile=s.profile,saveStatus=s.saveStatus,event=arenaEvent(),objective=objective(s),
-		mastery=mastery,personalBest=s.newPersonalBest or false,ranking=ranking,
+		profile=s.profile,saveStatus=s.saveStatus,event=event.name,arenaEvent=event,objective=objective(s),
+		mastery=mastery,personalBest=s.newPersonalBest or false,arenaBest=s.newArenaBest or false,ranking=ranking,
 		startersRemaining=s.starterRemaining or 0,
 		hazard=hazard,
 		rally=ArenaRally.snapshot(rallies[s.biome],now,player.UserId),
@@ -264,7 +266,10 @@ local function settleRound(player,s,now)
 	if s.phase~="Playing" or roundPlaying(s,now) then return false end
 	clearStarters(player.UserId)
 	bank(player,s,true); s.phase="Results"; s.profile.rounds=math.min(1000000,s.profile.rounds+1)
-	local summary=Challenge.finish(s.challenge,os.clock())
+	Challenge.finish(s.challenge,os.clock())
+	Challenge.checkpoint(s.challenge,math.max(110,os.clock()-s.started))
+	local summary=Challenge.snapshot(s.challenge,os.clock())
+	s.newArenaBest=summary.score>(s.profile.mastery.bestByBiome[Config.Biomes[s.challengeBiome].id] or 0)
 	s.newPersonalBest=Profile.recordMastery(s.profile,Config.Biomes[s.challengeBiome].id,summary,s.profile.rounds)
 	Lifecycle.markDirty(s)
 	metric(player,s,"first_round"); feedback(player,"Results","Round complete! Your parade earned "..s.score.." glow")
@@ -275,7 +280,10 @@ local function beginRound(player,s)
 	if not s.ready then return end
 	if s.started then metric(player,s,"replay") end
 	s.phase="Playing"; s.started=os.clock(); s.carry={}; s.score=0; s.buckets={}
-	s.challenge=Challenge.new(s.profile.rounds+1); s.newPersonalBest=false; s.challengeBiome=s.biome
+	local biomeId=Config.Biomes[s.biome].id
+	local previous=s.profile.mastery.bestRuns[biomeId] or {score=s.profile.mastery.bestByBiome[biomeId] or 0}
+	s.challenge=Challenge.new(s.profile.rounds+1,previous); s.newPersonalBest=false; s.newArenaBest=false; s.challengeBiome=s.biome
+	s.eventPhase=nil
 	s.hazardUntil=0; s.hazardNext=0
 	s.hazardStarted=if s.profile.totalBanked>=3 then s.started else nil
 	parade(player,s)
@@ -539,8 +547,17 @@ RunService.Heartbeat:Connect(function(dt)
 	for player,s in pairs(sessions) do
 		if not s.ready then continue end
 		if not Lifecycle.leaseValid(persistence:leaseDeadline(player.UserId),os.time()) then haltForLease(player,s,"acknowledged lease expired"); continue end
+		-- Observe secured score before this tick's banking; missed historical splits stay absent.
+		if roundPlaying(s,now) then Challenge.checkpoint(s.challenge,now-s.started) end
 		-- Settle expired rounds before movement/hazards: no post-deadline captures or penalties.
 		settleRound(player,s,now)
+		if roundPlaying(s,now) then
+			local event=arenaEvent(s.biome)
+			if s.eventPhase~=nil and s.eventPhase~=event.phase and s.profile.totalBanked>=3 then
+				feedback(player,"Round",event.name.." • Read the herd's new rhythm")
+			end
+			s.eventPhase=event.phase
+		end
 		local root,humanoid=rootOf(player)
 		if root and humanoid then
 			local arena=world.arenas[s.biome]
@@ -566,13 +583,16 @@ RunService.Heartbeat:Connect(function(dt)
 		local center=centroids[c.biome] or {sum=Vector3.zero,count=0}
 		center.sum+=c.position; center.count+=1; centroids[c.biome]=center
 	end
-	local _,sharedScale=arenaEvent()
+	local events={}
+	for biome in ipairs(world.arenas) do events[biome]=arenaEvent(biome) end
 	for _,c in pairs(herd) do
 		local arena=world.arenas[c.biome]
 		local time=now+c.seed
 		local direction=Vector3.new(math.cos(c.heading),0,math.sin(c.heading))
 		local nearest,dist=nil,26
-		local eventScale=if c.beginner then .55 else sharedScale
+		local event=events[c.biome]
+		local eventScale=if c.beginner then .55 else event.speedScale
+		local turnScale=if c.beginner then 1 else event.turnScale
 		for player,s in pairs(sessions) do
 			if s.ready and s.phase=="Playing" and s.biome==c.biome and (not c.starterOwner or c.starterOwner==player.UserId) then
 				local root=rootOf(player)
@@ -584,7 +604,7 @@ RunService.Heartbeat:Connect(function(dt)
 			local toHerd=center.sum/center.count-c.position; toHerd=Vector3.new(toHerd.X,0,toHerd.Z)
 			if toHerd.Magnitude>7 then direction=direction:Lerp(toHerd.Unit,math.min(1,step*1.5)) end
 		elseif c.def.behavior=="wander" then
-			c.heading+=math.sin(time*.55)*step*.9
+			c.heading+=math.sin(time*.55)*step*.9*turnScale
 			direction=Vector3.new(math.cos(c.heading),0,math.sin(c.heading))
 			eventScale*=.75+.15*math.sin(time*.8)
 		end
@@ -593,10 +613,10 @@ RunService.Heartbeat:Connect(function(dt)
 			local away=Vector3.new(c.position.X-nearest.X,0,c.position.Z-nearest.Z)
 			if away.Magnitude>0.1 then
 				local flee=away.Unit
-				if c.def.behavior=="zigzag" then flee=(flee+Vector3.new(math.sin(time*3)*0.6,0,math.cos(time*3)*0.6)).Unit end
+				if c.def.behavior=="zigzag" then flee=(flee+Vector3.new(math.sin(time*3*turnScale)*0.6,0,math.cos(time*3*turnScale)*0.6)).Unit end
 				direction=direction:Lerp(flee,math.min(1,step*3))
 			end
-		else c.heading+=math.sin(time*0.6)*step*0.7 end
+		else c.heading+=math.sin(time*0.6)*step*0.7*turnScale end
 		local delta=c.position-arena.origin
 		local flat=Vector3.new(delta.X,0,delta.Z)
 		if flat.Magnitude>48 then direction=-flat.Unit end

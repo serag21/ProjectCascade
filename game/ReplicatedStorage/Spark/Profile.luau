@@ -1,4 +1,5 @@
 local Config = if script then require(script.Parent.Config) else require("./Config")
+local Challenge = if script then require(script.Parent.Challenge) else require("./Challenge")
 local Profile = {}
 local MAX_COUNT = 1000000
 local MAX_COINS = 2000000000
@@ -23,7 +24,7 @@ end
 function Profile.new()
 	return {version=1, coins=0, totalBanked=0, rounds=0, album={}, mutations={},
 		upgrades={boots=0,magnet=0,basket=0}, quests={},
-		mastery={bestScore=0,bestChain=0,completed=0,precision=0,dashCatches=0,lastRecordedRound=0,bestByBiome={}},
+		mastery={bestScore=0,bestChain=0,completed=0,precision=0,dashCatches=0,lastRecordedRound=0,bestByBiome={},bestRuns={}},
 		settings={reducedMotion=false,music=true,sfx=true,competition=false}, lastSeen=0}
 end
 
@@ -49,6 +50,12 @@ function Profile.sanitize(raw)
 		if type(raw.mastery.bestByBiome)=="table" then
 			for _,biome in ipairs(Config.Biomes) do
 				result.mastery.bestByBiome[biome.id]=integer(raw.mastery.bestByBiome[biome.id],MAX_COUNT)
+			end
+		end
+		if type(raw.mastery.bestRuns)=="table" then
+			for _,biome in ipairs(Config.Biomes) do
+				local run=Challenge.sanitizeBestRun(raw.mastery.bestRuns[biome.id])
+				if run and run.score==(result.mastery.bestByBiome[biome.id] or 0) then result.mastery.bestRuns[biome.id]=run end
 			end
 		end
 	else result.mastery.lastRecordedRound=result.rounds end
@@ -107,7 +114,11 @@ function Profile.recordMastery(profile,biomeId,summary,roundSerial)
 	mastery.bestChain=math.max(mastery.bestChain,math.min(captures,integer(summary.bestChain,512)))
 	mastery.precision=math.min(MAX_COUNT,mastery.precision+math.min(captures,integer(summary.precision,512)))
 	mastery.dashCatches=math.min(MAX_COUNT,mastery.dashCatches+math.min(captures,integer(summary.dashCatches,512)))
-	mastery.bestByBiome[biomeId]=math.max(mastery.bestByBiome[biomeId] or 0,score)
+	local arenaBest=mastery.bestByBiome[biomeId] or 0
+	if score>arenaBest then
+		mastery.bestByBiome[biomeId]=score
+		mastery.bestRuns[biomeId]=Challenge.sanitizeBestRun({score=score,checkpoints=summary.checkpoints})
+	end
 	if type(summary.challenge)=="table" and summary.challenge.complete==true then
 		mastery.completed=math.min(MAX_COUNT,mastery.completed+1)
 	end
