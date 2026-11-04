@@ -636,8 +636,9 @@ local function scatter(player,s,count,at)
 			if flat.Magnitude>44 then flat=flat.Unit*44 end
 			local safe=Rules.outsideBank({x=flat.X,y=0,z=flat.Z},{x=0,y=0,z=44})
 			-- Scattered extras always expire so unattended arenas never accumulate them.
-			spawnCreature(s.biome,nil,nil,{def=def,golden=golden,extra=true,
+			local spark=spawnCreature(s.biome,nil,nil,{def=def,golden=golden,extra=true,
 				position=arena.origin+Vector3.new(safe.x,2.2,safe.z),expiresAt=os.clock()+(if golden then 20 else 30)})
+			if spark then spark.scattered=true end
 		end
 	end
 	return #removed
@@ -901,7 +902,7 @@ Players.PlayerAdded:Connect(join)
 for _,player in ipairs(Players:GetPlayers()) do task.spawn(join,player) end
 
 local accumulator,networkAt=0,0
-local goldenCycle,runKey={},{}
+local goldenCycle,runKey,surplusNext={},{},{}
 RunService.Heartbeat:Connect(function(dt)
 	if lifecycle.closing then return end
 	accumulator+=dt
@@ -962,6 +963,25 @@ RunService.Heartbeat:Connect(function(dt)
 		-- Shared encounters spawn only when someone is actively playing this arena.
 		local present=0
 		for _,s in pairs(sessions) do if s.ready and s.biome==biome and roundPlaying(s,now) then present+=1 end end
+		-- Herd density scales with active players (+5 Sparks each beyond the
+		-- first) so co-op never starves anyone. Surplus Sparks are temporary
+		-- extras: they never respawn on catch and expire after 45s unless needed.
+		if present>1 and now>=(surplusNext[biome] or 0) then
+			local alive=0
+			for _,c in pairs(herd) do
+				if c.biome==biome and not c.starterOwner and not c.runner and not c.golden and not c.scattered then alive+=1 end
+			end
+			if alive<18+5*(present-1) then
+				surplusNext[biome]=now+0.5
+				local offset=Rules.herdSpawn(random:NextNumber(0,math.pi*2),random:NextNumber(12,40))
+				local pool={}
+				for _,candidate in ipairs(Config.Creatures) do
+					if candidate.biome==biome or candidate.biome==Config.Biomes[biome].id then table.insert(pool,candidate) end
+				end
+				spawnCreature(biome,nil,nil,{def=pool[random:NextInteger(1,#pool)],extra=true,expiresAt=now+45,
+					position=world.arenas[biome].origin+Vector3.new(offset.x,offset.y,offset.z)})
+			end
+		end
 		local gold=Encounters.golden(clockNow,biome,present)
 		if gold.spawn and present>0 and goldenCycle[biome]~=gold.cycle then
 			goldenCycle[biome]=gold.cycle
