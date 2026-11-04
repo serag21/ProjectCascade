@@ -666,6 +666,11 @@ local function updateStatics(player,s,root,now,step)
 				model:PivotTo(CFrame.new(origin+Vector3.new(spot.x,3,spot.z)))
 				s.statics[s.staticSerial]={id=s.staticSerial,pos=spot,born=now,model=model}
 				s.staticCount+=1
+				if not s.hinted then s.hinted={} end
+				if not s.hinted.static then
+					s.hinted.static=true
+					feedback(player,"Hint","STATIC PUFF! DASH through it to POP it • touching it zaps your parade")
+				end
 				break
 			end
 		end
@@ -1089,6 +1094,17 @@ RunService.Heartbeat:Connect(function(dt)
 			local gateCenter=arena.origin+Vector3.new(gate.x,0,gate.z)
 			if Vector3.new(c.position.X-gateCenter.X,0,c.position.Z-gateCenter.Z).Magnitude<=gate.radius then
 				table.insert(gateCatches,c)
+			end
+		end
+	end
+	-- One-time contextual coaching per session for shared encounters.
+	for player,s in pairs(sessions) do
+		if s.ready and roundPlaying(s,now) and s.profile.totalBanked>=3 then
+			s.hinted=s.hinted or {}
+			local gate=gates[s.biome]
+			if gate.visible and not s.hinted.gate then
+				s.hinted.gate=true
+				feedback(player,"Hint","SPARK GATE! Chase Sparks so they flee THROUGH the glowing ring")
 			end
 		end
 	end
