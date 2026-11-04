@@ -915,7 +915,8 @@ RunService.Heartbeat:Connect(function(dt)
 			elseif s.staticCount and s.staticCount>0 and not roundPlaying(s,now) then
 				clearPersonal(player,s)
 			end
-			if accepted and roundPlaying(s,now) and now>=(s.hazardNext or 0) then
+			-- Shared 1.5s immunity: a static zap and a sweep can never stack in one moment.
+			if accepted and roundPlaying(s,now) and now>=(s.hazardNext or 0) and now>=(s.zapImmuneUntil or 0) then
 				local hazard=hazardFor(s,now)
 				if hazard.active then
 					local center=arena.origin+Vector3.new(hazard.x,0,hazard.z)
