@@ -36,7 +36,8 @@ local function biomeIndex(biome)
 end
 local function hidden() return {visible=false,active=false,warning=false} end
 
-function ArenaEvents.hazard(elapsed,difficulty,biome)
+-- warningSeconds (optional, 1.5..2): Heat 5 shortens the telegraph, never removes it.
+function ArenaEvents.hazard(elapsed,difficulty,biome,warningSeconds)
 	local index=biomeIndex(biome)
 	if not index or not finite(elapsed) or elapsed<25 then return hidden() end
 	local tier=if finite(difficulty) then math.clamp(difficulty,1,3) else 1
@@ -51,8 +52,9 @@ function ArenaEvents.hazard(elapsed,difficulty,biome)
 	elseif index==2 then x=math.sin(angle)*18; z=-5
 	else x=math.sin(angle)*16; z=math.sin(angle*2)*12-3 end
 	local def=hazards[index]
-	return {visible=true,active=cycle>=2,warning=cycle<2,x=x,z=z,radius=3.5,
-		seconds=if cycle<2 then 2-cycle else 6-cycle,name=def.name,cue=def.cue}
+	local warn=if finite(warningSeconds) then math.clamp(warningSeconds,1.5,2) else 2
+	return {visible=true,active=cycle>=warn,warning=cycle<warn,x=x,z=z,radius=3.5,
+		seconds=if cycle<warn then warn-cycle else 6-cycle,name=def.name,cue=def.cue}
 end
 
 -- Shared arena clock, independent of personal joins/replays. Return fresh tables:

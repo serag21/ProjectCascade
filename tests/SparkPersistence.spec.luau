@@ -46,7 +46,7 @@ test("transient failures retry and updates tolerate repeated transform",function
 end)
 test("corrupt and future records are never replaced",function()
 	local store,_,adapter=fixture()
-	for i,raw in ipairs({"corrupt",{version=2},{kind="SparkProfile",version=1},{kind="SparkProfile",version=1,data=Profile.new(),lease={id="x",expiresAt=math.huge}}}) do
+	for i,raw in ipairs({"corrupt",{version=3},{kind="SparkProfile",version=1},{kind="SparkProfile",version=1,data=Profile.new(),lease={id="x",expiresAt=math.huge}}}) do
 		local key="player:"..i;store.values[key]=raw
 		local a=adapter("A");local p=a:load(i);assert(p==nil and store.values[key]==raw)
 		assert(not a:save(i,Profile.new()))
@@ -84,7 +84,7 @@ end)
 test("nil and future-version saves cannot replace a loaded profile",function()
 	local store,_,adapter=fixture();local a=adapter("A");local p=a:load(20)
 	p.coins=20;assert(a:save(20,p));local calls=store.calls
-	assert(not a:save(20,nil) and not a:save(20,{version=2}))
+	assert(not a:save(20,nil) and not a:save(20,{version=3}))
 	assert(store.calls==calls and store.values["player:20"].data.coins==20)
 end)
 test("load response arriving at expiry cannot create a writable session",function()

@@ -7,6 +7,9 @@ local Config = {
 	CaptureCooldown = 0.65,
 	DashCooldown = 3,
 	WalkSpeed = 22,
+	-- Golden finale variant: the arena's rarest species, worth triple glow.
+	GoldenSpecies = {"flutter", "dunefin", "antlume"},
+	GoldenValueMultiplier = 3,
 	Creatures = {
 		{id="pip", name="Pip Pop", shape="orb", color={255,210,65}, value=3, speed=8, behavior="wander", biome=1, rarity="Common", trait="Wobbles toward the herd"},
 		{id="bunvolt", name="Bunvolt", shape="ears", color={255,132,177}, value=4, speed=11, behavior="flee", biome=1, rarity="Common", trait="Bounds away when approached"},
@@ -50,6 +53,7 @@ local Config = {
 	Mutations = {
 		{id="glow", name="Glow", threshold=5, description="Bank five of a species to unlock its glow."},
 		{id="prism", name="Prism", threshold=15, description="Bank fifteen of a species to unlock its prism trail."},
+		{id="radiant", name="Radiant", threshold=40, description="Bank forty of a species to make it radiant."},
 	},
 }
 return Config

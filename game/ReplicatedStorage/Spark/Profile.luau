@@ -1,5 +1,7 @@
 local Config = if script then require(script.Parent.Config) else require("./Config")
 local Challenge = if script then require(script.Parent.Challenge) else require("./Challenge")
+local Loadout = if script then require(script.Parent.Loadout) else require("./Loadout")
+local Progression = if script then require(script.Parent.Progression) else require("./Progression")
 local Profile = {}
 local MAX_COUNT = 1000000
 local MAX_COINS = 2000000000
@@ -21,11 +23,42 @@ local function deriveMutations(profile)
 	end
 end
 
+Profile.Version = 2
+Profile.StatKeys = {"herded","assists","pops","zaps","golden","multiCatches","bestMulti","flawless","bestBankCount","rallies"}
+local function emptyRecords()
+	local records = {}
+	for _, biome in ipairs(Config.Biomes) do records[biome.id] = {0,0,0,0,0,0} end
+	return records
+end
 function Profile.new()
-	return {version=1, coins=0, totalBanked=0, rounds=0, album={}, mutations={},
+	local stats = {}
+	for _, key in ipairs(Profile.StatKeys) do stats[key] = 0 end
+	return {version=Profile.Version, coins=0, totalBanked=0, rounds=0, album={}, mutations={},
 		upgrades={boots=0,magnet=0,basket=0}, quests={},
 		mastery={bestScore=0,bestChain=0,completed=0,precision=0,dashCatches=0,lastRecordedRound=0,bestByBiome={},bestRuns={}},
-		settings={reducedMotion=false,music=true,sfx=true,competition=false}, lastSeen=0}
+		settings={reducedMotion=false,music=true,sfx=true,competition=false}, lastSeen=0,
+		-- Version 2: long-term progression. All earned in play; nothing purchasable with Robux.
+		xp=0, loadout={}, heat=0, records=emptyRecords(), gilded={}, stats=stats, achievements={},
+		daily={day=0,goals={},progress={},claimed={},bonus=false}, weekly={week=0,goals={},progress={},claimed={}},
+		style={owned={},trail="none",title=""}, progressReceipt=0}
+end
+local function goalBlock(raw, key, pool)
+	local block = {[key]=0, goals={}, progress={}, claimed={}}
+	if type(raw) ~= "table" then return block end
+	block[key] = integer(raw[key], 1000000)
+	local allowed = {}
+	for _, goal in ipairs(pool) do allowed[goal.id] = goal end
+	if type(raw.goals) == "table" then
+		for index = 1, math.min(#raw.goals, 8) do
+			local id = raw.goals[index]
+			if #block.goals < 3 and type(id) == "string" and allowed[id] and not table.find(block.goals, id) then
+				table.insert(block.goals, id)
+				if type(raw.progress) == "table" then block.progress[id] = math.min(allowed[id].target, integer(raw.progress[id], MAX_COUNT)) end
+				if type(raw.claimed) == "table" and raw.claimed[id] == true then block.claimed[id] = true end
+			end
+		end
+	end
+	return block
 end
 
 -- Whitelist every persisted key. Never retain unknown nested values, Instances or cycles.
@@ -33,7 +66,8 @@ end
 function Profile.sanitize(raw)
 	if raw == nil then return Profile.new(), "new" end
 	if type(raw) ~= "table" then return nil, "corrupt" end
-	if raw.version ~= nil and raw.version ~= 1 then return nil, "future-version" end
+	-- Version 1 saves migrate forward; anything newer is refused without overwrite.
+	if raw.version ~= nil and raw.version ~= 1 and raw.version ~= 2 then return nil, "future-version" end
 	local result = Profile.new()
 	result.coins = integer(raw.coins, MAX_COINS)
 	result.totalBanked = integer(raw.totalBanked, MAX_COUNT)
@@ -78,7 +112,52 @@ function Profile.sanitize(raw)
 			if type(raw.settings[key]) == "boolean" then result.settings[key] = raw.settings[key] end
 		end
 	end
+	-- Version 2 fields (absent on v1 saves -> safe defaults).
+	result.xp = integer(raw.xp, 100000000)
+	result.progressReceipt = math.min(result.rounds, integer(raw.progressReceipt == nil and result.rounds or raw.progressReceipt, MAX_COUNT))
+	if type(raw.records) == "table" then
+		for _, biome in ipairs(Config.Biomes) do
+			local row = raw.records[biome.id]
+			if type(row) == "table" then
+				for heat = 0, Loadout.MaxHeat do result.records[biome.id][heat + 1] = integer(row[heat + 1], MAX_COUNT) end
+			end
+		end
+	end
+	-- v1 per-arena bests were earned at heat 0.
+	for _, biome in ipairs(Config.Biomes) do
+		local row = result.records[biome.id]
+		row[1] = math.max(row[1], result.mastery.bestByBiome[biome.id] or 0)
+	end
+	if type(raw.gilded) == "table" then
+		for id in pairs(species) do if raw.gilded[id] == true then result.gilded[id] = true end end
+	end
+	if type(raw.stats) == "table" then
+		for _, key in ipairs(Profile.StatKeys) do result.stats[key] = integer(raw.stats[key], MAX_COUNT) end
+	end
+	if type(raw.achievements) == "table" then
+		for _, a in ipairs(Progression.Achievements) do
+			if raw.achievements[a.id] == true then result.achievements[a.id] = true end
+		end
+	end
+	result.daily = goalBlock(raw.daily, "day", Progression.DailyPool)
+	result.daily.bonus = type(raw.daily) == "table" and raw.daily.bonus == true
+	result.weekly = goalBlock(raw.weekly, "week", Progression.WeeklyPool)
+	if type(raw.style) == "table" then
+		if type(raw.style.owned) == "table" then
+			for _, trail in ipairs(Progression.Trails) do
+				if trail.price and raw.style.owned[trail.id] == true then result.style.owned[trail.id] = true end
+			end
+		end
+		if type(raw.style.trail) == "string" and Progression.TrailById[raw.style.trail] then result.style.trail = raw.style.trail end
+		if type(raw.style.title) == "string" and Progression.AchievementById[raw.style.title] then result.style.title = raw.style.title end
+	end
 	deriveMutations(result)
+	-- Validate equips against what this profile has actually earned.
+	if not Progression.styleUnlocked(result, Progression.TrailById[result.style.trail]) then result.style.trail = "none" end
+	if Progression.titleText(result) == "" then result.style.title = "" end
+	local rank = Progression.rank(result.xp)
+	result.loadout = Loadout.sanitize(raw.loadout, rank)
+	result.heat = math.min(integer(raw.heat, Loadout.MaxHeat), Loadout.heatUnlocked(result.records))
 	return result, "ready"
 end
 
@@ -130,13 +209,17 @@ function Profile.bank(profile, catches)
 	if type(catches) ~= "table" then return 0, 0 end
 	local reward, discovered, banked = 0, 0, 0
 	for index = 1, math.min(#catches, 128) do
-		local id = catches[index]
+		local entry = catches[index]
+		-- "*species" marks a server-verified Golden Spark catch (never client input).
+		local golden = type(entry) == "string" and string.sub(entry, 1, 1) == "*"
+		local id = if golden then string.sub(entry, 2) else entry
 		local creature = if type(id) == "string" then species[id] else nil
 		if creature then
 			local previous = profile.album[id] or 0
 			if previous == 0 then discovered += 1 end
 			profile.album[id] = math.min(previous + 1, MAX_COUNT)
-			reward += creature.value
+			reward += creature.value * (if golden then Config.GoldenValueMultiplier else 1)
+			if golden and profile.gilded then profile.gilded[id] = true end
 			banked += 1
 		end
 	end
@@ -165,6 +248,7 @@ end
 function Profile.rewardRally(profile)
 	local applied=math.min(8,MAX_COINS-profile.coins)
 	profile.coins+=applied
+	if profile.stats then profile.stats.rallies=math.min(MAX_COUNT,(profile.stats.rallies or 0)+1) end
 	return applied
 end
 
