@@ -359,4 +359,59 @@ function World.creature(def: any, parent: Instance): Model
 	return model
 end
 
+-- Golden finale variant: keeps the species silhouette (readable collection
+-- identity) but gilds it, adds a halo and a gentle, non-flashing sparkle.
+local FACE = {EyeWhite = true, Pupil = true, EyeGlint = true, Smile = true, Root = true}
+function World.gild(model: Model)
+	for _, item in ipairs(model:GetDescendants()) do
+		if item:IsA("BasePart") and not FACE[item.Name] then
+			item.Color = item.Color:Lerp(GOLD, 0.7)
+			item.Material = Enum.Material.SmoothPlastic
+		end
+	end
+	local root = model.PrimaryPart
+	if not root then return end
+	local halo = part(model, "GoldenHalo", Vector3.new(0.12, 2.6, 2.6), root.CFrame * CFrame.new(0, 2.6, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		GOLD, Enum.PartType.Cylinder, Enum.Material.Neon)
+	halo.Transparency = 0.25
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = root; weld.Part1 = halo; weld.Parent = halo
+	local light = Instance.new("PointLight")
+	light.Name = "GoldenGlow"; light.Color = GOLD; light.Brightness = 1.2; light.Range = 12; light.Parent = root
+	local sparkle = Instance.new("ParticleEmitter")
+	sparkle.Name = "GoldenSparkle"; sparkle.Rate = 5; sparkle.Lifetime = NumberRange.new(0.6, 1)
+	sparkle.Speed = NumberRange.new(1, 2.5); sparkle.SpreadAngle = Vector2.new(180, 180)
+	sparkle.Size = NumberSequence.new(0.35, 0); sparkle.LightEmission = 0.8
+	sparkle.Color = ColorSequence.new(GOLD, WHITE); sparkle.Parent = root
+	model:SetAttribute("Golden", true)
+end
+
+-- Static Puff: original fizzing thundercloud hazard. Readable by shape (spiky
+-- cloud + zigzag bolts) as well as colour. Non-colliding; the server owns hits.
+local STATIC_BODY = Color3.fromRGB(74, 58, 120)
+local STATIC_BOLT = Color3.fromRGB(255, 236, 92)
+function World.static(parent: Instance, ownerId: number): Model
+	local model = Instance.new("Model")
+	model.Name = "StaticPuff"
+	model:SetAttribute("OwnerId", ownerId)
+	local root = part(model, "Root", Vector3.one * 0.2, CFrame.identity, STATIC_BODY)
+	root.Transparency = 1
+	model.PrimaryPart = root
+	ball(model, "Cloud", Vector3.new(3.2, 2.4, 2.8), Vector3.zero, STATIC_BODY)
+	ball(model, "CloudLeft", Vector3.new(2, 1.8, 2), Vector3.new(-1.4, -0.2, 0.2), STATIC_BODY:Lerp(INK, 0.2))
+	ball(model, "CloudRight", Vector3.new(2, 1.8, 2), Vector3.new(1.4, -0.2, 0.2), STATIC_BODY:Lerp(INK, 0.2))
+	for n = 1, 3 do
+		local x = (n - 2) * 0.9
+		part(model, "Bolt", Vector3.new(0.25, 0.9, 0.25), CFrame.new(x, -1.5, 0) * CFrame.Angles(0, 0, 0.5), STATIC_BOLT, nil, Enum.Material.Neon)
+		part(model, "BoltTip", Vector3.new(0.22, 0.7, 0.22), CFrame.new(x + 0.25, -2.2, 0) * CFrame.Angles(0, 0, -0.5), STATIC_BOLT, nil, Enum.Material.Neon)
+	end
+	for _, side in ipairs({-1, 1}) do
+		ball(model, "EyeWhite", Vector3.new(0.6, 0.5, 0.3), Vector3.new(side * 0.55, 0.2, -1.25), WHITE)
+		ball(model, "Pupil", Vector3.new(0.25, 0.25, 0.15), Vector3.new(side * 0.5, 0.15, -1.38), INK)
+		part(model, "Brow", Vector3.new(0.6, 0.12, 0.12), CFrame.new(side * 0.55, 0.55, -1.3) * CFrame.Angles(0, 0, side * 0.35), INK)
+	end
+	model.Parent = parent
+	return model
+end
+
 return World
