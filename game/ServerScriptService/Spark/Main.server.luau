@@ -443,8 +443,10 @@ local function spawnCreature(biome,index,starterPlayer,options)
 	-- Finite owner-specific starters are separate from the 54 normal herd slots.
 	if starterPlayer then position=arena.origin+Vector3.new((index-2)*4,2.2,30) end
 	if options.position then position=options.position end
-	local model=World.creature(def,creaturesFolder)
-	if options.golden then World.gild(model) end
+	-- Golden models are fully gilded before they replicate, so clients see the
+	-- final appearance (and reduced-motion masking) from the first frame.
+	local model=World.creature(def,if options.golden then nil else creaturesFolder)
+	if options.golden then World.gild(model); model.Parent=creaturesFolder end
 	nextCreatureId+=1
 	model.Name="Spark_"..nextCreatureId
 	model:SetAttribute("CreatureId",nextCreatureId); model:SetAttribute("Species",def.id)

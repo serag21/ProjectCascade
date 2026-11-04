@@ -278,20 +278,31 @@ local function layoutFor(width,height,touch)
 	local objectiveRect={x=if compact then 130 else (width-objectiveWidth)/2,y=if compact then 80 else 87,w=objectiveWidth,h=if compact then 40 else 44}
 	local bankRect={x=if touchWide then 180 else (width-bankWidth)/2,y=if compact then 128 elseif touchWide then 133 elseif touch then 187 else height-74,w=bankWidth,h=if touchWide then 36 else 40}
 	-- Combo meter sits under the objective, clear of the menu button, bank guide and action buttons.
-	local comboRect
+	local comboRect=nil
 	if touchWide then
 		-- Landscape touch: under the bank guide, right of the thumbstick zone, left of the action buttons.
 		comboRect={x=bankRect.x,y=bankRect.y+bankRect.h+8,w=math.min(220,width-232-8-bankRect.x),h=40}
-	elseif not touch and width>=700 then
-		comboRect={x=(width-220)/2,y=objectiveRect.y+objectiveRect.h+8,w=220,h=44}
-	else
-		local w=math.min(220,width-24-170)
-		comboRect={x=width-12-w,y=objectiveRect.y+objectiveRect.h+8,w=w,h=44}
+	end
+	local captureRect={x=width-122,y=if compact then 126 else height-(if stacked then 244 else 182),w=108,h=if compact then 44 else 70}
+	local dashRect={x=width-(if stacked then 122 else 232),y=if compact then 126 else height-165,w=if stacked then 108 else 100,h=if compact then 44 else 58}
+	if not comboRect then
+		local y=objectiveRect.y+objectiveRect.h+8
+		if not touch and width>=700 then
+			comboRect={x=(width-220)/2,y=y,w=220,h=44}
+		else
+			local w=math.min(220,width-24-170)
+			comboRect={x=width-12-w,y=y,w=w,h=44}
+		end
+		local function hits(a,b) return a.x<b.x+b.w and b.x<a.x+a.w and a.y<b.y+b.h and b.y<a.y+a.h end
+		-- Short windows bring the action buttons up: slide left of them, right of the menu button.
+		if hits(comboRect,captureRect) or hits(comboRect,dashRect) then
+			comboRect={x=178,y=y,w=math.min(220,dashRect.x-8-178),h=44}
+		end
 	end
 	return {
 		panel={x=(width-panelWidth)/2,y=(height-panelHeight)/2,w=panelWidth,h=panelHeight},
-		capture={x=width-122,y=if compact then 126 else height-(if stacked then 244 else 182),w=108,h=if compact then 44 else 70},
-		dash={x=width-(if stacked then 122 else 232),y=if compact then 126 else height-165,w=if stacked then 108 else 100,h=if compact then 44 else 58},
+		capture=captureRect,
+		dash=dashRect,
 		bank=bankRect,
 		objective=objectiveRect,
 		collection={x=12,y=if compact then 80 else 141,w=if compact then 110 else 158,h=if compact then 40 else 42},
@@ -423,7 +434,7 @@ local function aimPreview(now)
 		for _,model in ipairs(herd:GetChildren()) do
 			local id,owner=model:GetAttribute("CreatureId"),model:GetAttribute("StarterOwnerId")
 			local def=defs[model:GetAttribute("Species")]
-			-- Biome is read from the server-side arena index on the model when present.
+			-- Any species can be golden or a runner now; other arenas are far beyond reach.
 			if id and model.PrimaryPart and def and (not owner or (owner==player.UserId and latest.profile.totalBanked<3)) then
 				local aim=Targeting.measure(xyz(root.Position),xyz(root.CFrame.LookVector),xyz(model.PrimaryPart.Position),radius)
 				if Targeting.better(aim,id,best,target and target:GetAttribute("CreatureId")) then target=model; best=aim end
