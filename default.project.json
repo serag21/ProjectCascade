@@ -1,0 +1,21 @@
+{
+  "name": "SparkStampede",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$ignoreUnknownInstances": true,
+      "Spark": { "$path": "game/ReplicatedStorage/Spark" }
+    },
+    "ServerScriptService": {
+      "$ignoreUnknownInstances": true,
+      "Spark": { "$path": "game/ServerScriptService/Spark" }
+    },
+    "StarterPlayer": {
+      "$ignoreUnknownInstances": true,
+      "StarterPlayerScripts": {
+        "$ignoreUnknownInstances": true,
+        "Spark": { "$path": "game/StarterPlayer/StarterPlayerScripts/Spark" }
+      }
+    }
+  }
+}

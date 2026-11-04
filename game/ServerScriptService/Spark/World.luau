@@ -214,6 +214,45 @@ local function buildArena(parent: Instance, biome: any, index: number)
 	end
 	for _, x in ipairs({-19, 19}) do pennant(arena, origin + Vector3.new(x, 0, 54), accent, index) end
 	bank(arena, origin, accent)
+	if index == 2 then
+		-- Painted Stampede Run lanes (Encounters.Runs): stable landmarks that teach
+		-- where the fast herds cross. Chevrons point in each lane's run direction.
+		for _, lane in ipairs({{z = -14, dir = 1}, {z = 10, dir = -1}}) do
+			for n = -10, 10 do
+				local x = n * 4.2
+				part(arena, "StampedeLane", Vector3.new(2.6, 0.06, 0.5), CFrame.new(origin + Vector3.new(x, 0.13, lane.z - 3)), accent:Lerp(WHITE, 0.3))
+				part(arena, "StampedeLane", Vector3.new(2.6, 0.06, 0.5), CFrame.new(origin + Vector3.new(x, 0.13, lane.z + 3)), accent:Lerp(WHITE, 0.3))
+				if n % 3 == 0 then
+					for _, side in ipairs({-1, 1}) do
+						part(arena, "LaneChevron", Vector3.new(2.2, 0.07, 0.45),
+							CFrame.new(origin + Vector3.new(x, 0.14, lane.z + side * 0.7)) * CFrame.Angles(0, lane.dir * side * math.pi / 4, 0), WHITE)
+					end
+				end
+			end
+		end
+	end
+	-- Records board beside the bank: the server writes top scores after each
+	-- leaderboard refresh. Non-colliding so it never snags the bank approach.
+	local boardPosition = origin + Vector3.new(-28, 6, 48)
+	local board = part(arena, "RecordsBoard", Vector3.new(12, 8, 0.6), CFrame.lookAt(boardPosition, origin + Vector3.new(0, 6, 28)), INK)
+	part(arena, "RecordsBoardTrim", Vector3.new(12.6, 0.4, 0.7), board.CFrame * CFrame.new(0, 4.1, 0), accent, nil, Enum.Material.Neon)
+	part(arena, "RecordsBoardPost", Vector3.new(0.8, 2.2, 0.8), CFrame.new(boardPosition - Vector3.new(0, 5, 0)), WHITE)
+	local surface = Instance.new("SurfaceGui")
+	surface.Name = "Records"; surface.Face = Enum.NormalId.Front; surface.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	surface.PixelsPerStud = 40; surface.LightInfluence = 0; surface.MaxDistance = 140; surface.Parent = board
+	for row = 0, 7 do
+		local label = Instance.new("TextLabel")
+		label.Name = if row == 0 then "Heading" else "Row" .. row
+		label.BackgroundTransparency = 1
+		label.Position = UDim2.fromScale(0.05, 0.04 + row * 0.115)
+		label.Size = UDim2.fromScale(0.9, if row == 0 then 0.14 else 0.1)
+		label.Font = if row == 0 then Enum.Font.GothamBlack else Enum.Font.GothamMedium
+		label.TextScaled = true
+		label.TextColor3 = if row == 0 then accent:Lerp(WHITE, 0.4) else WHITE
+		label.TextXAlignment = if row == 0 then Enum.TextXAlignment.Center else Enum.TextXAlignment.Left
+		label.Text = if row == 0 then string.upper(biome.name) .. " RECORDS" elseif row == 1 then "Finish a round to set the first record!" else ""
+		label.Parent = surface
+	end
 	-- Chase sign faces arriving players, kept away from the bank label.
 	textSign(arena, "ArenaSign", origin + Vector3.new(0, 13, -59), string.upper(biome.name), "CHASE  •  CATCH  •  BANK", accent)
 	disc(arena, "ArrivalPlaza", 28, 1.6, origin + Vector3.new(0, -0.8, 62), base:Lerp(WHITE, 0.1), nil, true)
@@ -221,7 +260,7 @@ local function buildArena(parent: Instance, biome: any, index: number)
 		disc(arena, "ShowcasePlinth", 5, 1.1, origin + Vector3.new((n - 2) * 9, 0.55, 68), WHITE, nil, true)
 		disc(arena, "ShowcaseTrim", 5.2, 0.14, origin + Vector3.new((n - 2) * 9, 1.15, 68), accent, Enum.Material.Neon)
 	end
-	return {origin = origin, spawn = origin + Vector3.new(0, 3, 38), bank = origin + Vector3.new(0, 0, 44), radius = 65}
+	return {origin = origin, spawn = origin + Vector3.new(0, 3, 38), bank = origin + Vector3.new(0, 0, 44), radius = 65, records = surface}
 end
 
 function World.build(config: any)
@@ -357,6 +396,25 @@ function World.creature(def: any, parent: Instance): Model
 	model.PrimaryPart = pivot
 	model.Parent = parent
 	return model
+end
+
+-- rows: all-time {name,score}; weekly: {name,score} (already sorted, server data).
+function World.setRecords(surface: Instance?, alltime: {any}?, weekly: {any}?)
+	if not surface then return end
+	local lines = {}
+	for index = 1, math.min(5, if alltime then #alltime else 0) do
+		local row = (alltime :: {any})[index]
+		table.insert(lines, string.format("%d. %s  •  %s", index, string.sub(tostring(row.name), 1, 20), tostring(row.score)))
+	end
+	if #lines == 0 then table.insert(lines, "Finish a round to set the first record!") end
+	if weekly and weekly[1] then
+		table.insert(lines, "")
+		table.insert(lines, string.format("THIS WEEK: %s  •  %s", string.sub(tostring(weekly[1].name), 1, 20), tostring(weekly[1].score)))
+	end
+	for row = 1, 7 do
+		local label = surface:FindFirstChild("Row" .. row)
+		if label and label:IsA("TextLabel") then label.Text = lines[row] or "" end
+	end
 end
 
 -- Golden finale variant: keeps the species silhouette (readable collection

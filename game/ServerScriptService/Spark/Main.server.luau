@@ -1138,7 +1138,11 @@ end
 task.spawn(function()
 	task.wait(5)
 	while not lifecycle.closing do
-		leaderboard.refresh(os.time(),nameOf)
+		local boards=leaderboard.refresh(os.time(),nameOf)
+		for index,biome in ipairs(Config.Biomes) do
+			local board=boards[biome.id]
+			if board then World.setRecords(world.arenas[index].records,board.alltime,board.weekly) end
+		end
 		task.wait(120)
 	end
 end)

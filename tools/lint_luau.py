@@ -35,6 +35,9 @@ def module_members(path: Path) -> set:
     text = path.read_text(encoding="utf-8")
     names = set(re.findall(r"^\s*(?:local\s+)?function\s+\w+[.:](\w+)", text, re.M))
     names |= set(re.findall(r"^\s*\w+\.(\w+)\s*(?:=|\+=)", text, re.M))
+    # Multi-assignment: "Module.a, Module.b = 1, 2"
+    for targets in re.findall(r"^\s*((?:\w+\.\w+\s*,\s*)+\w+\.\w+)\s*=", text, re.M):
+        names |= set(re.findall(r"\w+\.(\w+)", targets))
     # Table-literal modules (Config): top-level keys one tab deep.
     names |= set(re.findall(r"^\t(\w+)\s*=", text, re.M))
     return names
