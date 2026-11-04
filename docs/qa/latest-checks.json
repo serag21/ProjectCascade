@@ -1,7 +1,7 @@
 {
   "runner": "tools/run_checks.py",
-  "started_utc": "2026-11-04T07:48:12.534202+00:00",
-  "finished_utc": "2026-11-04T07:50:04.108285+00:00",
+  "started_utc": "2026-11-04T07:56:02.928409+00:00",
+  "finished_utc": "2026-11-04T07:58:27.358131+00:00",
   "environment": {
     "platform": "Linux-6.18.44-fc-v233-x86_64-with-glibc2.39",
     "python": "3.13.18",
@@ -9,9 +9,9 @@
     "studio": "not used (offline)"
   },
   "git": {
-    "head": "fcd3a0d88703b4af554a1fe789d6be9deb2359ea",
+    "head": "a92c48548b3e9ac455612f1460638ae89ad5260e",
     "branch": "claude/awesome-brown-27rwqo",
-    "dirty": true
+    "dirty": false
   },
   "summary": {
     "total": 44,
@@ -32,10 +32,10 @@
     "game/ReplicatedStorage/Spark/Progression.luau": "27d0f0d5453d540e07495f8549794184a7d267b6789b7fcbbd646e261db84a2b",
     "game/ReplicatedStorage/Spark/Rules.luau": "7f9b0244a28e86316cfe53143c67324aef2797711f83bf601122b631b01e352f",
     "game/ReplicatedStorage/Spark/Targeting.luau": "8267b696461fa490154659be251704c7b66f756303f8968b59750033bcbd20a3",
-    "game/ServerScriptService/Spark/Main.server.luau": "1863b346213058e93f63477ade63254283ce17d963c5a6b6e98d64592d05a9ec",
+    "game/ServerScriptService/Spark/Main.server.luau": "13e07d41727c6e06666d0562d31b0722055c495f3d21707fa501ea3ca347664f",
     "game/ServerScriptService/Spark/Persistence.luau": "695deb13b31b126fe9a5fd6f339a1401941a07d126083b6d02057bd0837308f6",
     "game/ServerScriptService/Spark/Services.luau": "5550eadf0cabc29b2a23f0835425990c1149304f320d4a4cd391b91a61c57609",
-    "game/ServerScriptService/Spark/World.luau": "c9f62e70514994306b05454551ecabfdb10296fe7387d3147cf2f020b6f9f248",
+    "game/ServerScriptService/Spark/World.luau": "deaa6fd480aa541485bd538b1594004c5977e3a0e7b152758f6343b13c34c9fd",
     "game/StarterPlayer/StarterPlayerScripts/Spark/Client.client.luau": "dd5ede3e9335f99f5467672e02e124837b3d2aebf74819b0303e1a7801c5ecd9",
     "game/StarterPlayer/StarterPlayerScripts/Spark/Effects.luau": "a5416693057ae020bec4524f84fb7d8f8029ac7a5ef6587a145d431915f458ca",
     "game/StarterPlayer/StarterPlayerScripts/Spark/Menu.luau": "a6160e471bcc7a87a8ce14343d29c4e524c0b84716fbb2a250e7583e6a738e83",
@@ -96,7 +96,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.004,
+      "seconds": 0.003,
       "output_tail": "Compiled 0 KLOC into 2 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)"
     },
     {
@@ -152,7 +152,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.005,
+      "seconds": 0.003,
       "output_tail": "Compiled 0 KLOC into 5 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)"
     },
     {
@@ -166,7 +166,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.004,
+      "seconds": 0.003,
       "output_tail": "Compiled 0 KLOC into 5 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)"
     },
     {
@@ -194,7 +194,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.004,
+      "seconds": 0.003,
       "output_tail": "Compiled 0 KLOC into 12 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)"
     },
     {
@@ -222,7 +222,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.002,
+      "seconds": 0.003,
       "output_tail": "Compiled 0 KLOC into 4 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)"
     },
     {
@@ -236,7 +236,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.003,
+      "seconds": 0.002,
       "output_tail": "Compiled 0 KLOC into 2 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)"
     },
     {
@@ -250,7 +250,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.008,
+      "seconds": 0.006,
       "output_tail": "Compiled 1 KLOC into 61 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)"
     },
     {
@@ -264,7 +264,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.003,
+      "seconds": 0.004,
       "output_tail": "Compiled 0 KLOC into 5 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)"
     },
     {
@@ -306,7 +306,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.006,
+      "seconds": 0.005,
       "output_tail": "Compiled 0 KLOC into 38 KB bytecode (read 0.00s, parse 0.00s, compile 0.00s)"
     },
     {
@@ -361,7 +361,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.982,
+      "seconds": 0.828,
       "output_tail": "lint_luau: 19 files, 0 undefined globals, 0 lint warnings"
     },
     {
@@ -375,7 +375,7 @@
       "passed": true,
       "timed_out": false,
       "seconds": 0.2,
-      "output_tail": "check_api_names: 157 references checked, 0 problems"
+      "output_tail": "check_api_names: 158 references checked, 0 problems"
     },
     {
       "id": "suite:tests/SparkArenaEvents.spec.luau",
@@ -387,7 +387,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.092,
+      "seconds": 0.088,
       "output_tail": "PASS SparkArenaEvents: 385924 assertions (pure paths and event timing; no rendering/physics)"
     },
     {
@@ -400,7 +400,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.012,
+      "seconds": 0.013,
       "output_tail": "PASS SparkChallenge: 3970 assertions (pure Luau, no Studio)"
     },
     {
@@ -413,7 +413,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.869,
+      "seconds": 1.007,
       "output_tail": "PASS SparkDepth: 43896 assertions (perks/heat, Challenge v2, dash path, encounters; pure modules)"
     },
     {
@@ -426,7 +426,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.569,
+      "seconds": 0.769,
       "output_tail": "| heat5 | not reached | not reached | 6 rounds (0.2 h) |\n| median score | 642 | 2668 | 8246 |\n| p90 score | 876 | 4427 | 13488 |\n| achievements after run | 13 | 17 | 20 |\n| glow balance after run | 229213 | 457575 | 598305 |\nPASS SparkEconomy: 22 pacing assertions (synthetic archetypes; balance hypothesis, not player data)"
     },
     {
@@ -439,7 +439,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.009,
+      "seconds": 0.013,
       "output_tail": "PASS SparkInstaller: 45 assertions; mocked preflight, write rollback, preservation and repeat install"
     },
     {
@@ -465,7 +465,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.013,
+      "seconds": 0.011,
       "output_tail": "PASS SparkMasteryIntegration: 2246 assertions (pure production modules; no engine/rendering)"
     },
     {
@@ -478,7 +478,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.01,
+      "seconds": 0.013,
       "output_tail": "PASS renewal response arriving expired cannot confirm a new earning window\nPASS valid delayed responses expose only their remaining absolute lease\nPASS failed renewal cannot move the last acknowledged deadline\nPASS server takeover during a delayed load is not overwritten\nPASS late release acknowledgement is still final and creates no local lease\nSparkPersistence: 17 tests passed"
     },
     {
@@ -491,7 +491,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.008,
+      "seconds": 0.009,
       "output_tail": "PASS sanitization clamps malformed data and removes unknown keys/cycles\nPASS banking awards value, trio bonus, discoveries and deterministic mutations\nPASS upgrades debit once and enforce valid keys costs and level cap\nPASS quests cannot claim early or twice and derive collection goals\nPASS balances and counts remain bounded\nSparkProfile: 8 tests passed"
     },
     {
@@ -504,7 +504,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.01,
+      "seconds": 0.009,
       "output_tail": "PASS SparkProgression: 265 assertions (production pure modules; no engine or real persistence)"
     },
     {
@@ -517,7 +517,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.008,
+      "seconds": 0.01,
       "output_tail": "PASS SparkRallyTargeting: 8461 assertions (pure authority/preview geometry and shared banking sprint)"
     },
     {
@@ -530,7 +530,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.005,
+      "seconds": 0.004,
       "output_tail": "SparkRules: 2045 assertions passed (pure rules; NOT engine multiplayer)"
     },
     {
@@ -556,7 +556,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.084,
+      "seconds": 0.132,
       "output_tail": "PASS contenders=1 rounds=10 player_rounds=10 unique_captures=240 contested_attempts=240 replay_rejections=240 reconnects=2 store_calls=69\nPASS contenders=2 rounds=10 player_rounds=20 unique_captures=480 contested_attempts=960 replay_rejections=480 reconnects=3 store_calls=136\nPASS contenders=4 rounds=10 player_rounds=40 unique_captures=960 contested_attempts=3840 replay_rejections=960 reconnects=5 store_calls=274\nSparkSessionSimulation: 12456 assertions passed; 70 simulated player-rounds. PURE MODULES ONLY; NOT STUDIO MULTIPLAYER."
     },
     {
@@ -569,7 +569,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.137,
+      "seconds": 0.138,
       "output_tail": "SparkClientApi: 4 files, 614 API references checked, 0 problems (Roblox API dump; not rendering)"
     },
     {
@@ -582,7 +582,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.068,
+      "seconds": 0.059,
       "output_tail": "PASS pure client layout: 15 usable-canvas cases, 360 geometric assertions\nPASS starter visibility: 11 assertions with event doubles\nPASS client pure UI helpers: 202 assertions\nNOT TESTED: Roblox rendering, font measurement, CoreGui bounds, touch input, gamepad focus or replication"
     },
     {
@@ -595,7 +595,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.071,
+      "seconds": 0.088,
       "output_tail": "PASS golden catches bank triple glow and a gilded album mark\nPASS herded sparks join the herder's parade and credit only a recent flanker\nPASS personal statics spawn only after eligibility, pop on dash, zap otherwise\nPASS round start locks heat to unlocked tiers and sanitizes the loadout\nPASS settlement applies long-term progression exactly once\nSparkGameplayIntegration: 26 exact production-function cases passed (engine dependencies mocked)"
     },
     {
@@ -608,8 +608,8 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 99.107,
-      "output_tail": "PASS ScenarioG_ClientBoot: 8 checks\nPASS ScenarioG_ClientBoot exit=0 wall=5.5s\nINFO remote-abuse: t=37.5s instances=1829 created=1850 destroyed=20 warnings=0 remoteIssues=0 analytics=0\nPASS ScenarioH_RemoteAbuse: 5 checks; 275 malformed + 500 flood requests\nPASS ScenarioH_RemoteAbuse exit=0 wall=1.1s\nSparkHeadless: 9/9 scenarios passed (fake engine: API-validated scripts, virtual time; NOT physics/rendering/replication/real DataStore)"
+      "seconds": 131.342,
+      "output_tail": "PASS ScenarioG_ClientBoot: 8 checks\nPASS ScenarioG_ClientBoot exit=0 wall=7.2s\nINFO remote-abuse: t=37.5s instances=2728 created=2765 destroyed=36 warnings=0 remoteIssues=0 analytics=0\nPASS ScenarioH_RemoteAbuse: 5 checks; 275 malformed + 500 flood requests\nPASS ScenarioH_RemoteAbuse exit=0 wall=1.6s\nSparkHeadless: 9/9 scenarios passed (fake engine: API-validated scripts, virtual time; NOT physics/rendering/replication/real DataStore)"
     },
     {
       "id": "python-suite:tests/test_spark_lifecycle.py",
@@ -634,8 +634,8 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 8.64,
-      "output_tail": "ResourceWarning: Enable tracemalloc to get the object allocation traceback\n.........\n----------------------------------------------------------------------\nRan 25 tests in 8.573s\n\nOK"
+      "seconds": 9.063,
+      "output_tail": "ResourceWarning: Enable tracemalloc to get the object allocation traceback\n.........\n----------------------------------------------------------------------\nRan 25 tests in 8.997s\n\nOK"
     },
     {
       "id": "audio-format-and-manifest",
@@ -648,7 +648,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.452,
+      "seconds": 0.396,
       "output_tail": "    }\n  ],\n  \"total_bytes\": 3218682\n}\n\nPASS: six WAVs; bounded peaks, no clipping, DC bounds, edge/loop checks, <10 MB, manifest hashes"
     },
     {
@@ -661,7 +661,7 @@
       "expected_exit_code": 0,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.072,
+      "seconds": 0.079,
       "output_tail": "{\"compiled\": 19, \"installer\": \"/home/user/ProjectCascade/build/install-spark.luau\", \"manifest\": \"/home/user/ProjectCascade/build/spark-manifest.json\"}"
     },
     {
@@ -675,7 +675,7 @@
       "expected_exit_code": 3,
       "passed": true,
       "timed_out": false,
-      "seconds": 0.014,
+      "seconds": 0.024,
       "output_tail": ""
     }
   ],
