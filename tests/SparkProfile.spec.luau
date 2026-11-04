@@ -43,7 +43,8 @@ test("upgrades debit once and enforce valid keys costs and level cap",function()
 	local p=Profile.new(); assert(not Profile.buy(p,"boots")); assert(not Profile.buy(p,{}))
 	p.coins=1000
 	for _=1,3 do assert(Profile.buy(p,"boots")) end
-	assert(p.coins==730 and p.upgrades.boots==3 and not Profile.buy(p,"boots"))
+	local total=0; for _,cost in ipairs(Config.Upgrades.boots.costs) do total+=cost end
+	assert(p.coins==1000-total and p.upgrades.boots==3 and not Profile.buy(p,"boots"))
 end)
 test("quests cannot claim early or twice and derive collection goals",function()
 	local p=Profile.new(); assert(not Profile.claim(p,"first_haul"))

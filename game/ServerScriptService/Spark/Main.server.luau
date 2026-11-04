@@ -496,7 +496,9 @@ local function creditAssist(creature,catcherId,now)
 		local userId,at=pair[1],pair[2]
 		if userId and userId~=catcherId and at and now-at<=4 then
 			local other,session=sessionFor(userId)
-			if other and session.ready and session.challenge and session.biome==creature.biome and roundPlaying(session,now) then
+			-- Credit only spooks from this session's current round (not a pre-rejoin session).
+			if other and session.ready and session.challenge and session.biome==creature.biome and roundPlaying(session,now)
+				and session.started and at>=session.started then
 				local ok,points=Challenge.award(session.challenge,now,"assist")
 				if ok then feedback(other,"Assist",string.format("ASSIST! +%d style for the flank",points),nil,creature.position,{tags={"ASSIST"},points=points}) end
 			end
@@ -633,8 +635,9 @@ local function scatter(player,s,count,at)
 			local flat=Vector3.new(rel.X,0,rel.Z)
 			if flat.Magnitude>44 then flat=flat.Unit*44 end
 			local safe=Rules.outsideBank({x=flat.X,y=0,z=flat.Z},{x=0,y=0,z=44})
+			-- Scattered extras always expire so unattended arenas never accumulate them.
 			spawnCreature(s.biome,nil,nil,{def=def,golden=golden,extra=true,
-				position=arena.origin+Vector3.new(safe.x,2.2,safe.z),expiresAt=if golden then os.clock()+20 else nil})
+				position=arena.origin+Vector3.new(safe.x,2.2,safe.z),expiresAt=os.clock()+(if golden then 20 else 30)})
 		end
 	end
 	return #removed
@@ -713,7 +716,10 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 	if lifecycle.closing then return end
 	local s=sessions[player]
 	if not s or type(action)~="string" or #action>24 then return end
-	if not Rules.allow(s.transport,"request",os.clock(),0.08) then return end
+	-- Ready/Replay are idempotent phase transitions with their own bucket, so a
+	-- catch press in the same instant can never swallow a Replay click.
+	local bucket=if action=="Ready" or action=="Replay" then action else "request"
+	if not Rules.allow(s.transport,bucket,os.clock(),if bucket=="request" then 0.08 else 0.25) then return end
 	if action=="Ready" then
 		s.clientReady=true
 		if s.ready and s.phase=="Loading" then beginRound(player,s) else send(player,s) end
@@ -883,6 +889,11 @@ finalize=function(player,s)
 end
 Players.PlayerRemoving:Connect(function(player)
 	for _,rally in ipairs(rallies) do ArenaRally.leave(rally,player.UserId) end
+	-- Forget herding credit from this session so a quick rejoin cannot inherit it.
+	for _,c in pairs(herd) do
+		if c.spookedBy==player.UserId then c.spookedBy=nil; c.spookedAt=nil end
+		if c.assistBy==player.UserId then c.assistBy=nil; c.assistAt=nil end
+	end
 	local s=sessions[player]; sessions[player]=nil
 	if s then s.detached=true; clearPersonal(player,s); finalize(player,s) end
 end)
@@ -1114,6 +1125,7 @@ RunService.Heartbeat:Connect(function(dt)
 	for _,c in ipairs(gateCatches) do
 		local herder,hs=sessionFor(c.spookedBy)
 		if herder and not c.claimed and hs.ready and hs.challenge and hs.biome==c.biome and roundPlaying(hs,now)
+			and hs.started and c.spookedAt>=hs.started
 			and #hs.carry<capacity(hs) and Lifecycle.leaseValid(persistence:leaseDeadline(herder.UserId),os.time()) then
 			claim(herder,hs,c,"herd",{distance=0,facing=1},nil)
 			send(herder,hs)
