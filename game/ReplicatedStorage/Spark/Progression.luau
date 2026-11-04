@@ -15,11 +15,12 @@ local function int(n, limit)
 	return math.clamp(math.floor(n), 0, limit or MAX_COUNT)
 end
 
--- Rank r needs round(80*(r-1)^1.8) cumulative XP. Rank 2 (first perks) arrives
--- after any first finished round; rank 50 is a many-week expert target.
+-- Rank r needs 100*(r-1)^2 cumulative XP. Round XP grows with the square root
+-- of score, so experts progress ~2x (not 10x) faster than newcomers. Rank 2
+-- (first perks) follows any first round scoring 100+; rank 50 is a long goal.
 function Progression.xpFor(rank)
 	rank = math.clamp(math.floor(if finite(rank) then rank else 1), 1, Progression.MaxRank)
-	return math.floor(80 * (rank - 1) ^ 1.8 + 0.5)
+	return 100 * (rank - 1) * (rank - 1)
 end
 function Progression.rank(xp)
 	xp = int(xp, MAX_XP)
@@ -35,25 +36,32 @@ function Progression.rankProgress(xp)
 		fraction=if nextXp > floor then (int(xp,MAX_XP) - floor) / (nextXp - floor) else 1}
 end
 function Progression.roundXp(score)
-	return math.floor(int(score) / 4) + 50
+	return math.floor(math.sqrt(int(score)) * 4) + 60
 end
 
 -- Earned cosmetics. Prices are guaranteed and shown; nothing is random or paid.
 Progression.Trails = {
 	{id="none", name="No trail", colors={{255,255,255},{255,255,255}}},
-	{id="sunbeam", name="Sunbeam", price=150, colors={{255,226,92},{255,170,64}}},
-	{id="mintwave", name="Mint Wave", price=250, colors={{110,240,190},{80,200,255}}},
-	{id="bubblegum", name="Bubblegum", price=400, colors={{255,140,200},{255,214,240}}},
+	{id="sunbeam", name="Sunbeam", price=300, colors={{255,226,92},{255,170,64}}},
+	{id="mintwave", name="Mint Wave", price=500, colors={{110,240,190},{80,200,255}}},
 	{id="lagoon", name="Lagoon", rank=5, colors={{70,205,255},{120,255,220}}},
-	{id="ember", name="Ember Fizz", price=600, colors={{255,120,80},{255,200,90}}},
+	{id="bubblegum", name="Bubblegum", price=800, colors={{255,140,200},{255,214,240}}},
+	{id="ember", name="Ember Fizz", price=1200, colors={{255,120,80},{255,200,90}}},
 	{id="aurora", name="Aurora Ribbon", rank=9, colors={{140,120,255},{255,150,230}}},
-	{id="comet", name="Comet Tail", price=900, colors={{200,240,255},{120,160,255}}},
+	{id="candyfloss", name="Candyfloss", price=1500, colors={{255,190,230},{190,220,255}}},
+	{id="comet", name="Comet Tail", price=2000, colors={{200,240,255},{120,160,255}}},
 	{id="prism", name="Prism Split", rank=13, colors={{255,120,120},{120,200,255}}},
+	{id="tidepool", name="Tidepool", price=2500, colors={{60,190,200},{230,255,250}}},
+	{id="neonmint", name="Neon Mint", price=3500, rank=10, colors={{120,255,170},{255,255,140}}},
 	{id="starlight", name="Starlight", rank=20, colors={{255,255,220},{170,220,255}}},
+	{id="sunset", name="Sunset Parade", price=5000, rank=15, colors={{255,150,90},{200,110,220}}},
+	{id="royal", name="Royal Parade", price=6000, rank=30, colors={{180,120,255},{255,214,90}}},
+	{id="galaxy", name="Galaxy Swirl", price=8000, rank=25, colors={{80,70,200},{255,170,250}}},
+	{id="rainbowroad", name="Rainbow Road", price=12000, rank=35, colors={{255,110,110},{110,200,255}}},
 	{id="gilded", name="Gilded Dash", achievement="golden_10", colors={{255,214,80},{255,245,180}}},
+	{id="gildedalbum", name="Golden Herd", achievement="gilded_album", colors={{255,236,140},{255,190,60}}},
 	{id="radiant", name="Radiant Bloom", achievement="radiant_medal", colors={{255,255,255},{255,190,250}}},
 	{id="heartbeat", name="Heartbeat", achievement="heat_5", colors={{255,90,120},{255,180,120}}},
-	{id="royal", name="Royal Parade", rank=30, price=2000, colors={{180,120,255},{255,214,90}}},
 	{id="legend", name="Legend Stream", rank=50, colors={{255,255,255},{255,214,90}}},
 }
 local trailById = {}
@@ -94,22 +102,25 @@ Progression.Achievements = {
 	{id="static_popper", name="Static Popper", description="Pop 50 statics with a dash.", xp=300, test=function(p) return stat(p,"pops")>=50 end},
 	{id="golden_1", name="Golden Touch", description="Catch a Golden Spark.", xp=150, test=function(p) return stat(p,"golden")>=1 end},
 	{id="golden_10", name="Gold Rush", description="Catch 10 Golden Sparks.", xp=500, title="Prospector", test=function(p) return stat(p,"golden")>=10 end},
-	{id="gold_medal", name="Gold Parade", description="Score 800 in one round.", xp=300, test=function(p) return anyRecord(p,800) end},
-	{id="radiant_medal", name="Radiant Parade", description="Score 1400 in one round.", xp=600, title="Radiant", test=function(p) return anyRecord(p,1400) end},
+	{id="gold_medal", name="Gold Parade", description="Earn a Gold round (2,500 skill).", xp=300, test=function(p) return anyRecord(p,Config.Medals.Gold) end},
+	{id="radiant_medal", name="Radiant Parade", description="Earn a Radiant round (5,000 skill).", xp=600, title="Radiant", test=function(p) return anyRecord(p,Config.Medals.Radiant) end},
 	{id="triple_gold", name="Triple Gold", description="Gold in all three arenas.", xp=600, test=function(p)
-		for _, biome in ipairs(Config.Biomes) do if bestRecord(p,biome.id)<800 then return false end end
+		for _, biome in ipairs(Config.Biomes) do if bestRecord(p,biome.id)<Config.Medals.Gold then return false end end
 		return true end},
-	{id="heat_1", name="Feeling the Heat", description="Bronze at Heat 1 or higher.", xp=200, test=function(p) return anyRecord(p,150,1) end},
-	{id="heat_3", name="Static Storm Survivor", description="Bronze at Heat 3 or higher.", xp=400, test=function(p) return anyRecord(p,150,3) end},
-	{id="heat_5", name="Heartbeat Hero", description="Bronze at Heat 5.", xp=800, title="Heartbeat", test=function(p) return anyRecord(p,150,5) end},
-	{id="heat_5_gold", name="Unstoppable", description="Gold at Heat 5.", xp=1500, title="Legend of the Stampede", test=function(p) return anyRecord(p,800,5) end},
+	{id="heat_1", name="Feeling the Heat", description="Bronze at Heat 1 or higher.", xp=200, test=function(p) return anyRecord(p,Config.Medals.Bronze,1) end},
+	{id="heat_3", name="Static Storm Survivor", description="Bronze at Heat 3 or higher.", xp=400, test=function(p) return anyRecord(p,Config.Medals.Bronze,3) end},
+	{id="heat_5", name="Heartbeat Hero", description="Bronze at Heat 5.", xp=800, title="Heartbeat", test=function(p) return anyRecord(p,Config.Medals.Bronze,5) end},
+	{id="heat_5_gold", name="Unstoppable", description="Gold at Heat 5.", xp=1500, title="Legend of the Stampede", test=function(p) return anyRecord(p,Config.Medals.Gold,5) end},
 	{id="whole_bunch", name="Whole Bright Bunch", description="Discover all 12 Sparks.", xp=500, title="Collector", test=function(p) return speciesCount(p)>=12 end},
 	{id="prism_keeper", name="Prism Keeper", description="Unlock a Prism Spark (15 banked).", xp=200, test=function(p) return mutationAtLeast(p,2) end},
-	{id="radiant_keeper", name="Radiant Keeper", description="Unlock a Radiant Spark (40 banked).", xp=500, title="Keeper", test=function(p) return mutationAtLeast(p,3) end},
+	{id="radiant_keeper", name="Radiant Keeper", description="Unlock a Radiant Spark (50 banked).", xp=500, title="Keeper", test=function(p) return mutationAtLeast(p,3) end},
 	{id="marshal", name="Parade Marshal", description="Bank 500 Sparks.", xp=500, title="Marshal", test=function(p) return p.totalBanked>=500 end},
 	{id="encore", name="Encore Regular", description="Finish 50 rounds.", xp=400, test=function(p) return p.rounds>=50 end},
 	{id="clean_sweep", name="Clean Sweep", description="Finish a round with 15+ catches and no miss or zap.", xp=400, title="Clean", test=function(p) return stat(p,"flawless")>=1 end},
 	{id="heavy_haul", name="Heavy Haul", description="Bank 12 Sparks at once.", xp=300, test=function(p) return stat(p,"bestBankCount")>=12 end},
+	{id="gilded_album", name="Golden Herd", description="Catch a Golden Spark of all 12 species.", xp=1200, title="Golden Herder", test=function(p)
+		for _, c in ipairs(Config.Creatures) do if not (p.gilded and p.gilded[c.id]) then return false end end
+		return true end},
 	{id="rally_captain", name="Rally Captain", description="Complete 10 Arena Rallies.", xp=300, test=function(p) return stat(p,"rallies")>=10 end},
 }
 local achievementById = {}
@@ -127,7 +138,7 @@ Progression.DailyPool = {
 	{id="d_pop", name="Pop 6 statics with a dash", metric="pops", target=6},
 	{id="d_golden", name="Catch a Golden Spark", metric="golden", target=1},
 	{id="d_chain", name="Reach a 7-chain in one round", metric="bestChain", target=7, scope="round"},
-	{id="d_score", name="Score 500 in one round", metric="score", target=500, scope="round"},
+	{id="d_score", name="Earn Silver (1,000 skill) in a round", metric="score", target=1000, scope="round"},
 	{id="d_rounds", name="Finish 3 rounds", metric="rounds", target=3},
 	{id="d_canyon", name="Finish a round in Fizz Canyon", metric="canyonRounds", target=1, requires="canyon"},
 	{id="d_aurora", name="Finish a round in Aurora Arcade", metric="auroraRounds", target=1, requires="aurora"},
@@ -141,7 +152,7 @@ Progression.WeeklyPool = {
 	{id="w_herd", name="Herd 25 Sparks through gates", metric="herded", target=25},
 	{id="w_pop", name="Pop 40 statics", metric="pops", target=40},
 	{id="w_golden", name="Catch 5 Golden Sparks", metric="golden", target=5},
-	{id="w_score", name="Score 900 in one round", metric="score", target=900, scope="round"},
+	{id="w_score", name="Earn Gold (2,500 skill) in a round", metric="score", target=2500, scope="round"},
 	{id="w_rounds", name="Finish 20 rounds", metric="rounds", target=20},
 	{id="w_gold", name="Earn 3 gold medals", metric="golds", target=3},
 }
@@ -192,7 +203,7 @@ local function metricValue(summary, metric, biomeIndex, heat)
 	if metric == "canyonRounds" then return if biomeIndex == 2 then 1 else 0 end
 	if metric == "auroraRounds" then return if biomeIndex == 3 then 1 else 0 end
 	if metric == "heatRounds" then return if heat >= 1 then 1 else 0 end
-	if metric == "golds" then return if int(summary.score) >= 800 then 1 else 0 end
+	if metric == "golds" then return if int(summary.score) >= Config.Medals.Gold then 1 else 0 end
 	return int(summary[metric], 512 * 1000)
 end
 local function advanceGoals(block, summary, biomeIndex, heat)

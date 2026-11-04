@@ -20,7 +20,8 @@ end
 -- Legacy defaults keep pure-module callers stable. Main always passes
 -- Loadout.stats(...) so live rounds use perks, heat, haul and the x4 tier.
 local DEFAULT_RULES={chainSeconds=CHAIN_SECONDS,maxMultiplier=3,precisionFacing=0.7,haulCap=1,
-	scoreMultiplier=1,dashBonus=20,popPoints=40,herdMultiplier=1,goldenMultiplier=1,finaleFactor=1.25}
+	scoreMultiplier=1,dashBonus=20,popPoints=40,herdMultiplier=1,goldenMultiplier=1,finaleFactor=1.25,chainStep=3,
+	medals={Bronze=150,Silver=400,Gold=800,Radiant=1400}}
 local HAUL_STEP,MULTI_BONUS,HERD_BONUS,ASSIST_BONUS,GOLDEN_BONUS=0.05,25,40,30,250
 local function rulesFrom(raw)
 	local rules=table.clone(DEFAULT_RULES)
@@ -31,24 +32,32 @@ local function rulesFrom(raw)
 	end
 	pick("chainSeconds",2,12); pick("maxMultiplier",1,4); pick("precisionFacing",0,1)
 	pick("haulCap",1,2); pick("scoreMultiplier",1,3); pick("dashBonus",0,40); pick("popPoints",0,120)
-	pick("herdMultiplier",1,3); pick("goldenMultiplier",1,3)
+	pick("herdMultiplier",1,3); pick("goldenMultiplier",1,3); pick("chainStep",2,8)
+	if type(raw.medals)=="table" then
+		local m=raw.medals
+		if type(m.Bronze)=="number" and type(m.Silver)=="number" and type(m.Gold)=="number" and type(m.Radiant)=="number"
+			and 0<m.Bronze and m.Bronze<m.Silver and m.Silver<m.Gold and m.Gold<m.Radiant then
+			rules.medals={Bronze=m.Bronze,Silver=m.Silver,Gold=m.Gold,Radiant=m.Radiant}
+		end
+	end
 	return rules
 end
 local function activeChain(state, now)
 	if not state.lastCatch or now-state.lastCatch>state.rules.chainSeconds then return 0 end
 	return state.chain
 end
-local function multiplier(chain,cap)
-	return math.min(cap or 3,1+math.floor(math.max(0,chain-1)/3))
+local function multiplier(chain,cap,step)
+	return math.min(cap or 3,1+math.floor(math.max(0,chain-1)/(step or 3)))
 end
 local function progress(state)
 	if state.goal.id=="precision" then return state.precision end
 	if state.goal.id=="chain" then return state.bestChain end
 	return state.bestHaul
 end
-local function medal(score)
-	if score>=1400 then return "Radiant" end
-	if score>=800 then return "Gold" elseif score>=400 then return "Silver" elseif score>=150 then return "Bronze" end
+local function medal(score,m)
+	m=m or DEFAULT_RULES.medals
+	if score>=m.Radiant then return "Radiant" end
+	if score>=m.Gold then return "Gold" elseif score>=m.Silver then return "Silver" elseif score>=m.Bronze then return "Bronze" end
 	return "Unranked"
 end
 
@@ -142,7 +151,7 @@ function Challenge.snapshot(state, now)
 	end
 	return {score=state.score,pending=state.pendingBase+state.pendingBonus,
 		checkpoints=copyCheckpoints(state.checkpoints),personalBest=personalBest,
-		pendingBonus=state.pendingBonus,chain=chain,multiplier=multiplier(chain,state.rules.maxMultiplier),
+		pendingBonus=state.pendingBonus,chain=chain,multiplier=multiplier(chain,state.rules.maxMultiplier,state.rules.chainStep),
 		chainSeconds=if chain>0 then math.max(0,state.rules.chainSeconds-(at-state.lastCatch)) else 0,
 		chainWindow=state.rules.chainSeconds,maxMultiplier=state.rules.maxMultiplier,
 		scoreMultiplier=state.rules.scoreMultiplier,pendingCount=state.pendingCount,
@@ -151,7 +160,7 @@ function Challenge.snapshot(state, now)
 		scattered=state.scattered,finaleBanks=state.finaleBanks,bestBank=state.bestBank,
 		precision=state.precision,dashCatches=state.dashCatches,bestChain=state.bestChain,
 		bestHaul=state.bestHaul,captures=state.captures,misses=state.misses,lostBonus=state.lostBonus,
-		medal=medal(state.score),difficulty=state.difficulty,finished=state.finished,
+		medal=medal(state.score,state.rules.medals),difficulty=state.difficulty,finished=state.finished,
 		challenge={id=state.goal.id,name=state.goal.name,description=state.goal.description,
 			target=state.goal.target,progress=math.min(state.goal.target,progress(state)),complete=state.goalComplete}}
 end
@@ -203,7 +212,7 @@ function Challenge.capture(state, now, catch)
 	local style=(if precise then 15 else 0)+(if dash then rules.dashBonus else 0)+(if multi then MULTI_BONUS else 0)
 		+(if kind=="herd" then math.floor(HERD_BONUS*rules.herdMultiplier) else 0)
 		+(if kind=="golden" then math.floor(GOLDEN_BONUS*rules.goldenMultiplier) else 0)
-	local factor=multiplier(state.chain,rules.maxMultiplier)
+	local factor=multiplier(state.chain,rules.maxMultiplier,rules.chainStep)
 	local bonus=(base+style)*factor-base
 	state.pendingBase=math.min(MAX_SCORE,state.pendingBase+base)
 	state.pendingBonus=math.min(MAX_SCORE,state.pendingBonus+bonus)

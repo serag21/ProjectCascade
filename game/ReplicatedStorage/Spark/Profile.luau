@@ -263,7 +263,7 @@ function Profile.questProgress(profile, quest)
 	if quest.metric == "bronzeArenas" then
 		local count=0
 		for _,biome in ipairs(Config.Biomes) do
-			if (profile.mastery.bestByBiome[biome.id] or 0)>=150 then count+=1 end
+			if (profile.mastery.bestByBiome[biome.id] or 0)>=Config.Medals.Bronze then count+=1 end
 		end
 		return count
 	end

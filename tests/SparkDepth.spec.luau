@@ -61,11 +61,12 @@ check(Loadout.stats({},{"rhythm"},5).chainSeconds==6,"Rhythm offsets two heat st
 -- Heat unlock ladder.
 local records={meadow={0,0,0,0,0,0},canyon={0,0,0,0,0,0},aurora={0,0,0,0,0,0}}
 check(Loadout.heatUnlocked(records)==0,"Locked initially")
-records.canyon[1]=399; check(Loadout.heatUnlocked(records)==0,"Silver threshold")
-records.canyon[1]=400; check(Loadout.heatUnlocked(records)==1,"Silver opens heat 1")
-records.aurora[2]=450; records.meadow[3]=800; check(Loadout.heatUnlocked(records)==3,"Ladder across arenas")
-records.meadow[5]=500; check(Loadout.heatUnlocked(records)==3,"No skipping heat 3")
-records.meadow[4]=400; records.meadow[6]=9999; check(Loadout.heatUnlocked(records)==5,"Cap 5")
+local SILVER=Config.Medals.Silver
+records.canyon[1]=SILVER-1; check(Loadout.heatUnlocked(records)==0,"Silver threshold")
+records.canyon[1]=SILVER; check(Loadout.heatUnlocked(records)==1,"Silver opens heat 1")
+records.aurora[2]=SILVER+50; records.meadow[3]=SILVER*2; check(Loadout.heatUnlocked(records)==3,"Ladder across arenas")
+records.meadow[5]=SILVER+100; check(Loadout.heatUnlocked(records)==3,"No skipping heat 3")
+records.meadow[4]=SILVER; records.meadow[6]=99999; check(Loadout.heatUnlocked(records)==5,"Cap 5")
 check(Loadout.heatUnlocked(nil)==0 and Loadout.heatUnlocked({meadow={0/0}})==0,"Malformed records")
 
 -- Targeting.sweep ---------------------------------------------------------------
@@ -91,7 +92,7 @@ local function catch(kind,extra)
 	local ok,r=Challenge.capture(s,t,c); return ok,r
 end
 -- x4 tier with live rules
-for i=1,10 do local ok,r=catch("normal"); check(ok,"Catch "..i); check(r.multiplier==math.min(4,1+math.floor((i-1)/3)),"Tier "..i); t+=0.7 end
+for i=1,16 do local ok,r=catch("normal"); check(ok,"Catch "..i); check(r.multiplier==math.min(4,1+math.floor((i-1)/5)),"Tier every 5 catches "..i); t+=0.7 end
 check(Challenge.snapshot(s,t).multiplier==4 and Challenge.snapshot(s,t).maxMultiplier==4,"STAMPEDE x4")
 -- dash-through bypasses button interval but not duplicate IDs
 local ok1=Challenge.capture(s,t,{distance=2,facing=1,value=5,starter=false,captureId="d1",kind="dash",multiIndex=1})

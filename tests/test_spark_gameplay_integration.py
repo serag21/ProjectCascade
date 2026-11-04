@@ -326,7 +326,7 @@ test("round start locks heat to unlocked tiers and sanitizes the loadout",functi
     beginRound(p,s)
     assert(s.profile.heat==0 and s.roundHeat==0 and #s.profile.loadout==0 and s.challenge.rules.maxMultiplier==4)
     s.phase="Results";s.profile.xp=Progression.xpFor(14);s.profile.loadout={"goldnose","reach"}
-    s.profile.records.meadow[1]=500;s.profile.heat=1
+    s.profile.records.meadow[1]=Config.Medals.Silver;s.profile.heat=1
     beginRound(p,s)
     assert(s.profile.heat==1 and s.roundHeat==1 and #s.profile.loadout==2 and s.challenge.rules.scoreMultiplier==1.2)
 end)

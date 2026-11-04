@@ -7,7 +7,11 @@ local Config = {
 	CaptureCooldown = 0.65,
 	DashCooldown = 3,
 	WalkSpeed = 22,
-	-- Golden finale variant: the arena's rarest species, worth triple glow.
+	-- Round medal thresholds, calibrated with tools/economy_model.luau against the
+	-- live scoring rules (chain tiers every 5 catches, heat multiplier).
+	Medals = {Bronze=300, Silver=1000, Gold=2500, Radiant=5000},
+	-- Golden finale variant (any species of the arena, server RNG; this list is the
+	-- fallback). A golden catch is worth triple glow and marks the species Gilded.
 	GoldenSpecies = {"flutter", "dunefin", "antlume"},
 	GoldenValueMultiplier = 3,
 	Creatures = {
@@ -30,9 +34,9 @@ local Config = {
 		{id="aurora", name="Aurora Arcade", color={126,118,220}, accent={244,146,226}, unlock=90, description="Read the turns of the brightest stampede."},
 	},
 	Upgrades = {
-		boots={name="Dash Boots", costs={20,70,180}, description="Recover your dash sooner.", cooldownReduction=0.35},
-		magnet={name="Herd Halo", costs={25,80,200}, description="Reach sparks from farther away.", radiusPerLevel=1.5},
-		basket={name="Parade Pack", costs={20,65,160}, description="Bring two more sparks to every bank.", capacityPerLevel=2},
+		boots={name="Dash Boots", costs={40,160,450}, description="Recover your dash sooner.", cooldownReduction=0.35},
+		magnet={name="Herd Halo", costs={50,180,500}, description="Reach sparks from farther away.", radiusPerLevel=1.5},
+		basket={name="Parade Pack", costs={40,150,420}, description="Bring two more sparks to every bank.", capacityPerLevel=2},
 	},
 	Quests = {
 		{id="first_haul", name="A parade begins", metric="totalBanked", target=3, reward=10},
@@ -41,7 +45,7 @@ local Config = {
 		{id="dash_rhythm", name="Dash rhythm", description="Finish rounds with 3 dash catches total.", metric="dashCatches", target=3, reward=20},
 		{id="chain_artist", name="Chain artist", description="Chain 6 catches within 6 seconds each; finish the round.", metric="bestChain", target=6, reward=30},
 		{id="challenge_trio", name="Challenge trio", description="Bank the goal in 3 completed rounds.", metric="challenges", target=3, reward=35},
-		{id="arena_medalist", name="Arena medalist", description="Finish a round with at least 150 skill in each arena.", metric="bronzeArenas", target=3, reward=50},
+		{id="arena_medalist", name="Arena medalist", description="Earn Bronze (300 skill) in each arena.", metric="bronzeArenas", target=3, reward=50},
 		{id="meadow_album", name="Meet the meadow", metric="species", target=4, reward=30},
 		{id="herd_helper", name="Herd helper", metric="totalBanked", target=30, reward=40},
 		{id="three_laps", name="Encore explorer", metric="rounds", target=3, reward=45},
@@ -53,7 +57,7 @@ local Config = {
 	Mutations = {
 		{id="glow", name="Glow", threshold=5, description="Bank five of a species to unlock its glow."},
 		{id="prism", name="Prism", threshold=15, description="Bank fifteen of a species to unlock its prism trail."},
-		{id="radiant", name="Radiant", threshold=40, description="Bank forty of a species to make it radiant."},
+		{id="radiant", name="Radiant", threshold=50, description="Bank fifty of a species to make it radiant."},
 	},
 }
 return Config

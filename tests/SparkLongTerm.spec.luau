@@ -16,20 +16,21 @@ local last=-1
 for r=1,50 do local x=Progression.xpFor(r); check(x>last,"Monotonic XP "..r); check(Progression.rank(x)==r,"Rank at threshold "..r)
 	if r>1 then check(Progression.rank(x-1)==r-1,"Just below threshold "..r) end; last=x end
 check(Progression.rank(1e12)==50 and Progression.rankProgress(1e12).fraction==1,"Cap 50")
-check(Progression.roundXp(0)==50 and Progression.roundXp(800)==250 and Progression.roundXp(-10)==50,"Round XP")
-check(Progression.rank(Progression.roundXp(120))>=2,"Any modest first round reaches rank 2 (perks)")
+check(Progression.roundXp(0)==60 and Progression.roundXp(2500)==260 and Progression.roundXp(-10)==60,"Round XP (sqrt)")
+check(Progression.roundXp(10000)<=2.5*Progression.roundXp(1000),"Experts progress ~2x, not 10x, faster")
+check(Progression.rank(Progression.roundXp(100))>=2,"Any 100-point first round reaches rank 2 (perks)")
 
 -- Profile v2 defaults and migration -----------------------------------------------
 local p=Profile.new()
 check(p.version==2 and p.xp==0 and p.heat==0 and #p.loadout==0 and p.style.trail=="none","v2 defaults")
 for _,biome in ipairs(Config.Biomes) do check(#p.records[biome.id]==6,"Record rows") end
-local v1={version=1,coins=321,totalBanked=95,rounds=12,album={pip=41,bunvolt=16,flutter=3},upgrades={boots=2,magnet=1,basket=3},
-	quests={first_haul=true},mastery={bestScore=850,bestChain=9,completed=4,precision=30,dashCatches=12,bestByBiome={meadow=850,canyon=420}},
+local v1={version=1,coins=321,totalBanked=95,rounds=12,album={pip=51,bunvolt=16,flutter=3},upgrades={boots=2,magnet=1,basket=3},
+	quests={first_haul=true},mastery={bestScore=850,bestChain=9,completed=4,precision=30,dashCatches=12,bestByBiome={meadow=1200,canyon=420}},
 	settings={music=false}}
 local m=Profile.sanitize(v1)
-check(m and m.version==2 and m.coins==321 and m.album.pip==41 and m.upgrades.basket==3 and m.quests.first_haul,"v1 collection/glow/upgrades/quests kept")
-check(m.mutations.pip==3 and m.mutations.bunvolt==2 and m.mutations.flutter==nil,"Radiant tier derived at 40")
-check(m.records.meadow[1]==850 and m.records.canyon[1]==420 and m.records.aurora[1]==0,"v1 bests become heat-0 records")
+check(m and m.version==2 and m.coins==321 and m.album.pip==51 and m.upgrades.basket==3 and m.quests.first_haul,"v1 collection/glow/upgrades/quests kept")
+check(m.mutations.pip==3 and m.mutations.bunvolt==2 and m.mutations.flutter==nil,"Radiant tier derived at 50")
+check(m.records.meadow[1]==1200 and m.records.canyon[1]==420 and m.records.aurora[1]==0,"v1 bests become heat-0 records")
 check(m.progressReceipt==12,"Migration cannot replay old rounds into progression")
 check(m.settings.music==false and m.xp==0 and m.heat==0,"Settings kept, new fields default")
 check(Loadout.heatUnlocked(m.records)==1,"Migrated silver unlocks heat 1")
@@ -125,15 +126,15 @@ local st=Profile.new()
 check(not Progression.style(st,"sunbeam"),"Cannot afford")
 st.coins=1000
 local okBuy=Progression.style(st,"sunbeam")
-check(okBuy and st.coins==850 and st.style.owned.sunbeam and st.style.trail=="sunbeam","Guaranteed purchase")
-check(Progression.style(st,"sunbeam") and st.coins==850,"Re-equip free")
+check(okBuy and st.coins==700 and st.style.owned.sunbeam and st.style.trail=="sunbeam","Guaranteed purchase")
+check(Progression.style(st,"sunbeam") and st.coins==700,"Re-equip free")
 check(not Progression.style(st,"lagoon"),"Rank style locked")
-st.xp=Progression.xpFor(5); check(Progression.style(st,"lagoon") and st.coins==850,"Rank style free when earned")
+st.xp=Progression.xpFor(5); check(Progression.style(st,"lagoon") and st.coins==700,"Rank style free when earned")
 check(not Progression.style(st,"gilded"),"Achievement style locked")
 st.achievements.golden_10=true; check(Progression.style(st,"gilded"),"Achievement style")
 check(not Progression.style(st,"royal"),"Royal needs rank 30 and price")
-st.xp=Progression.xpFor(30); st.coins=1999; check(not Progression.style(st,"royal"),"Royal price")
-st.coins=2000; check(Progression.style(st,"royal") and st.coins==0,"Royal bought")
+st.xp=Progression.xpFor(30); st.coins=5999; check(not Progression.style(st,"royal"),"Royal price")
+st.coins=6000; check(Progression.style(st,"royal") and st.coins==0,"Royal bought")
 check(not Progression.style(st,"fake") and not Progression.style(st,nil),"Unknown style")
 check(not Progression.setTitle(st,"stampede"),"Unearned title")
 st.achievements.stampede=true; check(Progression.setTitle(st,"stampede") and Progression.titleText(st)=="Stampeder","Title")
@@ -150,8 +151,8 @@ local unlocks=Progression.unlocksBetween(1,15)
 check(table.find(unlocks,"Perk: Long Reach") and table.find(unlocks,"Third perk slot") and table.find(unlocks,"Trail: Lagoon"),"Unlock callouts")
 -- Achievements reachable: each has a test that can pass on a maximal profile.
 local maxp=Profile.new(); maxp.totalBanked=1000; maxp.rounds=100; maxp.mastery.bestChain=12
-for _,c in ipairs(Config.Creatures) do maxp.album[c.id]=50; maxp.mutations[c.id]=3 end
-for _,b in ipairs(Config.Biomes) do for h=1,6 do maxp.records[b.id][h]=1500 end end
+for _,c in ipairs(Config.Creatures) do maxp.album[c.id]=60; maxp.mutations[c.id]=3; maxp.gilded[c.id]=true end
+for _,b in ipairs(Config.Biomes) do for h=1,6 do maxp.records[b.id][h]=Config.Medals.Radiant end end
 for _,k in ipairs(Profile.StatKeys) do maxp.stats[k]=100 end
 maxp.stats.bestMulti=4; maxp.stats.bestBankCount=20
 Progression.evaluateAchievements(maxp)

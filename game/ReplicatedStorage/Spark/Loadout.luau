@@ -27,7 +27,7 @@ Loadout.Heat = {
 	{name="Tight Paws", description="Catch reach -2.5."},
 	{name="Heartbeat", description="Chains 1s shorter again, faster statics, shorter sweep warning."},
 }
-Loadout.SilverScore = 400
+Loadout.SilverScore = Config.Medals.Silver
 
 local function finite(n) return type(n)=="number" and n==n and math.abs(n)<math.huge end
 local function int(n, low, high)
@@ -105,6 +105,9 @@ function Loadout.stats(upgrades, perks, heat)
 		precisionFacing = if has(perks, "reach") then 0.85 else 0.7,
 		chainSeconds = chain,
 		maxMultiplier = if has(perks, "rhythm") then 3 else 4,
+		-- Live tiers: x2 from a 6-chain, x3 from 11, x4 STAMPEDE from 16.
+		chainStep = 5,
+		medals = Config.Medals,
 		dashCatchLimit = if has(perks, "slipstream") then 4 else 2,
 		dashCatchRadius = if has(perks, "slipstream") then 5.5 else 4.5,
 		haulCap = if has(perks, "pockets") then 1.3 else 1.5,

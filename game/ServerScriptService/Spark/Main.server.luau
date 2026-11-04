@@ -946,8 +946,14 @@ RunService.Heartbeat:Connect(function(dt)
 		local gold=Encounters.golden(clockNow,biome,present)
 		if gold.spawn and present>0 and goldenCycle[biome]~=gold.cycle then
 			goldenCycle[biome]=gold.cycle
-			local def=species[Config.GoldenSpecies[biome]]
+			-- Earned randomness only: any of this arena's species may appear gilded,
+			-- building a 12-species Gilded collection over many rounds.
+			local pool={}
+			for _,candidate in ipairs(Config.Creatures) do
+				if candidate.biome==biome or candidate.biome==Config.Biomes[biome].id then table.insert(pool,candidate) end
+			end
 			for _=1,gold.count do
+				local def=if #pool>0 then pool[random:NextInteger(1,#pool)] else species[Config.GoldenSpecies[biome]]
 				local offset=Rules.herdSpawn(random:NextNumber(0,math.pi*2),random:NextNumber(14,36))
 				spawnCreature(biome,nil,nil,{def=def,golden=true,extra=true,expiresAt=now+gold.expiresIn,
 					position=world.arenas[biome].origin+Vector3.new(offset.x,offset.y,offset.z)})
