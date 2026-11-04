@@ -1,6 +1,6 @@
 # SPARK STAMPEDE production issues
 
-Updated 2026-10-29 PDT. **Offline only; scheduling paused; unattended Studio disabled.** This ledger distinguishes implemented fixes from engine-verified closure. G4 is not reached.
+Updated 2026-11-04 (cloud session). **Offline only; scheduling paused; unattended Studio disabled.** This ledger distinguishes implemented fixes from engine-verified closure. G4 is not reached.
 
 | ID | Priority | Issue and next acceptance evidence | State |
 | --- | --- | --- | --- |
@@ -27,5 +27,13 @@ Updated 2026-10-29 PDT. **Offline only; scheduling paused; unattended Studio dis
 | SS-20 | P1 | Expired rounds could accept actions or hazard penalties before periodic phase update. Direct deadline checks and settlement-before-hazards added; exact production-function boundary/idempotence tests pass. | Fixed offline; engine timing pending |
 | SS-21 | P1 | Late onboarding could enable an active sweep without warning. Eligibility now starts fresh grace/warning timeline; production helper regression passes. | Fixed offline; visual warning pending |
 | SS-22 | P0 operational | Scheduler read ACTIVE after previously reading PAUSED and receiving queued heartbeats; cause unknown. Restored PAUSED via supported tool, preserving restrictive prompt. No graphical work launched. | Restored paused; never infer owner resumption |
+
+| SS-23 | P0 operational | Cloud session cannot push: `git push` and the GitHub connector both return 403 (Claude GitHub App lacks write access to serag21/ProjectCascade). Session commits exist only in the container (plus a local git bundle in the session scratchpad). Owner must reconnect GitHub / grant the app write access. | OPEN — owner action |
+| SS-24 | P1 | Economy model (real modules) showed runaway inflation in the pre-session numbers (rank 50 in 3.5 h, upgrades maxed in 3 rounds, medians 4x medal thresholds). Rebalanced and guarded by `tests/SparkEconomy.spec.luau`; see `GAME1_ECONOMY.md`. | Fixed offline; live telemetry pending |
+| SS-25 | P2 | Glow surplus after ~14 h of play (no remaining sinks). Gameplay unaffected; plan seasonal earned cosmetics post-launch. | Accepted risk, documented |
+| SS-26 | P1 | New mechanics (dash-through, statics, gate, stampede run, golden finale, buzzer, perks, heat) have no engine evidence: feel, latency tolerance of the dash path radius (4.5 studs), static readability and gate herding difficulty must be tuned in Studio. | Open — needs Studio |
+| SS-27 | P1 | Placeholder SFX use Roblox built-in `rbxasset://sounds/*` paths that are unverified in this environment. | Open — verify in Studio |
+| SS-28 | P2 | Analytics economy/funnel calls and OrderedDataStore leaderboards are pcall-wrapped and tested with doubles only; real platform acceptance (argument types, budgets) unverified. | Open — needs published test place |
+| SS-29 | P2 | Third-party Luau tooling (luau-lsp, selene, Rojo, Lune) could not be executed in the cloud session (permission policy). Replacement: official luau-analyze undefined-global gate, module-member check, API-dump name check. `default.project.json` is unverified. | Mitigated |
 
 Evidence: [production log](GAME1_PROGRESS.md), [incident audit](GAME1_WORKFLOW_CORRECTION.md), [supervisor limits](GAME1_TEST_SUPERVISOR.md), [offline report](qa/latest-checks.json). Model/process-fixture tests are not live Studio cleanup, rendering, audio, human usability or device-performance passes.

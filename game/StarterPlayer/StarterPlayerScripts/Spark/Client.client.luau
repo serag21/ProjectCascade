@@ -279,11 +279,9 @@ local function layoutFor(width,height,touch)
 	local bankRect={x=if touchWide then 180 else (width-bankWidth)/2,y=if compact then 128 elseif touchWide then 133 elseif touch then 187 else height-74,w=bankWidth,h=if touchWide then 36 else 40}
 	-- Combo meter sits under the objective, clear of the menu button, bank guide and action buttons.
 	local comboRect
-	if compact then
-		comboRect={x=130,y=126,w=math.min(220,width-240-8-130),h=40}
-	elseif touchWide then
-		local x=math.max(bankRect.x+bankRect.w+8,width-12-220)
-		comboRect={x=x,y=objectiveRect.y+objectiveRect.h+8,w=width-12-x,h=44}
+	if touchWide then
+		-- Landscape touch: under the bank guide, right of the thumbstick zone, left of the action buttons.
+		comboRect={x=bankRect.x,y=bankRect.y+bankRect.h+8,w=math.min(220,width-232-8-bankRect.x),h=40}
 	elseif not touch and width>=700 then
 		comboRect={x=(width-220)/2,y=objectiveRect.y+objectiveRect.h+8,w=220,h=44}
 	else
