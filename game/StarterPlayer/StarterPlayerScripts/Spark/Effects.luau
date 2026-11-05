@@ -143,6 +143,30 @@ function Effects.new(ctx)
 		for _, marker in ipairs(laneParts) do marker.Transparency = 1 end
 	end
 	hideGate(); hideLane()
+	-- Aurora Starfall telegraph: a soft violet landing circle with a countdown label.
+	-- Information, not flashing: it brightens steadily as the star approaches.
+	local starRing = make("Part", folder, {Name="StarfallRing", Shape=Enum.PartType.Cylinder, Size=Vector3.new(0.12, 12, 12), Anchored=true,
+		CanCollide=false, CanTouch=false, CanQuery=false, CastShadow=false, Material=Enum.Material.Neon,
+		Color=Color3.fromRGB(190,160,255), Transparency=1})
+	local starBoard = make("BillboardGui", starRing, {Name="StarfallLabel", Size=UDim2.fromOffset(180,36), StudsOffset=Vector3.new(0,4,0),
+		MaxDistance=140, LightInfluence=0, Enabled=false})
+	local starText = Ui.label(starBoard, "", 15, UDim2.new(), UDim2.fromScale(1,1), palette.ink)
+	starText.TextXAlignment = Enum.TextXAlignment.Center; starText.BackgroundColor3 = Color3.fromRGB(214,200,255); starText.BackgroundTransparency = .1
+	Ui.round(starText, 10)
+	function self.starfall(data)
+		local f = data and data.starfall
+		if type(f) == "table" and f.visible and typeof(f.position) == "Vector3" and data.phase == "Playing" then
+			local size = 2 * (tonumber(f.radius) or 6)
+			local seconds = math.max(0, tonumber(f.seconds) or 0)
+			starRing.Size = Vector3.new(0.12, size, size)
+			starRing.CFrame = CFrame.new(f.position + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.pi / 2)
+			starRing.Transparency = math.clamp(0.35 + seconds * 0.2, 0.35, 0.8)
+			starBoard.Enabled = true
+			starText.Text = string.format("STAR LANDING • %d", math.ceil(seconds))
+		else
+			starRing.Transparency = 1; starBoard.Enabled = false
+		end
+	end
 
 	-- Called on every server state (2Hz). Pure drawing from server descriptors.
 	function self.encounters(data)

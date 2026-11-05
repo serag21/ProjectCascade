@@ -179,6 +179,7 @@ for _,c in ipairs(Config.Creatures) do maxp.album[c.id]=60; maxp.mutations[c.id]
 for _,b in ipairs(Config.Biomes) do for h=1,6 do maxp.records[b.id][h]=Config.Medals.Radiant end end
 for _,k in ipairs(Profile.StatKeys) do maxp.stats[k]=100 end
 maxp.stats.bestMulti=4; maxp.stats.bestBankCount=20
+for _,c in ipairs(Config.Creatures) do maxp.signatures[c.id]=Config.SignatureStars[#Config.SignatureStars] end
 Progression.evaluateAchievements(maxp)
 for _,a in ipairs(Progression.Achievements) do check(maxp.achievements[a.id],"Achievement reachable "..a.id) end
 

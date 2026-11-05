@@ -93,6 +93,27 @@ local function speciesCount(profile)
 	return count
 end
 local function stat(profile, key) return int(profile.stats and profile.stats[key]) end
+local function signatureSpecies(profile, threshold)
+	local n = 0
+	for _, c in ipairs(Config.Creatures) do
+		if int(profile.signatures and profile.signatures[c.id]) >= threshold then n += 1 end
+	end
+	return n
+end
+-- Signature catch bookkeeping; returns the star number just earned (or nil).
+function Progression.recordSignature(profile, speciesId)
+	if type(profile.signatures) ~= "table" or type(speciesId) ~= "string" then return nil end
+	local known = false
+	for _, c in ipairs(Config.Creatures) do if c.id == speciesId then known = true; break end end
+	if not known then return nil end
+	local before = int(profile.signatures[speciesId])
+	local after = math.min(before + 1, 100000000)
+	profile.signatures[speciesId] = after
+	for star, threshold in ipairs(Config.SignatureStars) do
+		if before < threshold and after >= threshold then return star end
+	end
+	return nil
+end
 
 Progression.Achievements = {
 	{id="first_spark", name="First Spark", description="Bank your first Spark.", xp=50, test=function(p) return p.totalBanked>=1 end},
@@ -124,6 +145,11 @@ Progression.Achievements = {
 		for _, c in ipairs(Config.Creatures) do if not (p.gilded and p.gilded[c.id]) then return false end end
 		return true end},
 	{id="rally_captain", name="Rally Captain", description="Complete 10 Arena Rallies.", xp=300, test=function(p) return stat(p,"rallies")>=10 end},
+	-- Species Signatures (D21): album stars at Config.SignatureStars (10/25/50).
+	{id="signature_collector", name="Signature Collector", description="Earn a signature star on all 12 Sparks.", xp=800, title="Signature Collector",
+		test=function(p) return signatureSpecies(p,Config.SignatureStars[1])>=#Config.Creatures end},
+	{id="spark_sage", name="Spark Sage", description="Earn all three signature stars on all 12 Sparks.", xp=2000, title="Spark Sage",
+		test=function(p) return signatureSpecies(p,Config.SignatureStars[#Config.SignatureStars])>=#Config.Creatures end},
 }
 local achievementById = {}
 for _, a in ipairs(Progression.Achievements) do achievementById[a.id] = a end
@@ -159,6 +185,8 @@ Progression.WeeklyPool = {
 	{id="w_score", name="Earn Gold (2,500 skill) in a round", metric="score", target=2500, scope="round"},
 	{id="w_rounds", name="Finish 20 rounds", metric="rounds", target=20},
 	{id="w_gold", name="Earn 3 gold medals", metric="golds", target=3},
+	-- Fixed third weekly slot (plan §6.9.2): tied to the live Weekly Remix.
+	{id="w_remix", name="Finish 8 rounds in this week's Remix", metric="rounds", target=8, fixed=true},
 }
 local goalById = {}
 for _, g in ipairs(Progression.DailyPool) do g.kind="daily"; goalById[g.id] = g end
@@ -198,7 +226,9 @@ function Progression.ensureGoals(profile, now)
 		changed = true
 	end
 	if profile.weekly.week ~= week then
-		profile.weekly = {week=week, goals=pick(profile, Progression.WeeklyPool, week, 91, 3), progress={}, claimed={}}
+		local goals = pick(profile, Progression.WeeklyPool, week, 91, 2)
+		table.insert(goals, "w_remix")
+		profile.weekly = {week=week, goals=goals, progress={}, claimed={}}
 		changed = true
 	end
 	return changed

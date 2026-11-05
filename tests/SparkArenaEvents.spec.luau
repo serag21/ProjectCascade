@@ -1,4 +1,5 @@
 local Events=require("../game/ReplicatedStorage/Spark/ArenaEvents")
+local Encounters=require("../game/ReplicatedStorage/Spark/Encounters")
 local n=0
 local function check(ok,message) n+=1; assert(ok,message) end
 local ids={"meadow","canyon","aurora"}
@@ -24,6 +25,8 @@ for biome=1,3 do
 				for _,x in ipairs({-26.163,26.163}) do for _,z in ipairs({-26.163,26.163}) do
 					check(math.sqrt((h.x-x)^2+(h.z-z)^2)-h.radius>7,"Steering island body margin")
 				end end
+				-- Per-arena obstacles (D22): sweeps keep a 2.5-stud body margin from pillars/crystals too.
+				check(Encounters.clearOfObstacles(biome,h.x,h.z,h.radius+2.5),"Sweep clear of this arena's obstacles")
 				if previous and previous.visible then
 					local distance=math.sqrt((h.x-previous.x)^2+(h.z-previous.z)^2)
 					check(distance/.01<7,"Continuous warning-to-active motion capped below walking speed")

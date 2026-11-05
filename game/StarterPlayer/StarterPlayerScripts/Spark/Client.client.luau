@@ -552,7 +552,7 @@ sweepText.TextXAlignment=Enum.TextXAlignment.Center
 -- Occluded geometry stays occluded; shape/text accompany the color change.
 local aimOutline=make("Highlight",effectsFolder,{Name="CatchAim",Enabled=false,FillTransparency=1,
 	OutlineTransparency=.15,DepthMode=Enum.HighlightDepthMode.Occluded})
-local aimCue=make("BillboardGui",playerGui,{Name="CatchAimCue",Size=UDim2.fromOffset(132,24),StudsOffset=Vector3.new(0,3.3,0),
+local aimCue=make("BillboardGui",playerGui,{Name="CatchAimCue",Size=UDim2.fromOffset(140,40),StudsOffset=Vector3.new(0,3.8,0),
 	MaxDistance=22,AlwaysOnTop=false,Enabled=false,ResetOnSpawn=false})
 local aimText=label(aimCue,"",12,UDim2.new(),UDim2.fromScale(1,1),palette.ink)
 aimText.TextXAlignment=Enum.TextXAlignment.Center; aimText.BackgroundColor3=palette.paper; aimText.BackgroundTransparency=.1; round(aimText,8)
@@ -585,7 +585,10 @@ local function aimPreview(now)
 	if target then
 		local precise=best.precision and (target:GetAttribute("StarterOwnerId")==nil or target:GetAttribute("Trial")==true)
 		aimOutline.OutlineColor=if target:GetAttribute("Golden") then palette.gold elseif precise then palette.gold else palette.mint
-		aimText.Text=if target:GetAttribute("Golden") then "★ GOLDEN SPARK" elseif precise then "◆ PRECISE CATCH" else "○ CATCH"
+		-- Species Signature (D21): the aim cue names this Spark's own technique.
+		local signature=defs[target:GetAttribute("Species")] and Config.Signatures[defs[target:GetAttribute("Species")].signature or ""]
+		aimText.Text=(if target:GetAttribute("Golden") then "★ GOLDEN SPARK" elseif precise then "◆ PRECISE CATCH" else "○ CATCH")
+			..(if signature then "\n◆ "..signature.label else "")
 	end
 end
 
@@ -644,6 +647,12 @@ Feedback.OnClientEvent:Connect(function(data)
 	end
 	if data.kind=="Bank" and typeof(extra.position)=="Vector3" then startFountain(extra.position) end
 	if data.kind=="Zap" then hitPulse() end
+	if data.kind=="Starfall" and typeof(data.position)=="Vector3" then
+		effects.bankBurst(data.position,{shape="stars",count=16,speed=12,colors={{200,170,255},{255,230,140},{150,240,255}}})
+		effects.sound("starstruck",1.15)
+	end
+	if data.kind=="Catch" and extra.signature then effects.sound("signature",1) end
+	if data.kind=="Catch" and extra.starstruck then effects.sound("starstruck",1) end
 	if data.kind=="Results" then roundBeat("TIME!","buzzer") end
 	if data.kind=="Round" and extra.trial then roundBeat("GO!","start_whistle") end
 	if data.kind=="Dash" then cooldownUntil.Dash=os.clock()+(latest and latest.dashCooldown or Config.DashCooldown) end
@@ -667,7 +676,10 @@ end)
 local function eventText(d)
 	if d.phase=="Warmup" then return string.format("WARM-UP • STAMPEDE IN %ds",d.remaining or 0) end
 	if d.phase=="Results" and d.mode=="trial" then return "DAILY STAMPEDE • RETRY OR LEAVE" end
-	if d.phase=="Results" then return string.format("INTERMISSION • NEXT IN %ds",d.nextRoundIn or 0) end
+	if d.phase=="Results" then
+		local remixName=type(d.remix)=="table" and d.remix.name
+		return string.format("INTERMISSION • NEXT IN %ds",d.nextRoundIn or 0)..(if remixName then " • "..string.upper(remixName) else "")
+	end
 	if d.phase=="SitOut" then return "SITTING OUT" end
 	if d.phase~="Playing" then return d.event or "CHASE TIME" end
 	if (d.startersRemaining or 0)>0 or d.profile.totalBanked<3 then return d.event or "WARM UP" end
@@ -871,6 +883,7 @@ State.OnClientEvent:Connect(function(data)
 		sweepText.Text=if h.active then (h.cue or "DODGE").." • "..name else name.." IN "..math.ceil(h.seconds or 0)
 	end
 	effects.encounters(data)
+	effects.starfall(data)
 	syncOverlays()
 	if previousPhase~=data.phase and controllerActive() and not menu.isOpen() then
 		GuiService.SelectedObject=if data.phase=="Results" then replayButton else nil

@@ -1,23 +1,23 @@
 # BACKLOG — SPARK STAMPEDE
 
-Updated 2026-11-05 after the final direction review. **Execution order and acceptance criteria live in [FINAL_PRODUCTION_PLAN.md](FINAL_PRODUCTION_PLAN.md)**; this file is the checklist view. "Offline done" means implemented with offline tests; it is not engine-verified.
+Updated 2026-11-05 during plan execution (Phases 1–7 offline done). **Execution order and acceptance criteria live in [FINAL_PRODUCTION_PLAN.md](FINAL_PRODUCTION_PLAN.md)**; this file is the checklist view. "Offline done" means implemented with offline tests; it is not engine-verified.
 
 ## Next implementation priority
 
-**Phase 1, step 1 — `Cycle.luau` + cycle-based round lifecycle in `Main.server.luau`** (partial/warm-up rules, full-round flag, intermission, auto-start, Sit out, AFK completion rule), with `tests/SparkCycle.spec.luau` and headless `ScenarioI_SyncedCycles`. Then the rest of Phase 1.
+**Phase 8: hardening and launch prep.** Covers the security review of new actions (SitOut, Play, Trial, Style table, Reroll, ClaimAll), trial score caps and exploit telemetry, the analytics funnel freeze, performance budgets, a headless soak of 20 cycles × 4 players, the final integrated audit, one focused competitor comparison, store copy v3, the playtest guide v2, the release checklist and the RC package. Phases 1–7 are implemented offline; see the table.
 
 ## Phases (cloud-executable)
 
-| Phase | Items | State |
+| Phase | Items | State (2026-11-05) |
 | --- | --- | --- |
-| 1 Round architecture & fairness | Synchronized Stampede Cycles; intermission; podium awards; Sit out + AFK fix; completion rule (≥3 catches); player non-collision; contested-catch assists; staged hazards for new players; Profile v3 schema; Encounters/ArenaEvents cycle 120 | Not started |
-| 2 Living herd | `HerdNet` buffers over UnreliableRemoteEvent; `CreatureView` interpolation + procedural animation; catch flight; harness support | Not started |
-| 3 Feel, UI, audio, first session | Juice set (bank fountain, chain ring, golden beacon, album card, round beats); progressive tabs/HUD/badges; photo mode; accessibility (hold-to-catch, UI scale, volume sliders, high contrast); dash practice line + persistent hints; arena ambience; audio generator v2 + `set_audio_ids.py` + music manager | Not started |
-| 4 Daily Stampede | `Trial`/`TrialService`; Trial Grounds; trial UI with splits; daily board; arena records boards show daily top 5 | Not started |
-| 5 Progression density & goals | `Cosmetics` (formations, bank bursts, name tags); rank reward table (no empty rank-up); Style categories; goals refresh (Daily slot, reroll, claim-on-results); economy model + bounds | Not started |
-| 6 Collection × skill, arena identity | Species Signatures; Aurora Starfall; per-arena obstacle layouts | Not started (desirable; cut order 4→3→2) |
-| 7 Weekly Remix | Data-driven modifiers, weekly remix goal, HUD | Not started (desirable; first to cut) |
-| 8 Hardening & launch prep | Security additions; analytics funnel freeze; perf budget overlay; headless soak 20 cycles × 4; store copy v3; trailer/shot list; release checklist; playtest guide v2 | Not started |
+| 1 Round architecture & fairness | Synchronized Stampede Cycles; intermission; podium awards; Sit out + AFK fix; completion rule (≥3 catches); player non-collision; contested-catch assists; staged hazards for new players; Profile v3 schema; Encounters/ArenaEvents cycle 120 | **Offline done** (771a36b) · ScenarioI |
+| 2 Living herd | `HerdNet` buffers over UnreliableRemoteEvent; `CreatureView` interpolation + procedural animation; catch flight; harness support | **Offline done** (e42f7ab) · ScenarioA herd packets ≈215 B, ≈2.8 KB/s per player (fake engine) |
+| 3 Feel, UI, audio, first session | Juice set; progressive tabs/HUD/badges; photo mode; accessibility (hold-to-catch, UI scale, volumes, high contrast); practice line + persistent hints; ambience; audio generator v2 (15 cues + 3 loops with finale layers) + `set_audio_ids.py` + music manager | **Offline done** (bb33ff7, 7c829ab) · audio unheard until uploaded (V7) |
+| 4 Daily Stampede | `Trial.luau` seeded plans; Trial Grounds (arena 4); Trial start/retry/leave; normalized rules; `Trial.settle`; daily board `SparkDaily_<day>_v1`; records boards show daily top 5; trial results Retry/Leave | **Offline done** (7c829ab, 49401cb) · ScenarioJ, ScenarioG trial path |
+| 5 Progression density & goals | `Cosmetics` (formations, bursts, tags, rank titles); rank reward table (no empty rank-up); Style categories; d_trial slot + reroll; ClaimAll on results; economy model v2 + bounds; trial medal calibration | **Offline done** (49401cb) · all-cosmetics sink 28.7 h regular |
+| 6 Collection × skill, arena identity | Species Signatures (Challenge verdict, album stars, 2 achievements, aim cue); Aurora Starfall (telegraph, daze, STARSTRUCK; personal starfall on aurora trial days); per-arena obstacle layouts (`Encounters.Obstacles`) | **Offline done** (this phase commit) · ScenarioK |
+| 7 Weekly Remix | `Remix.luau` six-week rotation; hooks in Encounters/Main (goldens, density, chain, runs, starfall, statics/pops); per-cycle lock; w_remix weekly slot; HUD + Play tab card | **Offline done** (this phase commit) · SparkRemix |
+| 8 Hardening & launch prep | Security additions; analytics funnel freeze; perf budget overlay; headless soak 20 cycles × 4; store copy v3; trailer/shot list; release checklist; playtest guide v2 | **Next** |
 
 ## Engine validation (owner / supervised Studio only)
 
@@ -38,7 +38,7 @@ Updated 2026-11-05 after the final direction review. **Execution order and accep
 
 ## Owner actions
 
-Checkpoint A on the current build · allow research hosts if primary-source verification is wanted · upload generated audio after Phase 3 · badges (optional) · experience questionnaire/maturity label · test universe for DataStores · Checkpoint C + G4 · G5 publish/monetization decisions.
+Checkpoint B/C playtests on the current build (A was waived by the owner) · upload the 21 generated WAVs and run `tools/set_audio_ids.py` · allow research hosts if primary-source verification is wanted · upload generated audio after Phase 3 · badges (optional) · experience questionnaire/maturity label · test universe for DataStores · Checkpoint C + G4 · G5 publish/monetization decisions.
 
 ## Post-launch (must not delay launch)
 

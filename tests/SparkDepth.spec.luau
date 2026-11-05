@@ -194,18 +194,23 @@ for offset=0,1200,120 do
 	for biome=1,3 do
 		local gateSeen,runStarts,goldenSpawns=false,{},0
 		local lastGoldenCycle=nil
+		local impacts={}
 		for step=0,1100 do
 			local e=offset+step/10
 			local g=Encounters.gate(e,biome)
 			if g.active then gateSeen=true end
+			local fall=Encounters.starfall(e,biome)
+			if fall.warning then impacts[fall.cycle..":"..fall.impact]=fall.impactAt end
 			local r=Encounters.stampede(e,biome)
 			if r.active then runStarts[r.cycle..":"..r.run]=true end
 			local gold=Encounters.golden(e,biome,1)
 			if gold.spawn and gold.cycle~=lastGoldenCycle then goldenSpawns+=1; lastGoldenCycle=gold.cycle end
 		end
 		local runs=0; for _ in pairs(runStarts) do runs+=1 end
-		if biome==2 then check(not gateSeen and runs>=2,"Canyon runs in every round (offset "..offset..")")
-		else check(gateSeen and runs==0,"Gate in every meadow/aurora round (offset "..offset..")") end
+		local starfalls=0; for _ in pairs(impacts) do starfalls+=1 end
+		if biome==2 then check(not gateSeen and runs>=2 and starfalls==0,"Canyon runs in every round (offset "..offset..")")
+		elseif biome==1 then check(gateSeen and runs==0 and starfalls==0,"Gate in every meadow round (offset "..offset..")")
+		else check(not gateSeen and runs==0 and starfalls==Encounters.StarfallCount,"Six Starfall impacts in every aurora round (offset "..offset..")") end
 		check(goldenSpawns>=1 and goldenSpawns<=2,"Golden finale reachable each round")
 	end
 end
@@ -256,4 +261,113 @@ for i=1,200 do
 end
 check(Encounters.staticStep(nil,{x=0,z=0},8,.1)==nil,"Step guard")
 check(Encounters.describe(10,1).next=="SPARK GATE" and Encounters.describe(60,2).phase=="STAMPEDE RUN" and Encounters.describe(95,3).phase=="GOLDEN FINALE","Describe")
+-- Species Signatures (D21) ------------------------------------------------------
+do
+	local rules=Loadout.stats({},{},0)
+	local function fresh() return Challenge.new(1,nil,rules) end
+	-- DASH: dash catch earns the signature; a plain catch does not.
+	local c=fresh()
+	local _,plain=Challenge.capture(c,1,{distance=7,facing=1,value=4,starter=false,captureId=1,signature="DASH"})
+	check(plain.signature==false,"No DASH signature for a plain catch")
+	local _,dashed=Challenge.capture(c,3,{distance=2,facing=1,value=4,starter=false,captureId=2,kind="dash",multiIndex=1,signature="DASH"})
+	check(dashed.signature==true and c.signatures==1,"Dash catch earns the DASH signature")
+	-- Bonus math: +50% of style, minimum +15, then the chain multiplier.
+	local ref=fresh()
+	Challenge.capture(ref,1,{distance=7,facing=1,value=4,starter=false,captureId=1})
+	local _,noSig=Challenge.capture(ref,3,{distance=2,facing=1,value=4,starter=false,captureId=2,kind="dash",multiIndex=1})
+	local style=rules.dashBonus
+	check(dashed.points-noSig.points==math.max(Challenge.SignatureMin,math.floor(style*0.5))*dashed.multiplier,"Signature bonus = max(15, 50% style) x chain")
+	-- PRECISE needs a precision catch; TOGETHER needs multi or herd; RHYTHM needs x2 before the catch.
+	local p=fresh()
+	local _,far=Challenge.capture(p,1,{distance=7,facing=1,value=4,starter=false,captureId=1,signature="PRECISE"})
+	local _,close=Challenge.capture(p,2,{distance=3,facing=1,value=4,starter=false,captureId=2,signature="PRECISE"})
+	check(not far.signature and close.signature,"PRECISE only for precision catches")
+	local t=fresh()
+	local _,single=Challenge.capture(t,1,{distance=2,facing=1,value=4,starter=false,captureId=1,kind="dash",multiIndex=1,signature="TOGETHER"})
+	local _,second=Challenge.capture(t,1,{distance=2,facing=1,value=4,starter=false,captureId=2,kind="dash",multiIndex=2,signature="TOGETHER"})
+	local _,herded=Challenge.capture(t,2,{distance=0,facing=1,value=4,starter=false,captureId=3,kind="herd",signature="TOGETHER"})
+	check(not single.signature and second.signature and herded.signature,"TOGETHER for multi-dash and herded catches only")
+	local r=fresh()
+	local first
+	for i=1,7 do
+		local _,skill=Challenge.capture(r,i,{distance=7,facing=1,value=4,starter=false,captureId=i,signature="RHYTHM"})
+		if i==1 then first=skill end
+		if i==7 then check(skill.signature,"RHYTHM at x2+") end
+	end
+	check(not first.signature,"No RHYTHM before the chain reaches x2")
+	-- Starters never earn signatures; invalid techniques are rejected.
+	local s0=fresh()
+	local _,starter=Challenge.capture(s0,1,{distance=2,facing=1,value=4,starter=true,captureId=1,kind="dash",multiIndex=1,signature="DASH"})
+	check(starter.starter and not starter.signature and s0.signatures==0,"No starter signatures")
+	check(not Challenge.capture(fresh(),1,{distance=2,facing=1,value=4,starter=false,captureId=1,signature="HACK"}),"Unknown signature rejected")
+	check(not Challenge.capture(fresh(),1,{distance=2,facing=1,value=4,starter=false,captureId=1,dazed="yes"}),"Bad dazed flag rejected")
+	-- STARSTRUCK: +30 style on a dazed Spark.
+	local d1,d2=fresh(),fresh()
+	local _,normal=Challenge.capture(d1,1,{distance=7,facing=1,value=4,starter=false,captureId=1})
+	local _,struck=Challenge.capture(d2,1,{distance=7,facing=1,value=4,starter=false,captureId=1,dazed=true})
+	check(struck.starstruck and struck.points-normal.points==Challenge.StarstruckBonus*struck.multiplier and d2.starstruck==1,"STARSTRUCK +30 style")
+	check(Challenge.snapshot(d2,2).starstruck==1 and Challenge.snapshot(c,4).signatures==1,"Snapshot reports signatures/starstruck")
+	-- Every species has a valid signature matching its behaviour family.
+	local expected={flee="DASH",zigzag="PRECISE",herd="TOGETHER",wander="RHYTHM"}
+	for _,def in ipairs(Config.Creatures) do check(def.signature==expected[def.behavior] and Config.Signatures[def.signature],"Signature for "..def.id) end
+end
+
+-- Aurora Starfall (D22) -------------------------------------------------------------
+for offset=0,1200,60 do
+	local seen={}
+	for step=0,1200 do
+		local e=offset+step/10
+		for biome=1,2 do check(not Encounters.starfall(e,biome).visible,"Starfall is Aurora only") end
+		local f=Encounters.starfall(e,3)
+		if f.visible then
+			check(f.warning~=f.active and f.radius==Encounters.StarfallRadius and f.seconds>=0,"Starfall descriptor shape")
+			if f.warning then
+				check(f.seconds>0 and f.seconds<=Encounters.StarfallWarning+1e-9,"2 s telegraph")
+				seen[f.cycle..":"..f.impact]=true
+			end
+		end
+	end
+	local count=0; for _ in pairs(seen) do count+=1 end
+	check(count>=Encounters.StarfallCount,"Six impacts each cycle")
+end
+for i=1,500 do
+	local cands={}
+	for k=1,20 do cands[k]={x=math.sin(i*k)*48,z=math.cos(i*k*1.3)*48} end
+	local spot=Encounters.starfallSpot(cands,(i%7)/7,(i%11)/11,3)
+	check(dist(spot.x,spot.z,0,44)>=Encounters.StarfallBankClearance-1e-6 and dist(spot.x,spot.z,0,0)<=40+1e-6
+		and Encounters.clearOfObstacles(3,spot.x,spot.z,1),"Starfall spot fair")
+end
+local clustered=Encounters.starfallSpot({{x=10,z=-10},{x=11,z=-9},{x=12,z=-11},{x=-30,z=0}},0.5,0.5,3)
+check(dist(clustered.x,clustered.z,11,-10)<3,"Starfall targets the densest cluster")
+check(Encounters.starfallSpot(nil,0/0,math.huge,3).x==Encounters.starfallSpot({},0.5,0.5,3).x,"Starfall spot guards")
+
+-- Per-arena obstacle layouts (D22) ---------------------------------------------------
+local kinds={"island","pillar","crystal"}
+local counts={4,6,5}
+for biome=1,3 do
+	local list,kind=Encounters.obstacles(biome)
+	check(#list==counts[biome] and kind==kinds[biome],"Arena "..biome.." layout")
+	for _,o in ipairs(list) do
+		check(dist(o.x,o.z,0,44)-o.r>=20,"Obstacle clear of bank ("..biome..")")
+		check(dist(o.x,o.z,0,38)-o.r>=14,"Obstacle clear of spawn ("..biome..")")
+		check(dist(o.x,o.z,0,0)-o.r>=10,"Infield centre stays open ("..biome..")")
+		check(dist(o.x,o.z,0,0)+o.r<=48,"Obstacle inside the herd area ("..biome..")")
+		for _,other in ipairs(list) do
+			if other~=o then check(dist(o.x,o.z,other.x,other.z)-o.r-other.r>=12,"No dead-end gaps between obstacles ("..biome..")") end
+		end
+	end
+	-- Encounter paths keep body clearance from this arena's obstacles.
+	for step=0,1100 do
+		local e=step/10
+		local g=Encounters.gate(e,biome)
+		if g.visible then check(Encounters.clearOfObstacles(biome,g.x,g.z,g.radius),"Gate clear of obstacles") end
+		local r=Encounters.stampede(e,biome)
+		if r.visible then
+			for x=-44,44,2 do check(Encounters.clearOfObstacles(biome,x,r.from.z,2.4+2),"Lane clear of obstacles ("..x..")") end
+		end
+	end
+end
+check(#Encounters.obstacles(4)==0 and #Encounters.obstacles("x")==0,"Unknown arenas have no obstacles")
+check(not Encounters.clearOfObstacles(1,-26.163,-26.163,0) and Encounters.clearOfObstacles(1,0,0,2),"Obstacle test")
+check(Encounters.describe(60,3).phase=="AURORA STARFALL" and Encounters.describe(40,3).next=="AURORA STARFALL","Aurora describe")
 print("PASS SparkDepth: "..n.." assertions (perks/heat, Challenge v2, dash path, encounters; pure modules)")

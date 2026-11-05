@@ -1,6 +1,9 @@
 --!strict
 -- Deterministic, original primitive art. Git owns this scene; never edits Terrain.
 local World = {}
+-- Shared, pure obstacle layouts (Encounters.Obstacles): the same data drives art,
+-- herd avoidance, Daily Stampede placement and every encounter clearance test.
+local Encounters = require(game:GetService("ReplicatedStorage"):WaitForChild("Spark"):WaitForChild("Encounters"))
 
 local WHITE = Color3.fromRGB(255, 249, 231)
 local INK = Color3.fromRGB(27, 36, 64)
@@ -177,8 +180,10 @@ end
 
 -- style: which arena's prop/lane language to use (defaults to index). The Daily
 -- Stampede Trial Grounds (index 4, x=900) borrow the day's biome style.
-local function buildArena(parent: Instance, biome: any, index: number, style: number?, signTitle: string?, signSubtitle: string?)
+-- layout: which obstacle set (Encounters.Obstacles) to build; defaults to index.
+local function buildArena(parent: Instance, biome: any, index: number, style: number?, signTitle: string?, signSubtitle: string?, layout: number?)
 	local look = style or index
+	local obstacles, obstacleKind = Encounters.obstacles(layout or index)
 	local arena = Instance.new("Model")
 	arena.Name = biome.id
 	arena.Parent = parent
@@ -217,12 +222,26 @@ local function buildArena(parent: Instance, biome: any, index: number, style: nu
 			else auroraProp(arena, p, scale, n, accent) end
 		end
 	end
-	-- Four low islands create steering choices. Broad clear gaps prevent dead ends.
-	for n = 1, 4 do
-		local angle = math.pi / 4 + n * math.pi / 2
-		local p = origin + Vector3.new(math.sin(angle) * 37, 0, math.cos(angle) * 37)
-		disc(arena, "SteeringIsland", 9, 2.2, p + Vector3.new(0, 1.1, 0), base:Lerp(INK, 0.08), nil, true)
-		disc(arena, "IslandTop", 8.8, 0.2, p + Vector3.new(0, 2.3, 0), accent:Lerp(WHITE, 0.35))
+	-- Obstacles create steering choices; every gap is >= 12 studs (no dead ends).
+	-- Islands are low (jumpable); canyon pillars and aurora crystals are waist-to-
+	-- shoulder height so they read as landmarks without walling off the camera.
+	for n, o in ipairs(obstacles) do
+		local p = origin + Vector3.new(o.x, 0, o.z)
+		if obstacleKind == "pillar" then
+			disc(arena, "RockPillar", o.r * 2, 6, p + Vector3.new(0, 3, 0), base:Lerp(INK, 0.18), Enum.Material.Sandstone, true)
+			disc(arena, "PillarBand", o.r * 2 + 0.3, 0.6, p + Vector3.new(0, 4.2, 0), accent)
+			disc(arena, "PillarCap", o.r * 2 - 0.6, 0.5, p + Vector3.new(0, 6.25, 0), accent:Lerp(WHITE, 0.4))
+			continue
+		elseif obstacleKind == "crystal" then
+			disc(arena, "CrystalBase", o.r * 2 + 1, 0.8, p + Vector3.new(0, 0.4, 0), base:Lerp(INK, 0.1), nil, true)
+			part(arena, "CrystalPillar", Vector3.new(o.r * 1.4, 7, o.r * 1.4), CFrame.new(p + Vector3.new(0, 4, 0)) * CFrame.Angles(0, n * 0.7, 0),
+				accent:Lerp(WHITE, 0.25), Enum.PartType.Block, Enum.Material.Glass, true)
+			part(arena, "CrystalGlow", Vector3.new(o.r * 0.9, 7.4, o.r * 0.9), CFrame.new(p + Vector3.new(0, 4, 0)) * CFrame.Angles(0, n * 0.7 + math.pi / 4, 0),
+				accent, Enum.PartType.Block, Enum.Material.Neon)
+			continue
+		end
+		disc(arena, "SteeringIsland", o.r * 2, 2.2, p + Vector3.new(0, 1.1, 0), base:Lerp(INK, 0.08), nil, true)
+		disc(arena, "IslandTop", o.r * 2 - 0.2, 0.2, p + Vector3.new(0, 2.3, 0), accent:Lerp(WHITE, 0.35))
 		if look == 1 then
 			for flower = 1, 3 do
 				local a = flower * TAU / 3
@@ -282,7 +301,9 @@ local function buildArena(parent: Instance, biome: any, index: number, style: nu
 		disc(arena, "ShowcasePlinth", 5, 1.1, origin + Vector3.new((n - 2) * 9, 0.55, 68), WHITE, nil, true)
 		disc(arena, "ShowcaseTrim", 5.2, 0.14, origin + Vector3.new((n - 2) * 9, 1.15, 68), accent, Enum.Material.Neon)
 	end
-	return {origin = origin, spawn = origin + Vector3.new(0, 3, 38), bank = origin + Vector3.new(0, 0, 44), radius = 65, records = surface}
+	arena:SetAttribute("ObstacleLayout", obstacleKind or "none")
+	return {origin = origin, spawn = origin + Vector3.new(0, 3, 38), bank = origin + Vector3.new(0, 0, 44), radius = 65, records = surface,
+		obstacles = obstacles, layout = layout or index}
 end
 
 -- Daily Stampede Trial Grounds: arena index #Biomes+1 (x=900) in today's biome style.
@@ -291,8 +312,10 @@ function World.buildTrials(world: any, config: any, styleIndex: number)
 	local style = math.clamp(math.floor(styleIndex), 1, #config.Biomes)
 	local biome = config.Biomes[style]
 	local index = #config.Biomes + 1
+	-- Layout 1 (four islands) on every day: Trial.plan places Sparks against it, so a
+	-- server that outlives a UTC day can never put Sparks inside another day's pillars.
 	local entry = buildArena(world.root, {id = "trials", name = "Trial Grounds", color = biome.color, accent = biome.accent},
-		index, style, "DAILY STAMPEDE", "SAME COURSE FOR EVERYONE TODAY")
+		index, style, "DAILY STAMPEDE", "SAME COURSE FOR EVERYONE TODAY", 1)
 	world.arenas[index] = entry
 	world.trialIndex = index
 	return entry

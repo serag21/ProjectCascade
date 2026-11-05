@@ -78,6 +78,8 @@ function Harness.collect(h)
 			local packet = entry.args[1]
 			if type(packet) == "buffer" and buffer.len(packet) >= 2 then
 				herd[buffer.readu8(packet, 1)] = packet
+				h.latestHerd = h.latestHerd or {}
+				h.latestHerd[buffer.readu8(packet, 1)] = packet
 				h.herdPackets = (h.herdPackets or 0) + 1
 				h.herdBytes = (h.herdBytes or 0) + buffer.len(packet)
 			end

@@ -14,19 +14,29 @@ local Config = {
 	-- fallback). A golden catch is worth triple glow and marks the species Gilded.
 	GoldenSpecies = {"flutter", "dunefin", "antlume"},
 	GoldenValueMultiplier = 3,
+	-- Species Signatures (D21): each behaviour family has one signature technique.
+	-- DASH = dash catch or dash-through; PRECISE = precision catch; TOGETHER = multi-dash
+	-- or herded; RHYTHM = caught while the chain multiplier is already x2+.
+	SignatureStars = {10, 25, 50},
+	Signatures = {
+		DASH = {label="DASH IT!", hint="Dash into it or dash through it"},
+		PRECISE = {label="PRECISE!", hint="Get close and face it"},
+		TOGETHER = {label="TOGETHER!", hint="Catch it in a multi-dash or herd it"},
+		RHYTHM = {label="ON RHYTHM!", hint="Catch it while your chain is x2 or higher"},
+	},
 	Creatures = {
-		{id="pip", name="Pip Pop", shape="orb", color={255,210,65}, value=3, speed=8, behavior="wander", biome=1, rarity="Common", trait="Wobbles toward the herd"},
-		{id="bunvolt", name="Bunvolt", shape="ears", color={255,132,177}, value=4, speed=11, behavior="flee", biome=1, rarity="Common", trait="Bounds away when approached"},
-		{id="cubloom", name="Cubloom", shape="cube", color={114,232,164}, value=5, speed=7, behavior="herd", biome=1, rarity="Uncommon", trait="Sticks close to friends"},
-		{id="flutter", name="Flutterwink", shape="moth", color={179,146,255}, value=7, speed=13, behavior="zigzag", biome=1, rarity="Rare", trait="Zigzags around the chase"},
-		{id="sunshell", name="Sunshell", shape="shell", color={255,185,88}, value=6, speed=7, behavior="herd", biome=2, rarity="Common", trait="Patient turns reward flanking"},
-		{id="ziptail", name="Zip Tail", shape="comet", color={255,110,93}, value=8, speed=15, behavior="flee", biome=2, rarity="Uncommon", trait="Quick in a straight line"},
-		{id="prickle", name="Prism Prickle", shape="prism", color={98,223,224}, value=9, speed=10, behavior="zigzag", biome=2, rarity="Uncommon", trait="Makes sharp playful turns"},
-		{id="dunefin", name="Dune Fin", shape="fin", color={126,172,255}, value=12, speed=14, behavior="wander", biome=2, rarity="Rare", trait="Cruises the canyon lanes"},
-		{id="crownlet", name="Crownlet", shape="crown", color={255,224,131}, value=9, speed=10, behavior="herd", biome=3, rarity="Common", trait="Leads a luminous parade"},
-		{id="ribbubble", name="Ribbubble", shape="ribbon", color={242,137,238}, value=11, speed=13, behavior="zigzag", biome=3, rarity="Uncommon", trait="Loops through the aurora"},
-		{id="starwhirl", name="Starwhirl", shape="star", color={155,243,255}, value=14, speed=16, behavior="flee", biome=3, rarity="Rare", trait="A fast dash-timing challenge"},
-		{id="antlume", name="Antlume", shape="antler", color={193,176,255}, value=16, speed=12, behavior="wander", biome=3, rarity="Rare", trait="Wide turns reveal an opening"},
+		{id="pip", name="Pip Pop", shape="orb", color={255,210,65}, value=3, speed=8, behavior="wander", signature="RHYTHM", biome=1, rarity="Common", trait="Wobbles toward the herd"},
+		{id="bunvolt", name="Bunvolt", shape="ears", color={255,132,177}, value=4, speed=11, behavior="flee", signature="DASH", biome=1, rarity="Common", trait="Bounds away when approached"},
+		{id="cubloom", name="Cubloom", shape="cube", color={114,232,164}, value=5, speed=7, behavior="herd", signature="TOGETHER", biome=1, rarity="Uncommon", trait="Sticks close to friends"},
+		{id="flutter", name="Flutterwink", shape="moth", color={179,146,255}, value=7, speed=13, behavior="zigzag", signature="PRECISE", biome=1, rarity="Rare", trait="Zigzags around the chase"},
+		{id="sunshell", name="Sunshell", shape="shell", color={255,185,88}, value=6, speed=7, behavior="herd", signature="TOGETHER", biome=2, rarity="Common", trait="Patient turns reward flanking"},
+		{id="ziptail", name="Zip Tail", shape="comet", color={255,110,93}, value=8, speed=15, behavior="flee", signature="DASH", biome=2, rarity="Uncommon", trait="Quick in a straight line"},
+		{id="prickle", name="Prism Prickle", shape="prism", color={98,223,224}, value=9, speed=10, behavior="zigzag", signature="PRECISE", biome=2, rarity="Uncommon", trait="Makes sharp playful turns"},
+		{id="dunefin", name="Dune Fin", shape="fin", color={126,172,255}, value=12, speed=14, behavior="wander", signature="RHYTHM", biome=2, rarity="Rare", trait="Cruises the canyon lanes"},
+		{id="crownlet", name="Crownlet", shape="crown", color={255,224,131}, value=9, speed=10, behavior="herd", signature="TOGETHER", biome=3, rarity="Common", trait="Leads a luminous parade"},
+		{id="ribbubble", name="Ribbubble", shape="ribbon", color={242,137,238}, value=11, speed=13, behavior="zigzag", signature="PRECISE", biome=3, rarity="Uncommon", trait="Loops through the aurora"},
+		{id="starwhirl", name="Starwhirl", shape="star", color={155,243,255}, value=14, speed=16, behavior="flee", signature="DASH", biome=3, rarity="Rare", trait="A fast dash-timing challenge"},
+		{id="antlume", name="Antlume", shape="antler", color={193,176,255}, value=16, speed=12, behavior="wander", signature="RHYTHM", biome=3, rarity="Rare", trait="Wide turns reveal an opening"},
 	},
 	Biomes = {
 		{id="meadow", name="Pop Meadow", color={89,211,156}, accent={255,214,72}, unlock=0, description="Soft hills, friendly herds, golden goal."},

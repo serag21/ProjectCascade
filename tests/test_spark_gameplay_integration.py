@@ -22,6 +22,8 @@ local Encounters=require("./Encounters")
 local Progression=require("./Progression")
 local Cycle=require("./Cycle")
 local Cosmetics=require("./Cosmetics")
+local Remix=require("./Remix")
+local currentRemix={} -- neutral week; Remix effects are covered by SparkRemix + the case below
 local Players={}
 local Feedback={FireClient=function() end}
 local arenaEpoch=0
@@ -393,6 +395,36 @@ test("catching a Spark another player was chasing gives that player a teamwork a
     local stale=target(3,2);stale.spookedBy=1;stale.spookedAt=now-3;a.root.Position=Vector3.new(4,0,0)
     now=3;capture(b,sb);assert(sa.challenge.assists==1,"Stale chase: no assist")
 end)
+test("species signatures score, tag and fill album stars; trial runs never count",function()
+    local p,s=player(1),session()
+    local function lastCatch() local m; for _,x in ipairs(messages) do if x.kind=="Catch" then m=x.message end end; return m or "" end
+    local signed=0
+    for i=1,7 do
+        now=i;target(i,2)
+        local before=Challenge.snapshot(s.challenge,now).multiplier
+        capture(p,s)
+        local sig=string.find(lastCatch(),"SIGNATURE",1,true)~=nil
+        assert(sig==(before>=2),"RHYTHM exactly when the chain is already x2+ (catch "..i..")")
+        if sig then signed+=1 end
+    end
+    assert(signed>0 and s.profile.signatures.pip==signed and s.challenge.signatures==signed,"Signature catches fill the album")
+    s.profile.signatures.pip=9;now=8;target(8,2);capture(p,s)
+    local starred=false; for _,x in ipairs(messages) do if x.kind=="Quest" and string.find(x.message,"SIGNATURE STAR 1",1,true) then starred=true end end
+    assert(s.profile.signatures.pip==10 and starred,"Tenth signature catch announces star 1")
+    -- Daily Stampede: same technique scores, but no collection progress.
+    local tp,ts=player(2),session();ts.mode="trial"
+    for i=1,7 do now=20+i;local c=target(100+i,2);c.trialOwner=2;capture(tp,ts) end
+    assert(ts.challenge.signatures==signed and (ts.profile.signatures.pip or 0)==0,"Trial signature scores without album progress")
+end)
+test("starfall-dazed Sparks score STARSTRUCK once",function()
+    local p,s=player(1),session()
+    local c=target(1,2);c.dazedUntil=now+3
+    capture(p,s)
+    local struck=false; for _,x in ipairs(messages) do if x.kind=="Catch" and string.find(x.message,"STARSTRUCK",1,true) then struck=true end end
+    assert(struck and s.challenge.starstruck==1,"Dazed catch is STARSTRUCK")
+    now=2;local d=target(2,2);d.dazedUntil=1.5;capture(p,s)
+    assert(s.challenge.starstruck==1,"Daze expired: no bonus")
+end)
 test("new players meet sweeps in round two and statics in round three",function()
     local p,s=player(1),session();s.profile.totalBanked=5;s.hazardStarted=0;s.roundsAtStart=0
     s.challenge=Challenge.new(1,nil,stats(s))
@@ -401,6 +433,14 @@ test("new players meet sweeps in round two and statics in round three",function(
     s.roundsAtStart=1;assert(hazardFor(s,27).active,"Round 2: sweeps")
     updateStatics(p,s,p.root,now,0.1);assert(#staticModels==0,"Round 2: still no statics")
     s.roundsAtStart=2;updateStatics(p,s,p.root,now+0.1,0.1);assert(#staticModels==1,"Round 3: statics")
+end)
+test("Fizz Festival remix keeps statics for Heat 1+ only",function()
+    local p,s=player(1),session();s.profile.totalBanked=5;s.hazardStarted=0;s.roundsAtStart=3;s.roundHeat=0
+    s.challenge=Challenge.new(1,nil,stats(s))
+    currentRemix=Remix.ById.fizz_festival
+    now=30;updateStatics(p,s,p.root,now,0.1);assert(#staticModels==0,"Heat 0: no statics during Fizz Festival")
+    s.roundHeat=1;updateStatics(p,s,p.root,now+0.1,0.1);assert(#staticModels==1,"Heat 1: statics as usual")
+    currentRemix={}
 end)
 test("first bank spawns the dash practice line once and hints persist",function()
     local p,s=player(1),session();s.starterRemaining=3;s.starterIssued=true
@@ -433,7 +473,7 @@ def main() -> None:
     blocks += extract(source, "-- BEGIN CATCH TRANSACTIONS", "-- END CATCH TRANSACTIONS")
     with tempfile.TemporaryDirectory(prefix="spark-gameplay-") as directory:
         folder = Path(directory)
-        for name in ("Config", "Profile", "Challenge", "Rules", "Targeting", "ArenaRally", "ArenaEvents", "Loadout", "Encounters", "Progression", "Cycle", "Cosmetics"):
+        for name in ("Config", "Profile", "Challenge", "Rules", "Targeting", "ArenaRally", "ArenaEvents", "Loadout", "Encounters", "Progression", "Cycle", "Cosmetics", "Remix", "Trial"):
             shutil.copyfile(ROOT / f"game/ReplicatedStorage/Spark/{name}.luau", folder / f"{name}.luau")
         script = folder / "gameplay.spec.luau"
         script.write_text(PRELUDE + blocks + CASES, encoding="utf-8")

@@ -348,6 +348,8 @@ function Menu.fingerprint(data)
 		.."/"..goalDigest(daily))
 	table.insert(parts, tostring(field(weekly, "week")).."/"..goalDigest(weekly))
 	table.insert(parts, tostring(Menu.hasRecord(p)))
+	local remix = field(data, "remix")
+	if type(remix) == "table" then table.insert(parts, "remix:"..tostring(remix.id)) end
 	local trial = field(data, "trial")
 	if type(trial) == "table" then
 		table.insert(parts, table.concat({tostring(trial.available), tostring(trial.active), tostring(trial.rewardedToday),
@@ -660,6 +662,15 @@ function Menu.new(ctx)
 
 	renderers.Play = function(d, p)
 		local trialMode = inTrial(d)
+		-- Weekly Remix (plan §6.9.3): this week's server-wide modifier and when it changes.
+		local remix = field(d, "remix")
+		if type(remix) == "table" and type(remix.name) == "string" then
+			local card = row(70, "WeeklyRemix")
+			local heading = rowText(card, "THIS WEEK'S REMIX • "..string.upper(remix.name), 15, 6)
+			heading.Font = Enum.Font.GothamBlack
+			local days = math.floor(number(remix.endsIn) / 86400)
+			rowText(card, tostring(remix.description or "")..(if days >= 1 then " • "..days.."d left" else " • ends today"), 13, 36, palette.purple)
+		end
 		if type(d.trial) == "table" or trialMode then trialCard(d) end
 		local noteRow = row(56, "RoundSetup")
 		rowText(noteRow, if trialMode then "Daily Stampede run • finish or leave to change your setup"

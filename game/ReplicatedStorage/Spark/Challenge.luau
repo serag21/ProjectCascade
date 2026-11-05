@@ -23,6 +23,11 @@ local DEFAULT_RULES={chainSeconds=CHAIN_SECONDS,maxMultiplier=3,precisionFacing=
 	scoreMultiplier=1,dashBonus=20,popPoints=40,herdMultiplier=1,goldenMultiplier=1,finaleFactor=1.25,chainStep=3,
 	medals={Bronze=150,Silver=400,Gold=800,Radiant=1400}}
 local HAUL_STEP,MULTI_BONUS,HERD_BONUS,ASSIST_BONUS,GOLDEN_BONUS=0.05,25,40,30,250
+-- Species Signatures (D21): +50% of the catch's style, minimum +15. STARSTRUCK: +30
+-- style for catching a Spark dazed by Aurora Starfall (D22).
+local SIGNATURE_RATE,SIGNATURE_MIN,STARSTRUCK_BONUS=0.5,15,30
+local SIGNATURES={DASH=true,PRECISE=true,TOGETHER=true,RHYTHM=true}
+Challenge.SignatureMin=SIGNATURE_MIN; Challenge.StarstruckBonus=STARSTRUCK_BONUS
 local CONTEST_BONUS=15
 local function rulesFrom(raw)
 	local rules=table.clone(DEFAULT_RULES)
@@ -102,7 +107,7 @@ function Challenge.new(roundIndex,previousBestRun,rawRules)
 		lastCapture=nil,seen={},goalComplete=false,finished=false,
 		checkpoints={},checkpointElapsed=0,previousBest=Challenge.sanitizeBestRun(previousBestRun),
 		rules=rulesFrom(rawRules),multiCatches=0,bestMulti=0,herded=0,assists=0,pops=0,zaps=0,golden=0,
-		buzzerLost=0,scattered=0,finaleBanks=0,bestBank=0}
+		buzzerLost=0,scattered=0,finaleBanks=0,bestBank=0,signatures=0,starstruck=0}
 end
 
 -- Main samples before heartbeat transactions, and again after final auto-bank/finish.
@@ -159,6 +164,7 @@ function Challenge.snapshot(state, now)
 		multiCatches=state.multiCatches,bestMulti=state.bestMulti,herded=state.herded,assists=state.assists,
 		pops=state.pops,zaps=state.zaps,golden=state.golden,buzzerLost=state.buzzerLost,
 		scattered=state.scattered,finaleBanks=state.finaleBanks,bestBank=state.bestBank,
+		signatures=state.signatures or 0,starstruck=state.starstruck or 0,
 		precision=state.precision,dashCatches=state.dashCatches,bestChain=state.bestChain,
 		bestHaul=state.bestHaul,captures=state.captures,misses=state.misses,lostBonus=state.lostBonus,
 		medal=medal(state.score,state.rules.medals),difficulty=state.difficulty,finished=state.finished,
@@ -185,6 +191,8 @@ function Challenge.capture(state, now, catch)
 	if kind~="normal" and kind~="dash" and kind~="herd" and kind~="golden" then return false,"Invalid capture kind" end
 	local multiIndex=catch.multiIndex
 	if multiIndex~=nil and (not finite(multiIndex) or multiIndex%1~=0 or multiIndex<1 or multiIndex>8) then return false,"Invalid capture" end
+	if catch.signature~=nil and not SIGNATURES[catch.signature] then return false,"Invalid signature" end
+	if catch.dazed~=nil and type(catch.dazed)~="boolean" then return false,"Invalid capture" end
 	-- Only button catches are rate limited; dash-through/herd/golden are server events
 	-- bounded by unique IDs, dash cooldown and the round capture ceiling below.
 	if kind=="normal" and state.lastCapture and now-state.lastCapture+0.000001<CAPTURE_INTERVAL then return false,"Capture too soon" end
@@ -196,7 +204,8 @@ function Challenge.capture(state, now, catch)
 	if catch.starter then
 		return true,{points=0,precision=false,dash=false,chain=activeChain(state,now),multiplier=1,starter=true}
 	end
-	state.chain=activeChain(state,now)+1; state.lastCatch=now
+	local chainBefore=activeChain(state,now)
+	state.chain=chainBefore+1; state.lastCatch=now
 	state.bestChain=math.max(state.bestChain,state.chain)
 	state.captures+=1; state.pendingCount+=1
 	local rules=state.rules
@@ -210,15 +219,27 @@ function Challenge.capture(state, now, catch)
 	if kind=="herd" then state.herded+=1 end
 	if kind=="golden" then state.golden+=1 end
 	local base=10+math.floor(catch.value)*2
+	local starstruck=catch.dazed==true
 	local style=(if precise then 15 else 0)+(if dash then rules.dashBonus else 0)+(if multi then MULTI_BONUS else 0)
 		+(if kind=="herd" then math.floor(HERD_BONUS*rules.herdMultiplier) else 0)
 		+(if kind=="golden" then math.floor(GOLDEN_BONUS*rules.goldenMultiplier) else 0)
+		+(if starstruck then STARSTRUCK_BONUS else 0)
+	-- The species' signature technique, judged from this exact catch.
+	local technique=catch.signature
+	local signature=(technique=="DASH" and dash) or (technique=="PRECISE" and precise)
+		or (technique=="TOGETHER" and (multi or kind=="herd"))
+		or (technique=="RHYTHM" and multiplier(chainBefore,rules.maxMultiplier,rules.chainStep)>=2) or false
+	if signature then
+		style+=math.max(SIGNATURE_MIN,math.floor(style*SIGNATURE_RATE))
+		state.signatures+=1
+	end
+	if starstruck then state.starstruck+=1 end
 	local factor=multiplier(state.chain,rules.maxMultiplier,rules.chainStep)
 	local bonus=(base+style)*factor-base
 	state.pendingBase=math.min(MAX_SCORE,state.pendingBase+base)
 	state.pendingBonus=math.min(MAX_SCORE,state.pendingBonus+bonus)
 	return true,{points=base+bonus,precision=precise,dash=dash,multi=multi,kind=kind,chain=state.chain,
-		multiplier=factor,starter=false}
+		multiplier=factor,starter=false,signature=signature,starstruck=starstruck}
 end
 
 -- Non-catch skill events. A pop refreshes an active chain's timer without

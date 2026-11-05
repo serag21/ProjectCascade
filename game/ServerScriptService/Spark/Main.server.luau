@@ -20,6 +20,7 @@ local Cycle = require(Shared.Cycle)
 local HerdNet = require(Shared.HerdNet)
 local Cosmetics = require(Shared.Cosmetics)
 local Trial = require(Shared.Trial)
+local Remix = require(Shared.Remix)
 local World = require(script.Parent.World)
 local Persistence = require(script.Parent.Persistence)
 local Services = require(script.Parent.Services)
@@ -195,7 +196,11 @@ local function applyStyle(player,s)
 end
 -- Every gameplay stat derives from the saved upgrades, perk loadout and heat.
 -- Loadout/heat change only between rounds, so a round's Challenge rules are fixed.
-local function statsFor(s) return Loadout.stats(s.profile.upgrades,s.profile.loadout,s.profile.heat) end
+-- Weekly Remix (plan §6.9.3): looked up once per Stampede Cycle so one round never
+-- mixes two remixes; it never applies to the normalized Daily Stampede.
+local currentRemix=Remix.current(os.time())
+local remixCycle=-1
+local function statsFor(s) return Remix.apply(Loadout.stats(s.profile.upgrades,s.profile.loadout,s.profile.heat),currentRemix) end
 local function stats(s)
 	if not s.stats then s.stats=statsFor(s) end
 	return s.stats
@@ -258,8 +263,8 @@ local NO_ENCOUNTER={visible=false,active=false}
 -- Meadow/Aurora trial: the shared gate path, shifted so it opens 25 s into the run.
 local function trialGate(s,now)
 	local tr=s.trial
-	if s.mode~="trial" or not tr or tr.plan.encounter=="stampede" or not scoredRound(s,now) then return NO_ENCOUNTER end
-	local gate=Encounters.gate(trialElapsed(s,now)+30,if tr.plan.biome==3 then 3 else 1)
+	if s.mode~="trial" or not tr or tr.plan.encounter~="gate" or not scoredRound(s,now) then return NO_ENCOUNTER end
+	local gate=Encounters.gate(trialElapsed(s,now)+30,1)
 	if gate.visible then gate.position=world.arenas[TRIAL_ARENA].origin+Vector3.new(gate.x,0.3,gate.z) end
 	return gate
 end
@@ -282,13 +287,59 @@ local function trialDescribe(s,now)
 	if not tr then return {phase="DAILY STAMPEDE",next=nil,nextIn=0} end
 	local e=trialElapsed(s,now)
 	local stampede=tr.plan.encounter=="stampede"
-	local name=if stampede then "STAMPEDE RUN" else "SPARK GATE"
-	local from=if stampede then tr.plan.runAt-Trial.RunWarning else 22
-	local to=if stampede then tr.plan.runAt+Trial.RunLength else 55
+	local starfall=tr.plan.encounter=="starfall"
+	local name=if stampede then "STAMPEDE RUN" elseif starfall then "AURORA STARFALL" else "SPARK GATE"
+	local from=if stampede then tr.plan.runAt-Trial.RunWarning elseif starfall then 23 else 22
+	local to=if stampede then tr.plan.runAt+Trial.RunLength elseif starfall then 53 else 55
 	if e<from then return {phase="DAILY STAMPEDE",next=name,nextIn=from-e} end
 	if e<to then return {phase=name,next="GOLDEN SPARK",nextIn=math.max(0,tr.plan.goldenAt-e)} end
 	if e<tr.plan.goldenAt then return {phase="DAILY STAMPEDE",next="GOLDEN SPARK",nextIn=tr.plan.goldenAt-e} end
 	return {phase="GOLDEN FINALE",next=nil,nextIn=0}
+end
+-- AURORA STARFALL (shared arena 3, and the Daily Stampede on aurora days). The
+-- schedule is pure (Encounters.starfall); the server picks each landing spot from
+-- live Spark clusters at telegraph time and dazes Sparks inside at impact.
+local starfalls={} -- [arena]={key,x,z,impactAt,resolved} (shared arenas)
+local function starfallCandidates(arenaIndex,ownerId)
+	local origin=world.arenas[arenaIndex].origin
+	local list={}
+	for _,c in pairs(herd) do
+		if c.biome==arenaIndex and not c.claimed and not c.starterOwner and not c.runner and c.trialOwner==ownerId and #list<64 then
+			table.insert(list,{x=c.position.X-origin.X,z=c.position.Z-origin.Z})
+		end
+	end
+	return list
+end
+-- Returns the descriptor for State (telegraph) and resolves due impacts.
+local function stepStarfall(state,fall,arenaIndex,ownerId,draw,now,notify)
+	if fall.warning then
+		local key=tostring(fall.cycle)..":"..tostring(fall.impact)
+		if not state.current or state.current.key~=key then
+			local spot=Encounters.starfallSpot(starfallCandidates(arenaIndex,ownerId),draw:NextNumber(),draw:NextNumber(),
+				if ownerId then 1 else arenaIndex)
+			state.current={key=key,x=spot.x,z=spot.z,impactAt=now+fall.seconds,resolved=false}
+		end
+	end
+	local cur=state.current
+	if cur and not cur.resolved and now>=cur.impactAt then
+		cur.resolved=true
+		local origin=world.arenas[arenaIndex].origin
+		local center=origin+Vector3.new(cur.x,0,cur.z)
+		local dazed=0
+		for _,c in pairs(herd) do
+			if c.biome==arenaIndex and not c.claimed and not c.starterOwner and not c.runner and c.trialOwner==ownerId
+				and Vector3.new(c.position.X-center.X,0,c.position.Z-center.Z).Magnitude<=Encounters.StarfallRadius then
+				c.dazedUntil=now+Encounters.DazeSeconds; dazed+=1
+			end
+		end
+		notify(center+Vector3.new(0,1,0),dazed)
+	end
+end
+local function starfallDescriptor(state,now,arenaIndex)
+	local cur=state and state.current
+	if not cur or cur.resolved or now>=cur.impactAt then return {visible=false} end
+	return {visible=true,warning=true,position=world.arenas[arenaIndex].origin+Vector3.new(cur.x,0.2,cur.z),
+		radius=Encounters.StarfallRadius,seconds=math.max(0,cur.impactAt-now)}
 end
 local function trialAvailable(s)
 	if not s.ready or not s.profile then return false,"Loading your collection" end
@@ -370,7 +421,7 @@ local function send(player,s)
 	else
 		gate=Encounters.gate(clockNow,s.biome)
 		if gate.visible then gate.position=origin+Vector3.new(gate.x,0.3,gate.z) end
-		run=Encounters.stampede(clockNow,s.biome)
+		run=Encounters.stampede(clockNow,s.biome,currentRemix)
 		if run.visible then
 			run.fromPosition=origin+Vector3.new(run.from.x,0.3,run.from.z); run.toPosition=origin+Vector3.new(run.to.x,0.3,run.to.z)
 		end
@@ -397,6 +448,9 @@ local function send(player,s)
 		profile=if includeProfile then s.profile else nil,profileRevision=s.revision,
 		saveStatus=s.saveStatus,event=event.name,arenaEvent=event,objective=objective(s),
 		encounter=if trialMode then trialDescribe(s,now) else Encounters.describe(clockNow,s.biome),gate=gate,stampede=run,goldens=goldens,
+		starfall=if not scoredRound(s,now) and s.phase~="Warmup" then nil
+			elseif trialMode then starfallDescriptor(s.trial and s.trial.starfall,now,TRIAL_ARENA)
+			else starfallDescriptor(starfalls[s.biome],now,s.biome),
 		stats={captureRadius=st.captureRadius,capacity=st.capacity,chainSeconds=st.chainSeconds,heat=st.heat,
 			scoreMultiplier=st.scoreMultiplier,perks=st.perks,goldenCompass=st.goldenCompass,maxMultiplier=st.maxMultiplier,
 			staticCap=st.staticCap},
@@ -409,6 +463,7 @@ local function send(player,s)
 		startersRemaining=s.starterRemaining or 0,
 		hazard=hazard,
 		rally=if trialMode then nil else ArenaRally.snapshot(rallies[s.biome],now,player.UserId),
+		remix=Remix.describe(currentRemix,os.time()),
 		bankPosition=world.arenas[s.biome].bank,ready=s.ready,
 		captureCooldown=st.captureCooldown,dashCooldown=dashCooldown(s),
 		cooldowns={capture=math.max(0,st.captureCooldown-(now-(s.buckets.capture or -math.huge))),
@@ -794,6 +849,16 @@ local function updateTrial(player,s,now)
 			end
 			feedback(player,"Event","STAMPEDE RUN! Dash through the lane")
 		end
+	elseif tr.plan.encounter=="starfall" then
+		-- Personal Starfall: the shared choreography shifted 30 s earlier, own Sparks only.
+		local fall=Encounters.starfall(now-s.started+30,3)
+		tr.starfall=tr.starfall or {}
+		if fall.warning and not tr.starfallWarned then
+			tr.starfallWarned=true; feedback(player,"Event","AURORA STARFALL! Stars daze nearby Sparks • catch them for STARSTRUCK")
+		end
+		stepStarfall(tr.starfall,fall,TRIAL_ARENA,player.UserId,tr.rng,now,function(position,dazed)
+			feedback(player,"Starfall",if dazed>0 then string.format("STARFALL! %d Spark%s dazed",dazed,if dazed==1 then "" else "s") else "STARFALL!",nil,position,{dazed=dazed})
+		end)
 	elseif not tr.gateWarned and trialGate(s,now).visible then
 		tr.gateWarned=true; feedback(player,"Event","SPARK GATE! Chase Sparks so they flee THROUGH the ring")
 	end
@@ -902,7 +967,8 @@ local function claim(player,s,creature,kind,aim,multiIndex)
 		distance=if aim then aim.distance else 0,facing=if aim and aim.facing then aim.facing else 1,
 		dashAge=if s.motion and s.motion.dashStarted then now-s.motion.dashStarted else nil,
 		value=creature.def.value,starter=creature.starterOwner~=nil,captureId=creature.id,
-		kind=scoredKind,multiIndex=multiIndex})
+		kind=scoredKind,multiIndex=multiIndex,signature=creature.def.signature,
+		dazed=creature.dazedUntil~=nil and now<creature.dazedUntil})
 	local tags={}
 	local message="Caught "..creature.def.name.."!"
 	local scored=type(skill)=="table" and not skill.starter
@@ -911,11 +977,28 @@ local function claim(player,s,creature,kind,aim,multiIndex)
 		if skill.kind=="herd" then table.insert(tags,"HERDED") end
 		if skill.multi then table.insert(tags,"MULTI x"..multiIndex) elseif skill.dash then table.insert(tags,"DASH") end
 		if skill.precision then table.insert(tags,"PRECISE") end
+		if skill.starstruck then table.insert(tags,"STARSTRUCK") end
+		if skill.signature then
+			table.insert(tags,"SIGNATURE")
+			-- Album signature stars (D21) count outside the Daily Stampede (no collection farming there).
+			if s.mode~="trial" then
+				local star=Progression.recordSignature(s.profile,creature.def.id)
+				Lifecycle.markDirty(s)
+				if star then
+					feedback(player,"Quest",string.format("★ %s SIGNATURE STAR %d!",string.upper(creature.def.name),star),creature.def,creature.position,{signatureStar=star})
+					for _,id in ipairs(Progression.evaluateAchievements(s.profile)) do
+						local a=Progression.AchievementById[id]
+						if a then feedback(player,"Quest","ACHIEVEMENT • "..a.name) end
+					end
+				end
+			end
+			hintOnce(player,s,"signature","SIGNATURE CATCH! Each Spark has its own technique • check the ALBUM for stars")
+		end
 		message=string.format("+%d skill • %sx%d",skill.points,if #tags>0 then table.concat(tags," • ").." • " else "",skill.multiplier)
 	end
 	feedback(player,"Catch",message,creature.def,creature.position,{tags=tags,points=if scored then skill.points else 0,
 		chain=if scored then skill.chain else 0,multiplier=if scored then skill.multiplier else 1,golden=creature.golden,
-		creatureId=creature.id,species=creature.def.id})
+		creatureId=creature.id,species=creature.def.id,signature=scored and skill.signature or nil,starstruck=scored and skill.starstruck or nil})
 	if creature.golden or kind=="herd" then creditAssist(creature,player.UserId,now)
 	elseif creature.spookedBy and creature.spookedBy~=player.UserId and creature.spookedAt and now-creature.spookedAt<=1.5 then
 		-- Contested catch (D25): the player who was chasing it within 8 studs gets a
@@ -1077,6 +1160,8 @@ local function updateStatics(player,s,root,now,step)
 	else
 		eligible=scoredRound(s,now) and staticsAllowed(s) and s.hazardStarted~=nil and s.profile.totalBanked>=3
 			and now-s.hazardStarted>=Encounters.staticStart(s.biome)
+			-- Weekly Remix "Fizz Festival": statics only for Heat 1+ (and pops pay x2).
+			and (currentRemix.staticsMinHeat==nil or (s.roundHeat or 0)>=currentRemix.staticsMinHeat)
 	end
 	local draw=if s.mode=="trial" and s.trial then s.trial.rng else random
 	local rel={x=root.Position.X-origin.X,z=root.Position.Z-origin.Z}
@@ -1462,12 +1547,14 @@ RunService.Heartbeat:Connect(function(dt)
 		-- Herd density scales with active players (+5 Sparks each beyond the
 		-- first) so co-op never starves anyone. Surplus Sparks are temporary
 		-- extras: they never respawn on catch and expire after 45s unless needed.
-		if present>1 and now>=(surplusNext[biome] or 0) then
+		-- Weekly Remix "Big Herd": +6 temporary Sparks per arena while anyone plays it.
+		local bigHerd=currentRemix.extraSparks or 0
+		if (present>1 or (present>0 and bigHerd>0)) and now>=(surplusNext[biome] or 0) then
 			local alive=0
 			for _,c in pairs(herd) do
-				if c.biome==biome and not c.starterOwner and not c.runner and not c.golden and not c.scattered then alive+=1 end
+				if c.biome==biome and not c.starterOwner and not c.runner and not c.golden and not c.scattered and not c.trialOwner then alive+=1 end
 			end
-			if alive<18+5*(present-1) then
+			if alive<18+bigHerd+5*(present-1) then
 				surplusNext[biome]=now+0.5
 				local offset=Rules.herdSpawn(random:NextNumber(0,math.pi*2),random:NextNumber(12,40))
 				local pool={}
@@ -1478,7 +1565,7 @@ RunService.Heartbeat:Connect(function(dt)
 					position=world.arenas[biome].origin+Vector3.new(offset.x,offset.y,offset.z)})
 			end
 		end
-		local gold=Encounters.golden(clockNow,biome,present)
+		local gold=Encounters.golden(clockNow,biome,present,currentRemix)
 		if gold.spawn and present>0 and goldenCycle[biome]~=gold.cycle then
 			goldenCycle[biome]=gold.cycle
 			-- Earned randomness only: any of this arena's species may appear gilded,
@@ -1499,7 +1586,18 @@ RunService.Heartbeat:Connect(function(dt)
 				end
 			end
 		end
-		local run=Encounters.stampede(clockNow,biome)
+		local fall=Encounters.starfall(clockNow,biome,nil,currentRemix)
+		if fall.visible and present>0 then
+			starfalls[biome]=starfalls[biome] or {}
+			stepStarfall(starfalls[biome],fall,biome,nil,random,now,function(position,dazed)
+				for player,s in pairs(sessions) do
+					if s.ready and s.biome==biome and roundPlaying(s,now) then
+						feedback(player,"Starfall",if dazed>0 then string.format("STARFALL! %d Spark%s dazed • STARSTRUCK +30",dazed,if dazed==1 then "" else "s") else "STARFALL!",nil,position,{dazed=dazed})
+					end
+				end
+			end)
+		end
+		local run=Encounters.stampede(clockNow,biome,currentRemix)
 		if run.active and present>0 then
 			local key=run.cycle..":"..run.run
 			if runKey[biome]~=key then
@@ -1524,6 +1622,10 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 	-- Shared buzzer passed: build each arena's positive podium from this cycle's rounds.
 	local cycleNow=Cycle.at(clockNow)
+	if cycleNow.index~=remixCycle and cycleNow.phase=="Intermission" or remixCycle<0 then
+		-- The remix may change only in an intermission (Monday 00:00 UTC rollover).
+		remixCycle=cycleNow.index; currentRemix=Remix.current(os.time())
+	end
 	if cycleNow.phase=="Intermission" then
 		for biome=1,SHARED_ARENAS do
 			if podiumCycle[biome]~=cycleNow.index then
@@ -1559,6 +1661,8 @@ RunService.Heartbeat:Connect(function(dt)
 			c.renderPosition=bob
 			continue
 		end
+		-- Starfall daze: the Spark stops and spins (client pose from the HerdNet flag).
+		if c.dazedUntil and now<c.dazedUntil then c.fleeing=false; continue end
 		local time=now+c.seed
 		local direction=Vector3.new(math.cos(c.heading),0,math.sin(c.heading))
 		local nearest,dist,nearestId=nil,26,nil
@@ -1613,13 +1717,11 @@ RunService.Heartbeat:Connect(function(dt)
 			local toHome=c.home-c.position; toHome=Vector3.new(toHome.X,0,toHome.Z)
 			if toHome.Magnitude>.65 then direction=toHome.Unit end
 		end
-		-- Authored steering islands have 4.5-stud collision radius. Keep a 2.5-stud body margin.
-		for _,x in ipairs({-26.163,26.163}) do
-			for _,z in ipairs({-26.163,26.163}) do
-				local island=arena.origin+Vector3.new(x,0,z)
-				local away=Vector3.new(c.position.X-island.X,0,c.position.Z-island.Z)
-				if away.Magnitude<10 and away.Magnitude>.01 then direction=direction+away.Unit*(10-away.Magnitude) end
-			end
+		-- Per-arena obstacles (World/Encounters.Obstacles): steer early, keep a 2.5-stud body margin.
+		for _,o in ipairs(arena.obstacles) do
+			local away=Vector3.new(c.position.X-(arena.origin.X+o.x),0,c.position.Z-(arena.origin.Z+o.z))
+			local steer=o.r+5.5
+			if away.Magnitude<steer and away.Magnitude>.01 then direction=direction+away.Unit*(steer-away.Magnitude) end
 		end
 		if direction.Magnitude<0.01 then direction=Vector3.new(0,0,1) else direction=direction.Unit end
 		c.heading=math.atan2(direction.Z,direction.X)
@@ -1629,14 +1731,13 @@ RunService.Heartbeat:Connect(function(dt)
 			local fromHome=Vector3.new(c.position.X-c.home.X,0,c.position.Z-c.home.Z)
 			if fromHome.Magnitude>.75 then c.position=c.home+fromHome.Unit*.75 end
 		end
-		for _,x in ipairs({-26.163,26.163}) do
-			for _,z in ipairs({-26.163,26.163}) do
-				local island=arena.origin+Vector3.new(x,0,z)
-				local away=Vector3.new(c.position.X-island.X,0,c.position.Z-island.Z)
-				if away.Magnitude<7 then
-					local push=if away.Magnitude>.01 then away.Unit else Vector3.new(1,0,0)
-					c.position=island+push*7
-				end
+		for _,o in ipairs(arena.obstacles) do
+			local obstacleAt=arena.origin+Vector3.new(o.x,0,o.z)
+			local away=Vector3.new(c.position.X-obstacleAt.X,0,c.position.Z-obstacleAt.Z)
+			local margin=o.r+2.5
+			if away.Magnitude<margin then
+				local push=if away.Magnitude>.01 then away.Unit else Vector3.new(1,0,0)
+				c.position=obstacleAt+push*margin
 			end
 		end
 		if not c.starterOwner then
@@ -1658,9 +1759,10 @@ RunService.Heartbeat:Connect(function(dt)
 	for player,s in pairs(sessions) do
 		if s.ready and roundPlaying(s,now) and s.profile.totalBanked>=3 and s.mode~="trial" then
 			local gate=gates[s.biome]
-			local run=Encounters.stampede(clockNow,s.biome)
+			local run=Encounters.stampede(clockNow,s.biome,currentRemix)
 			if gate.visible then hintOnce(player,s,"gate","SPARK GATE! Chase Sparks so they flee THROUGH the glowing ring") end
 			if run.visible then hintOnce(player,s,"stampede","STAMPEDE RUN! Stand by the lane and DASH through the fast herd") end
+			if Encounters.starfall(clockNow,s.biome,nil,currentRemix).visible then hintOnce(player,s,"starfall","AURORA STARFALL! Stars daze Sparks in the glowing circle • catch dazed Sparks for STARSTRUCK") end
 			if goldenCycle[s.biome]==Cycle.at(clockNow).index and Cycle.at(clockNow).finale then
 				hintOnce(player,s,"golden","GOLDEN SPARK! It's fast and worth triple glow • catch it before the buzzer")
 			end

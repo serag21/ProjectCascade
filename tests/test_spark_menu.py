@@ -177,7 +177,8 @@ check(Menu.attention(dt).Play["trial:20400"]==nil,"Claimed Daily Stampede reward
 
 -- Signatures, medals, volume, titles ------------------------------------------------
 local thresholds=Menu.signatureThresholds()
-if Config["SignatureStars"]==nil then check(list(thresholds)=="10,25,50","Default signature thresholds") end
+if Config["SignatureStars"]==nil then check(list(thresholds)=="10,25,50","Default signature thresholds")
+else check(list(thresholds)==list(Config["SignatureStars"]) and list(thresholds)=="10,25,50","Config signature thresholds (10/25/50) drive the album") end
 check(Menu.signatureStars(nil)==0 and Menu.signatureStars(thresholds[1]-1)==0,"No stars below the first threshold")
 for index,value in ipairs(thresholds) do check(Menu.signatureStars(value)==index,"Star "..index.." at "..value) end
 check(Menu.starText(1,3)=="★☆☆" and Menu.starText(3,3)=="★★★","Star text")
