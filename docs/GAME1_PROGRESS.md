@@ -2,6 +2,13 @@
 
 Updated 2026-11-04 (cloud production session, branch `claude/awesome-brown-27rwqo`). **OFFLINE ONLY (cloud container, no Studio). SCHEDULING PAUSED. UNATTENDED STUDIO TESTS DISABLED. Not a release candidate. Commits NOT pushed: GitHub returned 403 for both git and the connector (issue SS-23).**
 
+## Final direction review — 2026-11-05
+
+- Branch preserved: all 19 session commits pushed and verified on GitHub (`claude/awesome-brown-27rwqo`, tip `b5b78bc` before this review).
+- Research (search-summary based; Roblox sites, chart trackers and Reddit not fetchable here): `research/direction_review_2026-11-05.md`. Key evidence: Roblox discovery now weights 28-day retention; Fisch shows a felt catch skill plus bestiary works; seeded dailies keep leaderboards fair; documented failures to avoid (pay-to-win, crowding, repetition, exploits, performance collapse, griefing loss, streak FOMO).
+- Code audit findings: 32 of 49 rank-ups grant nothing; Aurora reuses Meadow's gate and all arenas share one layout; creatures move at 10 Hz with no animation; no music; all 7 tabs visible at minute one; new players meet hazards 20–25 s after their first bank; **AFK exploit** (`roundXp(0)=60`).
+- Output: `FINAL_PRODUCTION_PLAN.md` (launch scope, inventory, 16 system specs with acceptance tests, first-session sequence, mastery curve, failure-mode table, engine-validation matrix V1–V12, phased implementation order with cut line), decisions D10–D27, restructured `BACKLOG.md`. No code changed in this review.
+
 ## Cloud production session — 2026-11-04
 
 Scope: autonomous milestone work requested by the owner (mastery depth, long-term progression, presentation, QA). No Studio, desktop control, GPU work, publishing, monetization or account actions. Protected backup and Cascade archive untouched.

@@ -1,33 +1,49 @@
 # BACKLOG — SPARK STAMPEDE
 
-Priority-ordered remaining work. Updated 2026-11-04 by the cloud production session. "Offline done" means implemented with offline tests; it is **not** engine-verified. Engine items need the owner's local Studio (see `docs/GAME1_WORKFLOW_CORRECTION.md` — no unattended Studio).
+Updated 2026-11-05 after the final direction review. **Execution order and acceptance criteria live in [FINAL_PRODUCTION_PLAN.md](FINAL_PRODUCTION_PLAN.md)**; this file is the checklist view. "Offline done" means implemented with offline tests; it is not engine-verified.
 
-## P0 — release blockers that need local Studio (cannot be done in cloud)
+## Next implementation priority
 
-| ID | Item | Acceptance evidence |
+**Phase 1, step 1 — `Cycle.luau` + cycle-based round lifecycle in `Main.server.luau`** (partial/warm-up rules, full-round flag, intermission, auto-start, Sit out, AFK completion rule), with `tests/SparkCycle.spec.luau` and headless `ScenarioI_SyncedCycles`. Then the rest of Phase 1.
+
+## Phases (cloud-executable)
+
+| Phase | Items | State |
 | --- | --- | --- |
-| B-01 | Install current build (`python tools/build_studio_install.py`, run installer in Edit mode) and read back all sources | Manifest hashes match; no output errors on Play |
-| B-02 | Solo round with new mechanics: dash-through multi-catch, statics pop/zap, Spark Gate herding, Stampede Run, golden finale, buzzer | Timed log + screenshots; no server/client errors |
-| B-03 | Verify every `rbxasset://sounds/*` placeholder exists in the client, or replace with owner-uploaded original WAVs | Audible playback; provenance sheet |
-| B-04 | 2- and 4-client sessions (same-target race, gate assist, golden contest, scramble recatch, leave/rejoin) | Per-client evidence, no duplicate rewards |
-| B-05 | Real DataStore persistence (v1→v2 migration on a test profile, rejoin restore, leaderboards OrderedDataStore) in a test universe | Before/after values |
-| B-06 | Mobile/touch + gamepad pass of the new menus (Play/Goals/Style/Records tabs, results) | Device screenshots, no clipping/overlap |
-| B-07 | Performance: busiest moment (4 players, statics, goldens, stampede) frame time and instance counts over a 10-round soak | Numbers vs budget |
-| B-08 | Owner hands-on release-candidate playtest (G4) | Owner notes |
+| 1 Round architecture & fairness | Synchronized Stampede Cycles; intermission; podium awards; Sit out + AFK fix; completion rule (≥3 catches); player non-collision; contested-catch assists; staged hazards for new players; Profile v3 schema; Encounters/ArenaEvents cycle 120 | Not started |
+| 2 Living herd | `HerdNet` buffers over UnreliableRemoteEvent; `CreatureView` interpolation + procedural animation; catch flight; harness support | Not started |
+| 3 Feel, UI, audio, first session | Juice set (bank fountain, chain ring, golden beacon, album card, round beats); progressive tabs/HUD/badges; photo mode; accessibility (hold-to-catch, UI scale, volume sliders, high contrast); dash practice line + persistent hints; arena ambience; audio generator v2 + `set_audio_ids.py` + music manager | Not started |
+| 4 Daily Stampede | `Trial`/`TrialService`; Trial Grounds; trial UI with splits; daily board; arena records boards show daily top 5 | Not started |
+| 5 Progression density & goals | `Cosmetics` (formations, bank bursts, name tags); rank reward table (no empty rank-up); Style categories; goals refresh (Daily slot, reroll, claim-on-results); economy model + bounds | Not started |
+| 6 Collection × skill, arena identity | Species Signatures; Aurora Starfall; per-arena obstacle layouts | Not started (desirable; cut order 4→3→2) |
+| 7 Weekly Remix | Data-driven modifiers, weekly remix goal, HUD | Not started (desirable; first to cut) |
+| 8 Hardening & launch prep | Security additions; analytics funnel freeze; perf budget overlay; headless soak 20 cycles × 4; store copy v3; trailer/shot list; release checklist; playtest guide v2 | Not started |
 
-## P1 — offline work remaining
+## Engine validation (owner / supervised Studio only)
 
-| ID | Item | State |
+| ID | Requirement | When |
 | --- | --- | --- |
-| B-10 | Client UI overhaul for new systems (combo meter, encounter visuals, results breakdown, Play/Goals/Style/Records tabs) | Done offline; render/touch/gamepad review needs Studio (B-06) |
-| B-11 | Headless fake-engine harness booting real Main/World/Client scripts with API-validated instances | Done (9 scenarios) |
-| B-12 | Glow surplus after ~14 h (see `docs/GAME1_ECONOMY.md`): add seasonal earned cosmetic sets | Planned post-launch |
-| B-13 | Creature motion smoothness: server moves welded roots at 10 Hz (anchored, no client interpolation). Evaluate in Studio; options: client-side visual interpolation of creatures in the player's arena, or 20 Hz root updates now that replication is ~20x cheaper. Also per-behavior hop/squash. | Needs Studio judgement |
-| B-14 | Per-arena colour grade on the client | Done offline |
-| B-15 | Thumbnail/icon/trailer capture from the candidate build (needs Studio) | Blocked on B-01 |
-| B-17 | Tune from real play: dash path radius (4.5), static speed/cap, gate radius/path, herd surplus (+5/player), medal thresholds, buzzer warning | Needs Studio + playtests |
-| B-16 | Roblox badges for achievements (needs owner-created badge IDs; `Progression.Achievements` ready) | Blocked on owner |
+| V1 | Install + readback; no Output errors | Checkpoint A (now), B, C |
+| V2 | Dash-through reliability (≥80% of deliberate 3-spark lines catch ≥2) | A |
+| V3 | HerdNet smoothness and ≤6 KB/s herd traffic | B |
+| V4 | Presentation bar (plan §11); first 30 s judged exciting | B |
+| V5 | Synchronized cycles with 2/4 clients | B/C |
+| V6 | Daily Stampede seed parity, retry, board | C |
+| V7 | Uploaded audio plays, balanced | C |
+| V8 | Real DataStores (v1/v2→v3, rejoin, daily board) in a test universe | C |
+| V9 | Mobile + gamepad on real devices | C |
+| V10 | Performance budgets (plan §6.14) | C |
+| V11 | 20-cycle × 4-client soak; normal stop | C |
+| V12 | Owner RC playtest (G4) | After C |
 
-## Done this session (offline)
+## Owner actions
 
-Merged interrupted WIP; perks/heat/loadout; Challenge v2 (x4, dash-through, herd, golden, pops, assists, haul, finale, buzzer, Radiant); encounters (gate, stampede run, golden, statics); progression (rank, achievements, daily/weekly goals, trails/titles, profile v2 + migration); server integration; services (analytics, leaderboards); economy model + calibration; canyon lanes, records boards; lint gate; API-name check; portable runner; Rojo mapping; packaging v2 copy; monetization proposal (not enabled); client overhaul; headless engine harness + 3 bug fixes; welded creature roots; herd density scaling; first-encounter hints; owner playtest guide.
+Checkpoint A on the current build · allow research hosts if primary-source verification is wanted · upload generated audio after Phase 3 · badges (optional) · experience questionnaire/maturity label · test universe for DataStores · Checkpoint C + G4 · G5 publish/monetization decisions.
+
+## Post-launch (must not delay launch)
+
+Remix rotation (weekly) · species packs (monthly) · earned cosmetic sets (monthly) · arena 4 with Prism Portals or currents (quarterly) · seasonal events and Daily seasons · friends leaderboard · owner-gated cosmetic monetization, private servers, badges.
+
+## Completed before this review (offline)
+
+Merged interrupted WIP; perks/heat/loadout; Challenge v2; encounters (gate, stampede run, golden, statics); progression (rank, achievements, daily/weekly goals, trails/titles, profile v2 + migration); server integration; analytics and leaderboard services; economy model + calibration; canyon lanes; records boards; client overhaul; headless engine harness (9 scenarios) + 3 bug fixes; welded creature roots; herd density scaling; first-encounter hints; 44/44 offline checks; owner playtest guide.

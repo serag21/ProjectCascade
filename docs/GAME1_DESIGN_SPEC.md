@@ -1,5 +1,7 @@
 # SPARK STAMPEDE — Game design specification v2 (mastery & retention)
 
+> **Precedence (2026-11-05):** `FINAL_PRODUCTION_PLAN.md` supersedes this spec where they differ — notably synchronized 120 s cycles, Aurora Starfall replacing Aurora's Spark Gate, Daily Stampede as the only public leaderboard, staged threat introduction, AFK completion rule and cosmetic categories (decisions D10–D27).
+
 Written 2026-11-04 by the cloud production session. Builds on `GAME1_PRODUCT_CHARTER.md` (product identity, unchanged) and `GAME1_MASTERY.md` (v1 mastery loop, retained). This document is the durable source for *what* the game should be; `BACKLOG.md` tracks *what is left*; `DECISIONS.md` records why. Every numeric value below is a **balance hypothesis** encoded in `game/ReplicatedStorage/Spark/*` and covered by offline tests. None has been validated by real players yet.
 
 ## 1. Ruthless new-player critique of the v1 build (pre-session)
