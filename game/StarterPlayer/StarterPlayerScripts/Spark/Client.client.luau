@@ -43,7 +43,7 @@ gui.Name="SparkHUD"; gui.ResetOnSpawn=false; gui.ZIndexBehavior=Enum.ZIndexBehav
 gui.Parent=playerGui
 -- latest = last server state with the cached profile/boards merged in.
 local latest=nil
-local cachedProfile,cachedBoards=nil,nil
+local cachedProfile,cachedBoards,cachedDailyBoard=nil,nil,nil
 local results
 local replayButton
 local menu
@@ -97,6 +97,10 @@ objective.TextXAlignment=Enum.TextXAlignment.Center
 objective.BackgroundColor3=palette.paper; objective.BackgroundTransparency=.12; round(objective,12)
 local menuButton=button(gui,"MENU  ≡",UDim2.fromOffset(12,141),UDim2.fromOffset(158,42),palette.paper,function() end)
 menuButton.Name="CollectionButton"
+-- "!" only when something is new or claimable (D19); Menu decides, we just show it.
+local menuBadge=label(menuButton,"!",16,UDim2.new(1,-26,0,-6),UDim2.fromOffset(24,24),palette.ink)
+menuBadge.Name="Badge"; menuBadge.BackgroundTransparency=0; menuBadge.BackgroundColor3=palette.gold
+menuBadge.TextXAlignment=Enum.TextXAlignment.Center; menuBadge.Font=Enum.Font.GothamBlack; menuBadge.Visible=false; round(menuBadge,12)
 local saveLabel=label(gui,"Loading",11,UDim2.new(0,14,1,-24),UDim2.fromOffset(230,18),palette.ink)
 saveLabel.Name="SaveStatus"
 local bankGuide=label(gui,"",16,UDim2.new(.5,-120,1,-74),UDim2.fromOffset(240,40),palette.ink)
@@ -212,6 +216,7 @@ menu=Menu.new({gui=gui,data=function() return latest end,
 		-- Optional and unrewarded: Roblox's own invite prompt (AGENTS: never required).
 		pcall(function() game:GetService("SocialService"):PromptGameInvite(player) end)
 	end,
+	onBadgeChanged=function(hasBadge) menuBadge.Visible=hasBadge==true end,
 	onChanged=function()
 		syncOverlays()
 		if not menu.isOpen() and controllerActive() and results and results.Visible then GuiService.SelectedObject=replayButton end
@@ -240,7 +245,8 @@ resultCallouts.Name="Callouts"; resultCallouts.TextXAlignment=Enum.TextXAlignmen
 -- Rounds auto-start each shared cycle; this button toggles Sit out / Play.
 replayButton=button(results,"SIT OUT NEXT ROUND",UDim2.fromOffset(20,416),UDim2.new(1,-40,0,44),palette.gold,function()
 	togglePanel(nil)
-	if latest and (latest.sitOut or latest.phase=="SitOut") then Action:FireServer("Play") else Action:FireServer("SitOut") end
+	if latest and latest.mode=="trial" then Action:FireServer("Trial","retry")
+	elseif latest and (latest.sitOut or latest.phase=="SitOut") then Action:FireServer("Play") else Action:FireServer("SitOut") end
 end)
 replayButton.Name="ReplayButton"
 local resultCountdown=label(results,"",16,UDim2.fromOffset(20,334),UDim2.new(1,-40,0,22),palette.ink)
@@ -251,11 +257,53 @@ local resultUpgrade=button(results,"UPGRADES",UDim2.fromOffset(20,466),UDim2.new
 resultUpgrade.Name="UpgradeButton"
 local resultSetup=button(results,"PLAY SETUP",UDim2.new(.5,6,0,466),UDim2.new(.5,-26,0,36),palette.mint,function() togglePanel("Play") end)
 resultSetup.Name="PlaySetupButton"
+-- Daily Stampede results: instant RETRY (above) or LEAVE back into the shared cycle.
+local resultLeave=button(results,"LEAVE • BACK TO THE STAMPEDE",UDim2.fromOffset(20,466),UDim2.new(1,-40,0,36),palette.mint,function()
+	togglePanel(nil); Action:FireServer("Trial","leave")
+end)
+resultLeave.Name="TrialLeaveButton"; resultLeave.Visible=false
 replayButton.NextSelectionDown=resultUpgrade
 resultUpgrade.NextSelectionUp=replayButton; resultSetup.NextSelectionUp=replayButton
 resultUpgrade.NextSelectionRight=resultSetup; resultSetup.NextSelectionLeft=resultUpgrade
 for _,child in ipairs(results:GetDescendants()) do if child:IsA("GuiObject") then child.ZIndex=4 end end
+local function trialBoardLine(d)
+	local board=Ui.get(d,"trial","board")
+	if type(board)~="table" or #board==0 then return "No runs on today's board yet • be the first!" end
+	for _,row in ipairs(board) do
+		if row.userId==player.UserId then return string.format("TODAY'S BOARD: #%d of the top %d",row.rank,#board) end
+	end
+	return string.format("Today's #1: %s • %d",tostring(board[1].name),tonumber(board[1].score) or 0)
+end
+local function renderTrialResults(d,r)
+	local m=d.mastery
+	local medal=Ui.medals[r.medal] or Ui.medals.Unranked
+	resultTitle.Text=if r.incomplete then "CATCH 3+ TO FINISH A RUN" elseif r.improved then "NEW BEST TODAY!" else "DAILY STAMPEDE"
+	resultMedal.Text=medal.label
+	resultMedal.BackgroundColor3=medal.color
+	resultScore.Text=string.format("%d skill • Today's best %d\nRun %d today • %s",r.score or 0,r.best or 0,r.runsToday or 0,
+		if (r.xpRunsLeft or 0)>0 then (r.xpRunsLeft.." XP run"..(if r.xpRunsLeft==1 then "" else "s").." left") else "board-only runs now")
+	resultBreakdown.Text=if m then string.format("Precise %d • Dash %d • Multi %d\nHerded %d • Pops %d • Golden %d\nBest chain %d • Best haul %d",
+		m.precision or 0,m.dashCatches or 0,m.multiCatches or 0,m.herded or 0,m.pops or 0,m.golden or 0,m.bestChain or 0,m.bestHaul or 0) else ""
+	local rank=d.rank
+	if rank then
+		resultRank.Text=string.format("RANK %d  •  +%d XP",rank.rank,r.xp or 0)
+		resultXpFill.Size=UDim2.fromScale(math.clamp(rank.fraction or 0,0,1),1)
+	end
+	local callouts={}
+	if (r.glow or 0)>0 then table.insert(callouts,string.format("+%d glow • first run today",r.glow)) end
+	if (r.rankAfter or 0)>(r.rankBefore or 0) then table.insert(callouts,"RANK UP! → "..r.rankAfter) end
+	for _,unlock in ipairs(r.unlocks or {}) do table.insert(callouts,unlock) end
+	if r.reason then table.insert(callouts,r.reason) end
+	table.insert(callouts,"Same course for everyone today • upgrades don't count")
+	resultCallouts.Text=table.concat(callouts,"  •  ")
+	replayButton.Text="RETRY • SAME COURSE"
+	resultCountdown.Text=trialBoardLine(d)
+	updatePodium(nil,player.UserId)
+end
 local function renderResults(d)
+	local trialMode=d.mode=="trial"
+	resultLeave.Visible=trialMode; resultUpgrade.Visible=not trialMode; resultSetup.Visible=not trialMode
+	if trialMode and type(d.lastResult)=="table" and d.lastResult.trial then renderTrialResults(d,d.lastResult); return end
 	local m=d.mastery
 	local r=d.lastResult
 	local medalName=(m and m.medal) or "Unranked"
@@ -508,7 +556,8 @@ local function aimPreview(now)
 			local id,owner=model:GetAttribute("CreatureId"),model:GetAttribute("StarterOwnerId")
 			local def=defs[model:GetAttribute("Species")]
 			-- Any species can be golden or a runner now; other arenas are far beyond reach.
-			if id and model.PrimaryPart and def and (not owner or (owner==player.UserId and latest.profile.totalBanked<3)) then
+			-- Own Daily Stampede Sparks carry the owner id too (Trial attribute); starters need totalBanked<3.
+			if id and model.PrimaryPart and def and (not owner or (owner==player.UserId and (latest.profile.totalBanked<3 or model:GetAttribute("Trial")))) then
 				local aim=Targeting.measure(xyz(root.Position),xyz(root.CFrame.LookVector),xyz(model.PrimaryPart.Position),radius)
 				if Targeting.better(aim,id,best,target and target:GetAttribute("CreatureId")) then target=model; best=aim end
 			end
@@ -517,7 +566,7 @@ local function aimPreview(now)
 	aimOutline.Adornee=target; aimOutline.Enabled=target~=nil
 	aimCue.Adornee=target and target.PrimaryPart; aimCue.Enabled=target~=nil
 	if target then
-		local precise=best.precision and target:GetAttribute("StarterOwnerId")==nil
+		local precise=best.precision and (target:GetAttribute("StarterOwnerId")==nil or target:GetAttribute("Trial")==true)
 		aimOutline.OutlineColor=if target:GetAttribute("Golden") then palette.gold elseif precise then palette.gold else palette.mint
 		aimText.Text=if target:GetAttribute("Golden") then "★ GOLDEN SPARK" elseif precise then "◆ PRECISE CATCH" else "○ CATCH"
 	end
@@ -579,6 +628,7 @@ Feedback.OnClientEvent:Connect(function(data)
 	if data.kind=="Bank" and typeof(extra.position)=="Vector3" then startFountain(extra.position) end
 	if data.kind=="Zap" then hitPulse() end
 	if data.kind=="Results" then roundBeat("TIME!","buzzer") end
+	if data.kind=="Round" and extra.trial then roundBeat("GO!","start_whistle") end
 	if data.kind=="Dash" then cooldownUntil.Dash=os.clock()+(latest and latest.dashCooldown or Config.DashCooldown) end
 	local hasTags=type(extra.tags)=="table" and #extra.tags>0
 	-- Scored catches speak through floating tags; toasts stay for onboarding and events.
@@ -599,6 +649,7 @@ end)
 
 local function eventText(d)
 	if d.phase=="Warmup" then return string.format("WARM-UP • STAMPEDE IN %ds",d.remaining or 0) end
+	if d.phase=="Results" and d.mode=="trial" then return "DAILY STAMPEDE • RETRY OR LEAVE" end
 	if d.phase=="Results" then return string.format("INTERMISSION • NEXT IN %ds",d.nextRoundIn or 0) end
 	if d.phase=="SitOut" then return "SITTING OUT" end
 	if d.phase~="Playing" then return d.event or "CHASE TIME" end
@@ -747,6 +798,10 @@ State.OnClientEvent:Connect(function(data)
 	if type(data)~="table" then return end
 	if type(data.profile)=="table" then cachedProfile=data.profile end
 	if type(data.boards)=="table" then cachedBoards=data.boards end
+	-- The daily board is sent only when it changes; keep the last copy between states.
+	if type(data.trial)=="table" then
+		if type(data.trial.board)=="table" then cachedDailyBoard=data.trial.board else data.trial.board=cachedDailyBoard end
+	end
 	data.profile=cachedProfile
 	if not data.profile then return end -- the first state of a session always carries the profile
 	local previousPhase=latest and latest.phase

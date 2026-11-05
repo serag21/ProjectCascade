@@ -99,8 +99,9 @@ function Effects.new(ctx)
 		if not ctx.sfx() then return end
 		local entry = ctx.catalog and ctx.catalog[key]
 		if type(entry) ~= "table" then return end
-		local id, volume, rate = entry.id, entry.volume, entry.fallbackSpeed or 1
-		if type(id) ~= "string" or id == "" then id = entry.fallback; volume = entry.fallbackVolume or entry.volume end
+		-- fallbackSpeed re-pitches only the built-in fallback; uploaded originals play as authored.
+		local id, volume, rate = entry.id, entry.volume, 1
+		if type(id) ~= "string" or id == "" then id = entry.fallback; volume = entry.fallbackVolume or entry.volume; rate = entry.fallbackSpeed or 1 end
 		if type(id) ~= "string" or id == "" then return end
 		local limit = if ctx.musicPlaying() then 5 else 6
 		while #self.voices >= limit do retire(self.voices[1]) end

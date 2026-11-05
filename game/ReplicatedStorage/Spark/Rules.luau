@@ -79,6 +79,9 @@ function Rules.canCapture(player, creature, now, radius, capacity)
 	if player.phase ~= "Playing" or player.ready ~= true then return false, "Not playing" end
 	if player.carry >= capacity then return false, "Bank your parade first" end
 	if creature.claimed then return false, "Already caught" end
+	-- Daily Stampede: trial Sparks belong to one runner; trial runners catch only their own.
+	if creature.trialOwner~=nil and creature.trialOwner~=player.userId then return false, "Another player's Daily Stampede" end
+	if player.mode=="trial" and creature.trialOwner==nil then return false, "Daily Stampede Sparks only" end
 	if creature.starterOwner~=nil then
 		if creature.starterOwner~=player.userId then return false, "Another player's first catch" end
 		if not Rules.finite(player.totalBanked) or player.totalBanked>=3 then return false, "Starter allowance complete" end

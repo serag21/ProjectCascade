@@ -175,7 +175,10 @@ local function auroraProp(parent: Instance, p: Vector3, scale: number, index: nu
 	end
 end
 
-local function buildArena(parent: Instance, biome: any, index: number)
+-- style: which arena's prop/lane language to use (defaults to index). The Daily
+-- Stampede Trial Grounds (index 4, x=900) borrow the day's biome style.
+local function buildArena(parent: Instance, biome: any, index: number, style: number?, signTitle: string?, signSubtitle: string?)
+	local look = style or index
 	local arena = Instance.new("Model")
 	arena.Name = biome.id
 	arena.Parent = parent
@@ -209,8 +212,8 @@ local function buildArena(parent: Instance, biome: any, index: number)
 		if math.abs(math.sin(angle)) > 0.24 or math.cos(angle) < 0 then
 			local p = origin + Vector3.new(math.sin(angle) * 77, 0, math.cos(angle) * 77)
 			local scale = 0.75 + (n % 3) * 0.18
-			if index == 1 then meadowProp(arena, p, scale, n, accent)
-			elseif index == 2 then canyonProp(arena, p, scale, n, accent)
+			if look == 1 then meadowProp(arena, p, scale, n, accent)
+			elseif look == 2 then canyonProp(arena, p, scale, n, accent)
 			else auroraProp(arena, p, scale, n, accent) end
 		end
 	end
@@ -220,12 +223,12 @@ local function buildArena(parent: Instance, biome: any, index: number)
 		local p = origin + Vector3.new(math.sin(angle) * 37, 0, math.cos(angle) * 37)
 		disc(arena, "SteeringIsland", 9, 2.2, p + Vector3.new(0, 1.1, 0), base:Lerp(INK, 0.08), nil, true)
 		disc(arena, "IslandTop", 8.8, 0.2, p + Vector3.new(0, 2.3, 0), accent:Lerp(WHITE, 0.35))
-		if index == 1 then
+		if look == 1 then
 			for flower = 1, 3 do
 				local a = flower * TAU / 3
 				ball(arena, "GlowBud", Vector3.new(1.5, 1.3, 1.5), p + Vector3.new(math.cos(a) * 2, 3, math.sin(a) * 2), WHITE)
 			end
-		elseif index == 2 then
+		elseif look == 2 then
 			part(arena, "MineralMarker", Vector3.new(2.4, 3, 2.4), CFrame.new(p + Vector3.new(0, 3.8, 0)) * CFrame.Angles(0, math.pi / 4, 0), accent)
 		else
 			ball(arena, "SnowPearl", Vector3.new(3, 2, 3), p + Vector3.new(0, 3.1, 0), WHITE)
@@ -233,7 +236,7 @@ local function buildArena(parent: Instance, biome: any, index: number)
 	end
 	for _, x in ipairs({-19, 19}) do pennant(arena, origin + Vector3.new(x, 0, 54), accent, index) end
 	bank(arena, origin, accent)
-	if index == 2 then
+	if look == 2 then
 		-- Painted Stampede Run lanes (Encounters.Runs): stable landmarks that teach
 		-- where the fast herds cross. Chevrons point in each lane's run direction.
 		for _, lane in ipairs({{z = -14, dir = 1}, {z = 10, dir = -1}}) do
@@ -273,13 +276,26 @@ local function buildArena(parent: Instance, biome: any, index: number)
 		label.Parent = surface
 	end
 	-- Chase sign faces arriving players, kept away from the bank label.
-	textSign(arena, "ArenaSign", origin + Vector3.new(0, 13, -59), string.upper(biome.name), "CHASE  •  CATCH  •  BANK", accent)
+	textSign(arena, "ArenaSign", origin + Vector3.new(0, 13, -59), signTitle or string.upper(biome.name), signSubtitle or "CHASE  •  CATCH  •  BANK", accent)
 	disc(arena, "ArrivalPlaza", 28, 1.6, origin + Vector3.new(0, -0.8, 62), base:Lerp(WHITE, 0.1), nil, true)
 	for n = 1, 3 do
 		disc(arena, "ShowcasePlinth", 5, 1.1, origin + Vector3.new((n - 2) * 9, 0.55, 68), WHITE, nil, true)
 		disc(arena, "ShowcaseTrim", 5.2, 0.14, origin + Vector3.new((n - 2) * 9, 1.15, 68), accent, Enum.Material.Neon)
 	end
 	return {origin = origin, spawn = origin + Vector3.new(0, 3, 38), bank = origin + Vector3.new(0, 0, 44), radius = 65, records = surface}
+end
+
+-- Daily Stampede Trial Grounds: arena index #Biomes+1 (x=900) in today's biome style.
+-- Built once per server; the palette follows the UTC day the server started.
+function World.buildTrials(world: any, config: any, styleIndex: number)
+	local style = math.clamp(math.floor(styleIndex), 1, #config.Biomes)
+	local biome = config.Biomes[style]
+	local index = #config.Biomes + 1
+	local entry = buildArena(world.root, {id = "trials", name = "Trial Grounds", color = biome.color, accent = biome.accent},
+		index, style, "DAILY STAMPEDE", "SAME COURSE FOR EVERYONE TODAY")
+	world.arenas[index] = entry
+	world.trialIndex = index
+	return entry
 end
 
 function World.build(config: any)
@@ -315,7 +331,7 @@ function World.build(config: any)
 		newAtmosphere.Parent = lighting
 	end
 	root.Parent = workspace
-	return {root = root, arenas = arenas, hub = Vector3.new(0, 3, 62)}
+	return {root = root, arenas = arenas, hub = Vector3.new(0, 3, 62), sharedArenas = #config.Biomes}
 end
 
 function World.creature(def: any, parent: Instance): Model
@@ -419,14 +435,16 @@ function World.creature(def: any, parent: Instance): Model
 end
 
 -- rows: all-time {name,score}; weekly: {name,score} (already sorted, server data).
-function World.setRecords(surface: Instance?, alltime: {any}?, weekly: {any}?)
+function World.setRecords(surface: Instance?, alltime: {any}?, weekly: {any}?, heading: string?)
 	if not surface then return end
+	local head = surface:FindFirstChild("Heading")
+	if heading and head and head:IsA("TextLabel") then head.Text = heading end
 	local lines = {}
 	for index = 1, math.min(5, if alltime then #alltime else 0) do
 		local row = (alltime :: {any})[index]
 		table.insert(lines, string.format("%d. %s  •  %s", index, string.sub(tostring(row.name), 1, 20), tostring(row.score)))
 	end
-	if #lines == 0 then table.insert(lines, "Finish a round to set the first record!") end
+	if #lines == 0 then table.insert(lines, "No runs yet today • be the first!") end
 	if weekly and weekly[1] then
 		table.insert(lines, "")
 		table.insert(lines, string.format("THIS WEEK: %s  •  %s", string.sub(tostring(weekly[1].name), 1, 20), tostring(weekly[1].score)))

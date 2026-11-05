@@ -14,6 +14,18 @@ player.carry=0; player.biome=2
 check(not Rules.canCapture(player,creature,1,10,8), "cross arena capture rejected")
 player.biome=1; player.position.x=0/0
 check(not Rules.canCapture(player,creature,1,10,8), "NaN rejected")
+player.position.x=0
+-- Daily Stampede ownership: trial Sparks are private both ways.
+player.userId=7
+local trialSpark={claimed=false,biome=1,position={x=1,y=0,z=1},trialOwner=7}
+check(Rules.canCapture(player,trialSpark,1,10,8), "owner may catch own trial Spark")
+trialSpark.trialOwner=8
+check(not Rules.canCapture(player,trialSpark,1,10,8), "another runner's trial Spark rejected")
+player.mode="trial"
+check(not Rules.canCapture(player,{claimed=false,biome=1,position={x=1,y=0,z=1}},1,10,8), "trial runner cannot catch shared Sparks")
+trialSpark.trialOwner=7
+check(Rules.canCapture(player,trialSpark,1,10,8), "trial runner catches own course")
+player.mode=nil; player.userId=nil
 player.position.x=0; player.suspiciousUntil=3
 check(not Rules.canCapture(player,creature,1,10,8), "teleport quarantine")
 player.suspiciousUntil=0; player.ready=false

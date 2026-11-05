@@ -42,4 +42,18 @@ local failing=Services.leaderboard(function() error("throttled") end,{"meadow"},
 check(failing.submit(1,"meadow",50,1)==0 and failing.failures==2,"Submit failure contained")
 local kept=failing.refresh(1,function() return "x" end)
 check(kept.meadow and #kept.meadow.alltime==0 and failing.failures==4,"Refresh failure contained")
+-- Daily Stampede board (D16): per UTC day, max kept, invalid input refused, failures contained.
+local daily=Services.leaderboard(Services.memoryOrderedStore(),{"meadow"},function() return 1 end)
+check(daily.submitDaily(1,20000,700) and daily.submitDaily(2,20000,1200) and daily.submitDaily(1,20000,300),"Daily writes accepted")
+check(not daily.submitDaily(3,20000,0/0) and not daily.submitDaily(3,20000.5,10) and not daily.submitDaily("x",20000,10)
+	and not daily.submitDaily(3,20000,-1) and not daily.submitDaily(3,20000,20000000),"Invalid daily submissions refused")
+local rows=daily.refreshDaily(20000,function(id) return "P"..id end)
+check(#rows==2 and rows[1].userId==2 and rows[1].score==1200 and rows[2].userId==1 and rows[2].score==700 and rows[1].rank==1,"Daily board sorted, best kept")
+check(daily.daily.day==20000 and #daily.refreshDaily(20001,function() return "x" end)==0 and daily.daily.day==20001,"New day starts an empty board")
+for i=10,30 do daily.submitDaily(i,20002,i*10) end
+check(#daily.refreshDaily(20002,function() return "x" end)==10,"Daily top 10 only")
+local dailyFail=Services.leaderboard(function() error("throttled") end,{"meadow"},function() return 1 end)
+check(not dailyFail.submitDaily(1,5,50) and dailyFail.failures==1,"Daily submit failure contained")
+dailyFail.daily={day=5,rows={{rank=1,userId=9,score=10,name="kept"}}}
+check(dailyFail.refreshDaily(5,function() return "x" end)[1].name=="kept" and dailyFail.failures==2,"Daily refresh failure keeps last good rows")
 print("PASS SparkServices: "..n.." assertions (analytics/leaderboard doubles; no platform calls)")

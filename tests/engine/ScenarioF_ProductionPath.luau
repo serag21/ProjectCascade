@@ -38,15 +38,20 @@ for _, step in ipairs({"join", "first_action", "first_catch", "first_bank", "fir
 	check(funnel[step] ~= nil, "Funnel step " .. step)
 end
 check(economy > 0 and custom > 0, "Economy/custom analytics logged (" .. economy .. "/" .. custom .. ")")
--- Leaderboard write on the new record and periodic refresh.
+-- D16: normal-round scores never reach a public board; only the Daily Stampede
+-- board is read (production OrderedDataStore path) and shown on records boards.
 e.advance(125)
-local board = e.stores["ordered:SparkBest_meadow_v1:global"]
-check(board ~= nil and e.recOf(board).internal.values["6001"] == s.mastery.score, "All-time leaderboard written with round score")
-local weeklyFound = false
-for key in pairs(e.stores) do if string.find(key, "SparkWeekly_meadow_", 1, true) then weeklyFound = true end end
-check(weeklyFound, "Weekly leaderboard written")
+local wroteNormal, dailyOpened = false, false
+for key, store in pairs(e.stores) do
+	if string.find(key, "SparkBest_", 1, true) or string.find(key, "SparkWeekly_", 1, true) then
+		if e.recOf(store).internal.values["6001"] ~= nil then wroteNormal = true end
+	end
+	if string.find(key, "ordered:SparkDaily_", 1, true) then dailyOpened = true end
+end
+check(not wroteNormal, "Normal-round score stays off public boards (D16)")
+check(dailyOpened, "Daily Stampede board refreshed from the production ordered store")
 local latest = h:state(p)
-check(latest.boards == nil or type(latest.boards) == "table", "Boards payload shape")
+check(type(latest.trial) == "table" and (latest.trial.board == nil or type(latest.trial.board) == "table"), "Daily board payload shape")
 -- Leave: final release clears the lease so another server may load at once.
 e.removePlayer(p)
 e.advance(3)

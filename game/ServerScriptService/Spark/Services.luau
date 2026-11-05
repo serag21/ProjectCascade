@@ -86,6 +86,42 @@ function Services.leaderboard(provider, biomeIds, weekOf)
 		self.version += 1
 		return self.boards
 	end
+	-- Daily Stampede board (D16): the ONLY public leaderboard. One OrderedDataStore
+	-- per UTC day; written only with server-finished, validated trial scores.
+	self.daily = {day = -1, rows = {}}
+	local function dailyName(day) return "SparkDaily_" .. tostring(day) .. "_v1" end
+	function self.submitDaily(userId, day, score)
+		if type(userId) ~= "number" or type(day) ~= "number" or day % 1 ~= 0 or type(score) ~= "number"
+			or score ~= score or score <= 0 or score > 10000000 then return false end
+		local ok = pcall(function()
+			provider(dailyName(day)):UpdateAsync(tostring(userId), function(old)
+				local previous = if type(old) == "number" then old else 0
+				if score <= previous then return nil end
+				return math.floor(score)
+			end)
+		end)
+		if not ok then self.failures += 1 end
+		return ok
+	end
+	function self.refreshDaily(day, nameOf)
+		local rows = {}
+		local ok = pcall(function()
+			local pages = provider(dailyName(day)):GetSortedAsync(false, 10)
+			for rank, entry in ipairs(pages:GetCurrentPage()) do
+				local userId = tonumber(entry.key)
+				if userId and type(entry.value) == "number" then
+					table.insert(rows, {rank=rank, userId=userId, score=math.floor(entry.value), name=nameOf(userId)})
+				end
+			end
+		end)
+		if not ok then
+			self.failures += 1
+			if self.daily.day == day then return self.daily.rows end
+		end
+		self.daily = {day = day, rows = rows}
+		self.version += 1
+		return rows
+	end
 	return self
 end
 

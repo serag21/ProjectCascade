@@ -14,7 +14,9 @@ end
 check(h.world ~= nil and h.world:IsA("Model"), "SparkWorld built")
 local arenas = 0
 for _, child in ipairs(h.world:GetChildren()) do if child:GetAttribute("BiomeIndex") then arenas += 1 end end
-check(arenas == 3, "Three arenas (" .. arenas .. ")")
+check(arenas == 4, "Three shared arenas + Trial Grounds (" .. arenas .. ")")
+local trialGrounds = h.world:FindFirstChild("trials")
+check(trialGrounds ~= nil and trialGrounds:GetAttribute("BiomeIndex") == 4, "Trial Grounds is arena 4 (x=900)")
 local creatures = h:creatures()
 check(#creatures == 54, "54 herd creatures (" .. #creatures .. ")")
 local species = {}

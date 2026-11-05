@@ -20,8 +20,8 @@ function Harness.boot(options)
 	local engine = Fake.new({studio = options.studio ~= false, echo = options.echo})
 	engine.mount(Sources)
 	engine.startServer()
-	-- World.build and Main's herd seeding yield across a few frames.
-	engine.advance(options.bootSeconds or 1)
+	-- World.build (3 arenas + Trial Grounds) and herd seeding yield across frames.
+	engine.advance(options.bootSeconds or 2)
 	local h = {engine = engine, states = {}, feedback = {}}
 	local rs = engine.service("ReplicatedStorage")
 	local shared = rs:FindFirstChild("Spark")

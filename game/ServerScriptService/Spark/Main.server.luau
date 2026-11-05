@@ -19,6 +19,7 @@ local Progression = require(Shared.Progression)
 local Cycle = require(Shared.Cycle)
 local HerdNet = require(Shared.HerdNet)
 local Cosmetics = require(Shared.Cosmetics)
+local Trial = require(Shared.Trial)
 local World = require(script.Parent.World)
 local Persistence = require(script.Parent.Persistence)
 local Services = require(script.Parent.Services)
@@ -44,6 +45,12 @@ local Action, State, Feedback = remote("Action"), remote("State"), remote("Feedb
 local HerdFeed = Instance.new("UnreliableRemoteEvent")
 HerdFeed.Name = "HerdNet"; HerdFeed.Parent = remotes
 local world = World.build(Config)
+-- Daily Stampede (D16, plan §6.4): a private Trial Grounds arena beyond the shared
+-- ones. Its look follows the boot day's biome; the course itself always follows
+-- the current UTC day (Trial.plan), so gameplay never goes stale on long servers.
+local SHARED_ARENAS = #Config.Biomes
+World.buildTrials(world, Config, Trial.plan(Trial.day(os.time())).biome)
+local TRIAL_ARENA = world.trialIndex
 local creaturesFolder = world.root:FindFirstChild("Creatures") or Instance.new("Folder")
 creaturesFolder.Name = "Creatures"; creaturesFolder.Parent = world.root
 local staticsFolder = Instance.new("Folder")
@@ -214,8 +221,23 @@ local function clearStarters(userId)
 	end
 	for owner,s in pairs(sessions) do if owner.UserId==userId then s.starterRemaining=0 end end
 end
+local function clearTrial(userId)
+	for id,c in pairs(herd) do
+		if c.trialOwner==userId then c.claimed=true; c.model:Destroy(); herd[id]=nil end
+	end
+end
 local issueStarters,spawnCreature
 local clearPersonal,onRoundRecorded
+local settleTrial,startTrial,leaveTrial
+-- The trial arena has one constant rhythm: no shared phase shifts, no intermission.
+local TRIAL_EVENT={name="DAILY STAMPEDE",speedScale=1,turnScale=1,remaining=0,phase=0}
+local TRIAL_REJECTION_LIMIT=6 -- movement corrections above this keep a run off the public board
+local trialPlans={day=-1}
+local function trialPlanFor(day)
+	if trialPlans.day~=day then trialPlans={day=day,plan=Trial.plan(day)} end
+	return trialPlans.plan
+end
+local dailyDirty=false
 -- Synchronized cycles (Cycle.luau): "Playing" is a scored round ending at the
 -- shared buzzer; "Warmup" is free catching until the next cycle starts.
 local function roundPlaying(s,now)
@@ -228,18 +250,82 @@ end
 local function sweepsAllowed(s) return (s.roundsAtStart or 0)>=1 end
 local function staticsAllowed(s) return (s.roundsAtStart or 0)>=2 end
 local function hazardFor(s,now)
-	return if scoredRound(s,now) and sweepsAllowed(s) and s.hazardStarted and s.challenge
+	return if s.mode~="trial" and scoredRound(s,now) and sweepsAllowed(s) and s.hazardStarted and s.challenge
 		then ArenaEvents.hazard(now-s.hazardStarted,s.challenge.difficulty,s.biome,stats(s).sweepWarning) else {visible=false,active=false}
+end
+local function trialElapsed(s,now) return math.clamp(now-(s.started or now),0,Trial.RunSeconds) end
+local NO_ENCOUNTER={visible=false,active=false}
+-- Meadow/Aurora trial: the shared gate path, shifted so it opens 25 s into the run.
+local function trialGate(s,now)
+	local tr=s.trial
+	if s.mode~="trial" or not tr or tr.plan.encounter=="stampede" or not scoredRound(s,now) then return NO_ENCOUNTER end
+	local gate=Encounters.gate(trialElapsed(s,now)+30,if tr.plan.biome==3 then 3 else 1)
+	if gate.visible then gate.position=world.arenas[TRIAL_ARENA].origin+Vector3.new(gate.x,0.3,gate.z) end
+	return gate
+end
+-- Canyon trial: exactly one telegraphed Stampede Run at plan.runAt.
+local function trialRun(s,now)
+	local tr=s.trial
+	if s.mode~="trial" or not tr or tr.plan.encounter~="stampede" or not scoredRound(s,now) then return NO_ENCOUNTER end
+	local sch=Trial.schedule(trialElapsed(s,now),tr.plan)
+	if not sch.runWarning and not sch.runActive then return NO_ENCOUNTER end
+	local lane=Encounters.Runs[1]
+	local origin=world.arenas[TRIAL_ARENA].origin
+	return {visible=true,active=sch.runActive,warning=sch.runWarning,run=1,
+		from={x=lane.from.x,z=lane.from.z},to={x=lane.to.x,z=lane.to.z},
+		fromPosition=origin+Vector3.new(lane.from.x,0.3,lane.from.z),toPosition=origin+Vector3.new(lane.to.x,0.3,lane.to.z),
+		progress=sch.runProgress,seconds=if sch.runActive then tr.plan.runAt+Trial.RunLength-sch.elapsed else tr.plan.runAt-sch.elapsed,
+		name="STAMPEDE RUN",cue="DASH THROUGH THE LANE"}
+end
+local function trialDescribe(s,now)
+	local tr=s.trial
+	if not tr then return {phase="DAILY STAMPEDE",next=nil,nextIn=0} end
+	local e=trialElapsed(s,now)
+	local stampede=tr.plan.encounter=="stampede"
+	local name=if stampede then "STAMPEDE RUN" else "SPARK GATE"
+	local from=if stampede then tr.plan.runAt-Trial.RunWarning else 22
+	local to=if stampede then tr.plan.runAt+Trial.RunLength else 55
+	if e<from then return {phase="DAILY STAMPEDE",next=name,nextIn=from-e} end
+	if e<to then return {phase=name,next="GOLDEN SPARK",nextIn=math.max(0,tr.plan.goldenAt-e)} end
+	if e<tr.plan.goldenAt then return {phase="DAILY STAMPEDE",next="GOLDEN SPARK",nextIn=tr.plan.goldenAt-e} end
+	return {phase="GOLDEN FINALE",next=nil,nextIn=0}
+end
+local function trialAvailable(s)
+	if not s.ready or not s.profile then return false,"Loading your collection" end
+	if s.profile.rounds<2 then return false,string.format("Finish %d more round%s to unlock",2-s.profile.rounds,if s.profile.rounds==1 then "" else "s") end
+	return true,nil
+end
+local function trialInfo(s,includeBoard)
+	local day=Trial.day(os.time())
+	local plan=trialPlanFor(day)
+	local t=s.profile.trial
+	local runsToday=if t.runsDay==day then t.runsToday else 0
+	local available,reason=trialAvailable(s)
+	local board=nil
+	if includeBoard then
+		board={}
+		if leaderboard.daily.day==day then
+			for index,row in ipairs(leaderboard.daily.rows) do board[index]={rank=row.rank,name=row.name,score=row.score,userId=row.userId} end
+		end
+	end
+	return {available=available,reason=reason,day=day,biome=plan.biome,biomeId=plan.biomeId,encounter=plan.encounter,
+		best=if t.day==day then t.best else 0,runsToday=runsToday,xpRunsLeft=math.max(0,Trial.XpRunsPerDay-runsToday),
+		rewardedToday=t.rewardedDay==day,medals=Trial.Medals,board=board,active=s.mode=="trial" and s.phase=="Playing",
+		seconds=Trial.RunSeconds,firstGlow=Trial.FirstRunGlow,firstXp=Trial.FirstRunXp}
 end
 local function objective(s)
 	if not s.ready then return "Connecting your collection…" end
 	local now=os.clock()
+	if s.phase=="Results" and s.mode=="trial" then
+		return "DAILY STAMPEDE done • RETRY to beat your best • LEAVE to rejoin the stampede"
+	end
 	if s.phase=="Results" then
 		return string.format("Next stampede in %ds • check Goals and Upgrades • %s",math.max(0,math.ceil((s.resultsUntil or now)-now)),s.saveStatus)
 	end
 	if s.phase=="SitOut" then return "Taking a break • press PLAY to join the stampede" end
 	if #s.carry > 0 then return "Bring your parade to the glowing BANK gate" end
 	if (s.starterRemaining or 0)>0 then return "CATCH your first Sparks • then chase into the arena" end
+	if s.mode=="trial" then return "DAILY STAMPEDE • same course for everyone today • chain, dash, bank!" end
 	if s.phase=="Warmup" then
 		return string.format("WARM-UP • catch freely • the stampede starts in %ds",math.max(0,math.ceil((s.endsAt or now)-now)))
 	end
@@ -260,14 +346,15 @@ local function send(player,s)
 	player:SetAttribute("SparkSaveStatus",s.saveStatus)
 	player:SetAttribute("SparkStartersRemaining",s.starterRemaining or 0)
 	local mastery=s.challenge and Challenge.snapshot(s.challenge,now)
-	local event=arenaEvent(s.biome)
+	local trialMode=s.mode=="trial"
+	local event=if trialMode then TRIAL_EVENT else arenaEvent(s.biome)
 	local hazard=hazardFor(s,now)
 	if hazard.visible then hazard.position=world.arenas[s.biome].origin+Vector3.new(hazard.x,0.25,hazard.z) end
 	player:SetAttribute("SparkSkillScore",mastery and mastery.score or 0)
 	local ranking={}
 	if s.profile.settings.competition then
 		for other,session in pairs(sessions) do
-			if session.ready and session.challenge and session.profile.settings.competition then
+			if session.ready and session.challenge and session.profile.settings.competition and (session.mode=="trial")==trialMode then
 				table.insert(ranking,{name=other.DisplayName,score=Challenge.snapshot(session.challenge,now).score,userId=other.UserId})
 			end
 		end
@@ -277,16 +364,23 @@ local function send(player,s)
 	-- Encounter descriptors in world space for this player's arena (drawing only).
 	local origin=world.arenas[s.biome].origin
 	local clockNow=arenaClock()
-	local gate=Encounters.gate(clockNow,s.biome)
-	if gate.visible then gate.position=origin+Vector3.new(gate.x,0.3,gate.z) end
-	local run=Encounters.stampede(clockNow,s.biome)
-	if run.visible then
-		run.fromPosition=origin+Vector3.new(run.from.x,0.3,run.from.z); run.toPosition=origin+Vector3.new(run.to.x,0.3,run.to.z)
+	local gate,run
+	if trialMode then
+		gate=trialGate(s,now); run=trialRun(s,now)
+	else
+		gate=Encounters.gate(clockNow,s.biome)
+		if gate.visible then gate.position=origin+Vector3.new(gate.x,0.3,gate.z) end
+		run=Encounters.stampede(clockNow,s.biome)
+		if run.visible then
+			run.fromPosition=origin+Vector3.new(run.from.x,0.3,run.from.z); run.toPosition=origin+Vector3.new(run.to.x,0.3,run.to.z)
+		end
 	end
 	local goldens={}
 	for _,c in pairs(herd) do
-		if c.golden and c.biome==s.biome and #goldens<4 then table.insert(goldens,c.position) end
+		if c.golden and c.biome==s.biome and (not c.trialOwner or c.trialOwner==player.UserId) and #goldens<4 then table.insert(goldens,c.position) end
 	end
+	-- The daily board travels only when it changed (the client keeps the last copy).
+	local dailyChanged=s.dailySent~=leaderboard.version
 	local st=stats(s)
 	-- The full profile is large; resend only after a change (or every 10s as a
 	-- self-healing fallback). The client keeps the last copy it received.
@@ -295,13 +389,14 @@ local function send(player,s)
 	local boardsChanged=s.boardsSent~=leaderboard.version
 	State:FireClient(player,{
 		phase=s.phase,remaining=if s.endsAt and roundPlaying(s,now) then math.max(0,math.ceil(s.endsAt-now)) else 0,
-		cycle=Cycle.at(clockNow),fullRound=s.fullRound==true,sitOut=s.sitOut==true,
+		cycle=if trialMode then nil else Cycle.at(clockNow),fullRound=s.fullRound==true,sitOut=s.sitOut==true,
+		mode=if trialMode then "trial" else "cycle",trial=trialInfo(s,dailyChanged),
 		nextRoundIn=if s.phase=="Results" and s.resultsUntil then math.max(0,math.ceil(s.resultsUntil-now)) else nil,
 		podium=if (s.phase=="Results" or s.phase=="SitOut") and podiums[s.biome] and podiums[s.biome].cycle==s.settledCycle then podiums[s.biome].awards else nil,
 		biome=s.biome,carry=#s.carry,capacity=capacity(s),score=s.score,
 		profile=if includeProfile then s.profile else nil,profileRevision=s.revision,
 		saveStatus=s.saveStatus,event=event.name,arenaEvent=event,objective=objective(s),
-		encounter=Encounters.describe(clockNow,s.biome),gate=gate,stampede=run,goldens=goldens,
+		encounter=if trialMode then trialDescribe(s,now) else Encounters.describe(clockNow,s.biome),gate=gate,stampede=run,goldens=goldens,
 		stats={captureRadius=st.captureRadius,capacity=st.capacity,chainSeconds=st.chainSeconds,heat=st.heat,
 			scoreMultiplier=st.scoreMultiplier,perks=st.perks,goldenCompass=st.goldenCompass,maxMultiplier=st.maxMultiplier,
 			staticCap=st.staticCap},
@@ -313,22 +408,21 @@ local function send(player,s)
 		mastery=mastery,personalBest=s.newPersonalBest or false,arenaBest=s.newArenaBest or false,ranking=ranking,
 		startersRemaining=s.starterRemaining or 0,
 		hazard=hazard,
-		rally=ArenaRally.snapshot(rallies[s.biome],now,player.UserId),
+		rally=if trialMode then nil else ArenaRally.snapshot(rallies[s.biome],now,player.UserId),
 		bankPosition=world.arenas[s.biome].bank,ready=s.ready,
 		captureCooldown=st.captureCooldown,dashCooldown=dashCooldown(s),
 		cooldowns={capture=math.max(0,st.captureCooldown-(now-(s.buckets.capture or -math.huge))),
 			dash=math.max(0,dashCooldown(s)-(now-(s.buckets.dash or -math.huge)))},
 	})
 	s.boardsSent=leaderboard.version
+	s.dailySent=leaderboard.version
 end
 onRoundRecorded=function(player,s,summary,result)
 	analytics.custom(player,"round_heat_"..(result.heat or 0),summary.score)
 	if summary.golden and summary.golden>0 then analytics.custom(player,"golden_catch",summary.golden) end
 	for _,perk in ipairs(stats(s).perks) do analytics.custom(player,"perk_"..perk,1) end
-	if result.newRecord and summary.score>0 then
-		local biomeId=Config.Biomes[s.challengeBiome].id
-		task.spawn(function() leaderboard.submit(player.UserId,biomeId,summary.score,os.time()) end)
-	end
+	-- D16: normal-round scores stay personal (records + podium); only the
+	-- normalized Daily Stampede writes a public board.
 	if result.rankAfter>result.rankBefore then
 		feedback(player,"Quest","RANK UP! Rank "..result.rankAfter..(if #result.unlocks>0 then " • "..result.unlocks[1] else ""))
 	end
@@ -369,6 +463,7 @@ local function validApproach(player,s)
 	local valid,reason=Rules.movement(s.motion,xyz(root.Position),now,{origin=xyz(arena.origin),radius=78,
 		minY=arena.origin.Y-4,maxY=arena.origin.Y+24,speed=speed(s)+2,burst=10})
 	s.suspiciousUntil=s.motion.blockedUntil or 0
+	if not valid and s.mode=="trial" and s.trial then s.trial.rejections+=1 end
 	if not valid then
 		if s.challenge then Challenge.miss(s.challenge,now,"recovery") end
 		if reason=="Arena bounds" or (reason=="Height bounds" and root.Position.Y<arena.origin.Y-4) then
@@ -396,6 +491,17 @@ local function bank(player,s,automatic)
 	local catches=s.carry; s.carry={}
 	local ordinary=if s.challenge then s.challenge.pendingCount else 0
 	parade(player,s)
+	if s.mode=="trial" then
+		-- Daily Stampede banks secure skill only: no glow, album, rally or bursts,
+		-- so unlimited retries can never become a glow farm (rewards: settleTrial).
+		local finaleTrial=not automatic and s.endsAt~=nil and s.endsAt-os.clock()<=Cycle.FinaleSeconds
+		local secured=if s.challenge then Challenge.bank(s.challenge,os.clock(),{finale=finaleTrial}) else 0
+		if not automatic then s.active=true end
+		feedback(player,"Bank",string.format("+%d skill secured%s",secured,if finaleTrial and secured>0 then " • FINALE x1.25" else ""),nil,nil,
+			{count=#catches,skill=secured,glow=0,newSpecies=0,trial=true,position=world.arenas[s.biome].bank})
+		send(player,s)
+		return
+	end
 	local wasNew=s.profile.totalBanked<3
 	local reward,newSpecies=Profile.bank(s.profile,catches)
 	if s.profile.totalBanked>=3 then clearStarters(player.UserId) end
@@ -455,6 +561,7 @@ local beginRound
 -- Shared buzzer for this session's round. Warm-ups end into the next full round;
 -- scored rounds bank, record and move to Results until the next cycle starts.
 local function settleRound(player,s,now)
+	if s.mode=="trial" then return settleTrial(player,s,now) end
 	if (s.phase~="Playing" and s.phase~="Warmup") or roundPlaying(s,now) then return false end
 	if s.phase=="Warmup" then
 		-- Glow and album from warm-up catches are kept; no score, rounds or records.
@@ -552,13 +659,171 @@ local function startNow(player,s)
 	s.sitOut=false; s.idleRounds=0
 	beginRound(player,s,Cycle.joinPlan(arenaClock()))
 end
+-- BEGIN DAILY STAMPEDE
+-- Seeded solo run (plan §6.4): same spawns, respawn order, encounter, golden moment
+-- and normalized rules for every player on a UTC day. Outside the shared cycle.
+local function spawnTrialSpark(player,s,def,spot,options)
+	options=options or {}
+	return spawnCreature(TRIAL_ARENA,nil,nil,{def=def,extra=true,trialOwner=player.UserId,trialPlan=options.trialPlan,
+		golden=options.golden,runner=options.runner,expiresAt=options.expiresAt,
+		seed=options.seed,heading=options.heading,
+		position=options.position or world.arenas[TRIAL_ARENA].origin+Vector3.new(spot.x,2.2,spot.z)})
+end
+startTrial=function(player,s)
+	local ok,reason=trialAvailable(s)
+	if not ok then feedback(player,"Hint","Daily Stampede: "..tostring(reason)); send(player,s); return end
+	local now=os.clock()
+	if s.mode~="trial" and s.phase=="Playing" then
+		feedback(player,"Hint","Finish this round first • the Daily Stampede opens between rounds"); send(player,s); return
+	end
+	if s.trial and now-s.trial.startedAt<1.5 then return end -- retry spam guard
+	if s.mode~="trial" then
+		-- Leaving the shared cycle keeps any warm-up glow: bank the parade first.
+		clearPersonal(player,s)
+		if #s.carry>0 then bank(player,s,true) end
+		s.trialReturnBiome=s.biome
+	end
+	clearTrial(player.UserId); clearStarters(player.UserId); clearPersonal(player,s)
+	local day=Trial.day(os.time())
+	local plan=trialPlanFor(day)
+	local t=s.profile.trial
+	s.mode="trial"; s.biome=TRIAL_ARENA; s.challengeBiome=plan.biome
+	s.trial={day=day,plan=plan,rng=Random.new(plan.seed),serial=0,rejections=0,startedAt=now,
+		goldenSpawned=false,runSpawned=false,runWarned=false,gateWarned=false}
+	s.phase="Playing"; s.started=now; s.endsAt=now+Trial.RunSeconds; s.fullRound=false; s.cycleIndex=nil
+	s.carry={}; s.score=0; s.buckets={}; s.roundCatches=0; s.active=true; s.lastSummary=nil; s.sitOut=false
+	s.stats=Trial.stats(); s.roundHeat=0; s.lastResult=nil; s.newPersonalBest=false; s.newArenaBest=false
+	-- Fixed difficulty for everyone; the round goal rotates by day. Ghost splits vs today's best.
+	s.challenge=Challenge.new(7+day%12,if t.day==day then t.bestRun else nil,s.stats)
+	s.hazardStarted=nil; s.hazardUntil=0; s.hazardNext=0; s.eventPhase=nil; s.starterRemaining=0
+	parade(player,s); teleport(player,s)
+	for k,spot in ipairs(plan.spawns) do
+		if species[spot.species] then
+			local spark=spawnTrialSpark(player,s,species[spot.species],spot,{trialPlan=true,seed=(k*3.7)%20,heading=(k*1.31)%(math.pi*2)})
+			if spark then spark.model:SetAttribute("TrialSlot",k) end
+		end
+	end
+	feedback(player,"Round",string.format("DAILY STAMPEDE! Same course for everyone today • %ds",Trial.RunSeconds),nil,nil,{trial=true,cycleStart=true})
+	hintOnce(player,s,"trial","DAILY STAMPEDE: one fair course for everyone today • upgrades and perks don't count • RETRY anytime")
+	analytics.custom(player,"daily_stampede_start",1)
+	send(player,s)
+end
+leaveTrial=function(player,s)
+	if s.mode~="trial" then send(player,s); return end
+	clearTrial(player.UserId); clearPersonal(player,s)
+	-- Trial catches never pay glow, so dropping an unbanked trial parade loses nothing saved.
+	s.carry={}; parade(player,s)
+	s.mode=nil; s.trial=nil
+	s.biome=s.trialReturnBiome or 1; s.challengeBiome=s.biome; s.trialReturnBiome=nil
+	s.stats=statsFor(s)
+	feedback(player,"Hint","Back to the stampede!")
+	startNow(player,s)
+end
+settleTrial=function(player,s,now)
+	if s.phase~="Playing" or roundPlaying(s,now) then return false end
+	local tr=s.trial
+	if not tr then return false end
+	clearTrial(player.UserId); clearPersonal(player,s)
+	local forfeited=Challenge.buzzer(s.challenge,now)
+	bank(player,s,true)
+	Challenge.finish(s.challenge,now)
+	local summary=Challenge.snapshot(s.challenge,now)
+	local score=math.floor(summary.score)
+	local profile=s.profile
+	local t=profile.trial
+	local day=tr.day
+	if t.runsDay~=day then t.runsDay=day; t.runsToday=0 end
+	if t.day~=day then t.day=day; t.best=0; t.bestRun=nil end
+	t.runsToday=math.min(1000,t.runsToday+1)
+	local catches=s.roundCatches or 0
+	local completed=Cycle.completed(catches)
+	local valid=Trial.validScore(score)
+	local improved=valid and completed and score>t.best
+	if improved then
+		t.best=score
+		t.bestRun=Challenge.sanitizeBestRun({score=score,checkpoints=summary.checkpoints})
+	end
+	local rankBefore=Progression.rank(profile.xp)
+	local glow,xp=0,0
+	if completed and t.rewardedDay~=day then
+		-- First completed run each UTC day: a fixed, small, guaranteed reward.
+		t.rewardedDay=day; glow=Trial.FirstRunGlow; xp+=Trial.FirstRunXp
+		profile.coins=math.min(profile.coins+glow,2000000000)
+		economy(player,s,"source",glow,"daily_stampede")
+	end
+	if completed and valid then xp+=Trial.xpFor(score,t.runsToday) end
+	if xp>0 then Progression.awardXp(profile,xp) end
+	if completed then Progression.recordTrialRun(profile,os.time()) end
+	local rankAfter=Progression.rank(profile.xp)
+	local eligible=valid and completed and score>0 and tr.rejections<=TRIAL_REJECTION_LIMIT
+	if eligible and improved then
+		dailyDirty=true
+		task.spawn(function() leaderboard.submitDaily(player.UserId,day,score) end)
+	end
+	s.lastResult={trial=true,score=score,medal=Trial.medal(score),best=t.best,improved=improved,xp=xp,glow=glow,
+		runsToday=t.runsToday,xpRunsLeft=math.max(0,Trial.XpRunsPerDay-t.runsToday),day=day,catches=catches,
+		buzzer=forfeited,rankBefore=rankBefore,rankAfter=rankAfter,unlocks=Progression.unlocksBetween(rankBefore,rankAfter),
+		achievements={},titles={},full=true,incomplete=not completed,boardEligible=eligible,bestChain=summary.bestChain,
+		reason=if not completed then string.format("Catch %d+ Sparks to finish a run",Cycle.CompletionCatches)
+			elseif not eligible then "This run can't go on the board (movement corrections)" else nil}
+	s.phase="Results"; s.resultsUntil=nil; s.settledCycle=nil
+	s.newPersonalBest=improved; s.newArenaBest=false
+	Lifecycle.markDirty(s)
+	metric(player,s,"first_daily_stampede")
+	analytics.custom(player,"daily_stampede_run",score)
+	if rankAfter>rankBefore then feedback(player,"Quest","RANK UP! Rank "..rankAfter) end
+	feedback(player,"Results",if not completed then s.lastResult.reason
+		else string.format("DAILY STAMPEDE • %d • %s%s",score,Trial.medal(score),if improved then " • NEW BEST TODAY!" else ""),
+		nil,nil,{trial=true})
+	send(player,s)
+	return true
+end
+-- Personal encounter schedule from trial elapsed time (golden, run, gate warning).
+local function updateTrial(player,s,now)
+	local tr=s.trial
+	if s.mode~="trial" or not tr or not scoredRound(s,now) then return end
+	local sch=Trial.schedule(now-s.started,tr.plan)
+	if sch.golden and not tr.goldenSpawned then
+		tr.goldenSpawned=true
+		local spot=Trial.respawn(tr.plan,999)
+		if spot and species[spot.species] then
+			spawnTrialSpark(player,s,species[spot.species],spot,{golden=true,expiresAt=s.endsAt,seed=7,heading=0})
+			feedback(player,"Event","GOLDEN SPARK! Catch it for +250 style")
+		end
+	end
+	if tr.plan.encounter=="stampede" then
+		if sch.runWarning and not tr.runWarned then
+			tr.runWarned=true; feedback(player,"Event","STAMPEDE RUN in 3s • get beside the lane")
+		end
+		if sch.runActive and not tr.runSpawned then
+			tr.runSpawned=true
+			local lane=Encounters.Runs[1]
+			local origin=world.arenas[TRIAL_ARENA].origin
+			local from=origin+Vector3.new(lane.from.x,2.2,lane.from.z)
+			local to=origin+Vector3.new(lane.to.x,2.2,lane.to.z)
+			local direction=(to-from).Unit
+			local side=Vector3.new(-direction.Z,0,direction.X)
+			local speedRun=Encounters.runSpeed()
+			for n=1,Encounters.RunCount do
+				local lag=(n-1)*2.2
+				spawnTrialSpark(player,s,species.ziptail,nil,{position=from-direction*lag+side*((n%3)-1)*2.4,seed=n,
+					runner={direction=direction,speed=speedRun,untilT=now+(to-from).Magnitude/speedRun+lag/speedRun+0.2}})
+			end
+			feedback(player,"Event","STAMPEDE RUN! Dash through the lane")
+		end
+	elseif not tr.gateWarned and trialGate(s,now).visible then
+		tr.gateWarned=true; feedback(player,"Event","SPARK GATE! Chase Sparks so they flee THROUGH the ring")
+	end
+end
+-- END DAILY STAMPEDE
 -- options (all server-owned): def, position, golden, extra (no respawn on catch),
 -- runner={direction,speed,untilT}, expiresAt.
 spawnCreature=function(biome,index,starterPlayer,options)
 	options=options or {}
 	local defs={}
+	local biomeDef=Config.Biomes[biome]
 	for _,def in ipairs(Config.Creatures) do
-		if def.biome==Config.Biomes[biome].id or def.biome==biome then table.insert(defs,def) end
+		if (biomeDef and def.biome==biomeDef.id) or def.biome==biome then table.insert(defs,def) end
 	end
 	if #defs==0 then defs=Config.Creatures end
 	local def=options.def or defs[((index or 1)-1)%#defs+1]
@@ -577,6 +842,11 @@ spawnCreature=function(biome,index,starterPlayer,options)
 	nextCreatureId+=1
 	model.Name="Spark_"..nextCreatureId
 	model:SetAttribute("CreatureId",nextCreatureId); model:SetAttribute("Species",def.id)
+	if options.trialOwner then
+		-- Owner-only like starters: other clients mask it (StarterOwnerId), and the
+		-- owner's aim preview accepts it (Trial). The server enforces capture.
+		model:SetAttribute("StarterOwnerId",options.trialOwner); model:SetAttribute("Trial",true)
+	end
 	if starterPlayer then
 		model:SetAttribute("StarterOwnerId",starterPlayer.UserId)
 		-- One compact cue introduces the group without covering all three silhouettes.
@@ -597,9 +867,10 @@ spawnCreature=function(biome,index,starterPlayer,options)
 	if options.golden then model:SetAttribute("Golden",true) end
 	herd[nextCreatureId]={id=nextCreatureId,def=def,model=model,biome=biome,
 		position=position,home=position,beginner=starterPlayer~=nil or options.beginner==true,starterOwner=starterPlayer and starterPlayer.UserId,
-		heading=if options.runner then math.atan2(options.runner.direction.Z,options.runner.direction.X) else angle,
-		seed=random:NextNumber(0,20),claimed=false,index=index,
-		golden=options.golden==true,extra=options.extra==true,runner=options.runner,expiresAt=options.expiresAt}
+		heading=if options.runner then math.atan2(options.runner.direction.Z,options.runner.direction.X) else (options.heading or angle),
+		seed=options.seed or random:NextNumber(0,20),claimed=false,index=index,
+		golden=options.golden==true,extra=options.extra==true,runner=options.runner,expiresAt=options.expiresAt,
+		trialOwner=options.trialOwner,trialPlan=options.trialPlan==true}
 	return herd[nextCreatureId]
 end
 issueStarters=function(player,s)
@@ -607,7 +878,7 @@ issueStarters=function(player,s)
 	s.starterRemaining=allowance
 	for index=1,allowance do spawnCreature(s.biome,index,player) end
 end
-for biome=1,#world.arenas do
+for biome=1,SHARED_ARENAS do
 	for index=1,18 do spawnCreature(biome,index) end
 	task.wait()
 end
@@ -675,7 +946,22 @@ local function claim(player,s,creature,kind,aim,multiIndex)
 			if ok then feedback(other,"Assist",string.format("ASSIST! +%d style • teamwork",points),nil,creature.position,{tags={"ASSIST"},points=points}) end
 		end
 	end
-	if creature.golden then
+	if creature.trialPlan and s.trial then
+		-- Seeded respawn sequence: the k-th replacement is identical for everyone today.
+		local tr=s.trial
+		tr.serial+=1
+		local k=tr.serial
+		task.delay(0.8,function()
+			if lifecycle.closing or s.trial~=tr or s.mode~="trial" or not scoredRound(s,os.clock()) then return end
+			local spot=Trial.respawn(tr.plan,k)
+			if spot and species[spot.species] then
+				spawnCreature(TRIAL_ARENA,nil,nil,{def=species[spot.species],extra=true,trialOwner=player.UserId,trialPlan=true,
+					seed=(k*7.31)%20,heading=(k*2.17)%(math.pi*2),
+					position=world.arenas[TRIAL_ARENA].origin+Vector3.new(spot.x,2.2,spot.z)})
+			end
+		end)
+	end
+	if creature.golden and not creature.trialOwner then
 		for other,session in pairs(sessions) do
 			if other~=player and session.ready and session.biome==creature.biome then
 				feedback(other,"Event",player.DisplayName.." caught a GOLDEN SPARK!")
@@ -702,8 +988,8 @@ local function capture(player,s)
 	local nearest,best=nil,nil
 	for _,creature in pairs(herd) do
 		local allowed=Rules.canCapture({phase=if roundPlaying(s,now) then "Playing" else s.phase,ready=s.ready,carry=#s.carry,biome=s.biome,userId=player.UserId,totalBanked=s.profile.totalBanked,
-			position=xyz(root.Position),suspiciousUntil=s.suspiciousUntil},
-			{claimed=creature.claimed,biome=creature.biome,starterOwner=creature.starterOwner,position=xyz(creature.position)},now,radius,capacity(s))
+			position=xyz(root.Position),suspiciousUntil=s.suspiciousUntil,mode=s.mode},
+			{claimed=creature.claimed,biome=creature.biome,starterOwner=creature.starterOwner,trialOwner=creature.trialOwner,position=xyz(creature.position)},now,radius,capacity(s))
 		local aim=if allowed then Targeting.measure(xyz(root.Position),xyz(root.CFrame.LookVector),xyz(creature.position),radius) else nil
 		if Targeting.better(aim,creature.id,best,nearest and nearest.id) then
 			nearest=creature; best=aim
@@ -736,8 +1022,8 @@ local function dashSweep(player,s,root,now)
 	local candidates={}
 	for _,creature in pairs(herd) do
 		local allowed=Rules.canCapture({phase=if roundPlaying(s,now) then "Playing" else s.phase,ready=s.ready,carry=#s.carry,biome=s.biome,userId=player.UserId,totalBanked=s.profile.totalBanked,
-			position=here,suspiciousUntil=s.suspiciousUntil},
-			{claimed=creature.claimed,biome=creature.biome,starterOwner=creature.starterOwner,position=xyz(creature.position)},now,500,capacity(s))
+			position=here,suspiciousUntil=s.suspiciousUntil,mode=s.mode},
+			{claimed=creature.claimed,biome=creature.biome,starterOwner=creature.starterOwner,trialOwner=creature.trialOwner,position=xyz(creature.position)},now,500,capacity(s))
 		local hit=if allowed then Targeting.sweep(from,here,xyz(creature.position),st.dashCatchRadius) else nil
 		if hit then table.insert(candidates,{creature=creature,hit=hit}) end
 	end
@@ -778,6 +1064,7 @@ local function scatter(player,s,count,at)
 			local safe=Rules.outsideBank({x=flat.X,y=0,z=flat.Z},{x=0,y=0,z=44})
 			-- Scattered extras always expire so unattended arenas never accumulate them.
 			local spark=spawnCreature(s.biome,nil,nil,{def=def,golden=golden,extra=true,
+				trialOwner=if s.mode=="trial" then player.UserId else nil,
 				position=arena.origin+Vector3.new(safe.x,2.2,safe.z),expiresAt=os.clock()+(if golden then 20 else 30)})
 			if spark then spark.scattered=true end
 		end
@@ -801,12 +1088,18 @@ local function updateStatics(player,s,root,now,step)
 	if not s.statics then clearPersonal(player,s) end
 	local origin=world.arenas[s.biome].origin
 	local st=stats(s)
-	local eligible=scoredRound(s,now) and staticsAllowed(s) and s.hazardStarted~=nil and s.profile.totalBanked>=3
-		and now-s.hazardStarted>=Encounters.staticStart(s.biome)
+	local eligible
+	if s.mode=="trial" then
+		eligible=scoredRound(s,now) and s.trial~=nil and Trial.schedule(now-s.started,s.trial.plan).staticsActive
+	else
+		eligible=scoredRound(s,now) and staticsAllowed(s) and s.hazardStarted~=nil and s.profile.totalBanked>=3
+			and now-s.hazardStarted>=Encounters.staticStart(s.biome)
+	end
+	local draw=if s.mode=="trial" and s.trial then s.trial.rng else random
 	local rel={x=root.Position.X-origin.X,z=root.Position.Z-origin.Z}
 	if eligible and s.staticCount<st.staticCap and now>=s.staticNext then
 		for _=1,6 do
-			local spot=Encounters.staticSpawn(random:NextNumber(0,math.pi*2),random:NextNumber(18,44),rel)
+			local spot=Encounters.staticSpawn(draw:NextNumber(0,math.pi*2),draw:NextNumber(18,44),rel)
 			if spot then
 				s.staticSerial+=1
 				local model=World.static(staticsFolder,player.UserId)
@@ -856,7 +1149,7 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 	if not s or type(action)~="string" or #action>24 then return end
 	-- Ready/Replay are idempotent phase transitions with their own bucket, so a
 	-- catch press in the same instant can never swallow a Replay click.
-	local phaseAction=action=="Ready" or action=="Replay" or action=="Play" or action=="SitOut"
+	local phaseAction=action=="Ready" or action=="Replay" or action=="Play" or action=="SitOut" or action=="Trial"
 	local bucket=if phaseAction then action else "request"
 	if not Rules.allow(s.transport,bucket,os.clock(),if bucket=="request" then 0.08 else 0.25) then return end
 	if action=="Ready" then
@@ -872,6 +1165,11 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 		-- Rounds start automatically each cycle; Play clears Sit out.
 		s.sitOut=false; s.idleRounds=0
 		if s.phase=="SitOut" then startNow(player,s) else send(player,s) end
+	elseif action=="Trial" and type(payload)=="string" and #payload<=8 then
+		if payload=="start" or payload=="retry" then startTrial(player,s)
+		elseif payload=="leave" then leaveTrial(player,s) end
+	elseif action=="SitOut" and s.mode=="trial" then
+		send(player,s)
 	elseif action=="SitOut" then
 		s.sitOut=true
 		if s.phase=="Warmup" then
@@ -915,7 +1213,7 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 	elseif action=="Upgrade" and type(payload)=="string" and #payload<=20 then
 		local ok,message=Profile.buy(s.profile,payload)
 		if ok then
-			Lifecycle.markDirty(s); s.stats=statsFor(s); metric(player,s,"first_upgrade")
+			Lifecycle.markDirty(s); if s.mode~="trial" then s.stats=statsFor(s) end; metric(player,s,"first_upgrade")
 			local _,h=rootOf(player); if h then h.WalkSpeed=speed(s) end
 			economy(player,s,"sink",Config.Upgrades[payload].costs[s.profile.upgrades[payload]],"upgrade_"..payload)
 		end
@@ -953,7 +1251,8 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 		local ok,message,price=Cosmetics.equip(s.profile,payload.category,payload.id)
 		if ok then
 			-- Rank titles and achievement titles are exclusive: one tag text at a time.
-			if payload.category=="title" and payload.id~="" then s.profile.style.title="" end
+			-- (equipping a rank title, or "No title", clears an achievement title too)
+			if payload.category=="title" then s.profile.style.title="" end
 			Lifecycle.markDirty(s); applyStyle(player,s)
 			if price and price>0 then economy(player,s,"sink",price,"cosmetic_"..payload.id) end
 		end
@@ -982,15 +1281,16 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 		local requested={}
 		for index=1,math.min(#payload,3) do if type(payload[index])=="string" and #payload[index]<=16 then table.insert(requested,payload[index]) end end
 		s.profile.loadout=Loadout.sanitize(requested,Progression.rank(s.profile.xp))
-		s.stats=statsFor(s); Lifecycle.markDirty(s)
+		if s.mode~="trial" then s.stats=statsFor(s) end; Lifecycle.markDirty(s)
 		feedback(player,"Upgrade",#s.profile.loadout>0 and ("Perks set: "..#s.profile.loadout) or "Perks cleared"); send(player,s)
 	elseif action=="Heat" and type(payload)=="number" and payload==payload and payload%1==0 and payload>=0 and payload<=Loadout.MaxHeat then
 		if s.phase=="Playing" then feedback(player,"Hint","Change Heat after this round"); return end
 		if payload>Loadout.heatUnlocked(s.profile.records) then feedback(player,"Hint","Earn Silver at the previous Heat first"); return end
-		s.profile.heat=payload; s.stats=statsFor(s); Lifecycle.markDirty(s)
+		s.profile.heat=payload; if s.mode~="trial" then s.stats=statsFor(s) end; Lifecycle.markDirty(s)
 		feedback(player,"Upgrade","Heat "..payload.." • "..Loadout.Heat[payload].name); send(player,s)
 	elseif action=="Biome" and type(payload)=="number" and payload%1==0 and Config.Biomes[payload] then
 		if s.phase=="Playing" then feedback(player,"Hint","Choose your next arena after this round"); return end
+		if s.mode=="trial" then feedback(player,"Hint","Leave the Daily Stampede first"); return end
 		if #s.carry>0 then feedback(player,"Hint","Bank your parade before travelling"); return end
 		if s.profile.totalBanked < Config.Biomes[payload].unlock then feedback(player,"Hint","Bank more Sparks to unlock this arena"); return end
 		clearPersonal(player,s)
@@ -1044,7 +1344,7 @@ end
 
 
 finalize=function(player,s)
-	clearStarters(player.UserId)
+	clearStarters(player.UserId); clearTrial(player.UserId)
 	local deadline=math.min(os.clock()+22,lifecycle.deadline or math.huge)
 	if not s.profile or s.leaseLost then return end
 	if not Lifecycle.beginFinalize(lifecycle,s) then
@@ -1095,7 +1395,7 @@ RunService.Heartbeat:Connect(function(dt)
 		if not s.ready then continue end
 		if not Lifecycle.leaseValid(persistence:leaseDeadline(player.UserId),os.time()) then haltForLease(player,s,"acknowledged lease expired"); continue end
 		-- Observe secured score before this tick's banking; missed historical splits stay absent.
-		if scoredRound(s,now) and s.fullRound then Challenge.checkpoint(s.challenge,now-s.started) end
+		if scoredRound(s,now) and (s.fullRound or s.mode=="trial") then Challenge.checkpoint(s.challenge,now-s.started) end
 		-- Settle expired rounds before movement/hazards: no post-deadline captures or penalties.
 		settleRound(player,s,now)
 		-- Intermission over: everyone in Results starts the next shared round together.
@@ -1103,7 +1403,7 @@ RunService.Heartbeat:Connect(function(dt)
 			if s.sitOut then s.phase="SitOut"; send(player,s)
 			else beginRound(player,s,Cycle.fullRound(arenaClock())) end
 		end
-		if scoredRound(s,now) then
+		if scoredRound(s,now) and s.mode~="trial" then
 			local event=arenaEvent(s.biome)
 			if s.eventPhase~=nil and s.eventPhase~=event.phase and s.profile.totalBanked>=3 then
 				feedback(player,"Round",event.name.." • Read the herd's new rhythm")
@@ -1119,6 +1419,7 @@ RunService.Heartbeat:Connect(function(dt)
 			if accepted and roundPlaying(s,now) then
 				dashSweep(player,s,root,now)
 				updateStatics(player,s,root,now,step)
+				updateTrial(player,s,now)
 			elseif s.staticCount and s.staticCount>0 and not roundPlaying(s,now) then
 				clearPersonal(player,s)
 			end
@@ -1138,14 +1439,17 @@ RunService.Heartbeat:Connect(function(dt)
 		end
 	end
 	local centroids={}
+	-- Herd centroids per arena; each Daily Stampede course herds around its own owner's Sparks.
+	local function centroidKey(c) return if c.trialOwner then "t"..c.trialOwner else c.biome end
 	for _,c in pairs(herd) do
 		if c.starterOwner then continue end
-		local center=centroids[c.biome] or {sum=Vector3.zero,count=0}
-		center.sum+=c.position; center.count+=1; centroids[c.biome]=center
+		local key=centroidKey(c)
+		local center=centroids[key] or {sum=Vector3.zero,count=0}
+		center.sum+=c.position; center.count+=1; centroids[key]=center
 	end
 	local events,gates={},{}
 	local clockNow=arenaClock()
-	for biome in ipairs(world.arenas) do
+	for biome=1,SHARED_ARENAS do
 		events[biome]=arenaEvent(biome)
 		gates[biome]=Encounters.gate(clockNow,biome)
 		-- Shared encounters spawn only when someone is actively playing this arena.
@@ -1217,7 +1521,7 @@ RunService.Heartbeat:Connect(function(dt)
 	-- Shared buzzer passed: build each arena's positive podium from this cycle's rounds.
 	local cycleNow=Cycle.at(clockNow)
 	if cycleNow.phase=="Intermission" then
-		for biome in ipairs(world.arenas) do
+		for biome=1,SHARED_ARENAS do
 			if podiumCycle[biome]~=cycleNow.index then
 				local entries={}
 				for _,s in pairs(sessions) do
@@ -1234,6 +1538,10 @@ RunService.Heartbeat:Connect(function(dt)
 		end
 	end
 	local gateCatches={}
+	local trialGates={}
+	for player,s in pairs(sessions) do
+		if s.ready and s.mode=="trial" then trialGates[player.UserId]=trialGate(s,now) end
+	end
 	for id,c in pairs(herd) do
 		local arena=world.arenas[c.biome]
 		-- Encounter extras leave cleanly: runners at lane end, goldens at cycle end.
@@ -1250,12 +1558,13 @@ RunService.Heartbeat:Connect(function(dt)
 		local time=now+c.seed
 		local direction=Vector3.new(math.cos(c.heading),0,math.sin(c.heading))
 		local nearest,dist,nearestId=nil,26,nil
-		local event=events[c.biome]
+		local event=events[c.biome] or TRIAL_EVENT
 		local eventScale=if c.beginner then .55 else event.speedScale
 		local turnScale=if c.beginner then 1 else event.turnScale
 		if c.golden then eventScale*=1.35 end
 		for player,s in pairs(sessions) do
-			if s.ready and s.phase=="Playing" and s.biome==c.biome and (not c.starterOwner or c.starterOwner==player.UserId) then
+			if s.ready and s.phase=="Playing" and s.biome==c.biome and (not c.starterOwner or c.starterOwner==player.UserId)
+				and (not c.trialOwner or c.trialOwner==player.UserId) then
 				local root=rootOf(player)
 				if root and Rules.validPosition(xyz(root.Position)) then
 					local d=(root.Position-c.position).Magnitude
@@ -1263,7 +1572,7 @@ RunService.Heartbeat:Connect(function(dt)
 				end
 			end
 		end
-		local center=centroids[c.biome]
+		local center=centroids[centroidKey(c)]
 		if c.def.behavior=="herd" and center then
 			local toHerd=center.sum/center.count-c.position; toHerd=Vector3.new(toHerd.X,0,toHerd.Z)
 			if toHerd.Magnitude>7 then direction=direction:Lerp(toHerd.Unit,math.min(1,step*1.5)) end
@@ -1275,7 +1584,7 @@ RunService.Heartbeat:Connect(function(dt)
 		local awareness=if c.golden then 26 elseif c.def.behavior=="wander" then 8 elseif c.def.behavior=="herd" then 15 else 26
 		-- Gate herding: a Spark spooked into fleeing remembers who pushed it (4s).
 		-- Wander/herd types spook within 14 studs for herding even if they barely flee.
-		if nearestId and dist<math.max(awareness,14) and not c.starterOwner then
+		if nearestId and dist<math.max(awareness,14) and (not c.starterOwner or c.trialOwner) then
 			if c.spookedBy~=nearestId then c.assistBy=c.spookedBy; c.assistAt=c.spookedAt end
 			c.spookedBy=nearestId; c.spookedAt=now
 		end
@@ -1332,8 +1641,8 @@ RunService.Heartbeat:Connect(function(dt)
 		end
 		c.position=Vector3.new(c.position.X,2.2+math.sin(time*4)*0.35,c.position.Z)
 		-- Models are no longer moved on the server: HerdNet carries the pose.
-		local gate=gates[c.biome]
-		if gate.active and not c.starterOwner and not c.golden and not c.claimed and c.spookedBy and now-c.spookedAt<=4 then
+		local gate=if c.trialOwner then trialGates[c.trialOwner] else gates[c.biome]
+		if gate and gate.active and (not c.starterOwner or c.trialOwner) and not c.golden and not c.claimed and c.spookedBy and now-c.spookedAt<=4 then
 			local gateCenter=arena.origin+Vector3.new(gate.x,0,gate.z)
 			if Vector3.new(c.position.X-gateCenter.X,0,c.position.Z-gateCenter.Z).Magnitude<=gate.radius then
 				table.insert(gateCatches,c)
@@ -1343,7 +1652,7 @@ RunService.Heartbeat:Connect(function(dt)
 	-- First-encounter coaching (D18): one line the first time each thing happens,
 	-- persisted in the profile so returning players are never lectured again.
 	for player,s in pairs(sessions) do
-		if s.ready and roundPlaying(s,now) and s.profile.totalBanked>=3 then
+		if s.ready and roundPlaying(s,now) and s.profile.totalBanked>=3 and s.mode~="trial" then
 			local gate=gates[s.biome]
 			local run=Encounters.stampede(clockNow,s.biome)
 			if gate.visible then hintOnce(player,s,"gate","SPARK GATE! Chase Sparks so they flee THROUGH the glowing ring") end
@@ -1428,15 +1737,21 @@ local function nameOf(userId)
 	nameCache[userId]=if ok and type(name)=="string" then name else "Player"
 	return nameCache[userId]
 end
+-- Daily Stampede board (D16): every arena's records board shows today's top 5.
+-- One sorted read per refresh: every 120 s, or 15 s after an improved submit.
 task.spawn(function()
 	task.wait(5)
+	local lastRefresh=-math.huge
 	while not lifecycle.closing do
-		local boards=leaderboard.refresh(os.time(),nameOf)
-		for index,biome in ipairs(Config.Biomes) do
-			local board=boards[biome.id]
-			if board then World.setRecords(world.arenas[index].records,board.alltime,board.weekly) end
+		local day=Trial.day(os.time())
+		if dailyDirty or os.clock()-lastRefresh>=120 or leaderboard.daily.day~=day then
+			dailyDirty=false; lastRefresh=os.clock()
+			local rows=leaderboard.refreshDaily(day,nameOf)
+			for index=1,#world.arenas do
+				World.setRecords(world.arenas[index].records,rows,nil,"DAILY STAMPEDE • TODAY'S TOP 5")
+			end
 		end
-		task.wait(120)
+		task.wait(15)
 	end
 end)
 game:BindToClose(function()
@@ -1451,4 +1766,4 @@ game:BindToClose(function()
 	local pending=Lifecycle.pending(lifecycle)
 	if pending>0 then warn("[Spark] shutdown deadline: "..pending.." load/final-save operations remain unconfirmed") end
 end)
-print("[Spark] Staged build booted; 3 arenas, 54 moving Sparks; publishing remains unauthorized")
+print("[Spark] Staged build booted; 3 arenas + Trial Grounds, 54 moving Sparks; publishing remains unauthorized")

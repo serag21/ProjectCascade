@@ -237,6 +237,9 @@ local function grantXp(profile, amount)
 	end
 end
 
+-- Public XP grant (Daily Stampede, events); pays crossed Glow Gift ranks once.
+function Progression.awardXp(profile, amount) grantXp(profile, amount) end
+
 -- Newly earned achievements grant XP once. Returns their ids (stable order).
 function Progression.evaluateAchievements(profile)
 	local earned = {}
