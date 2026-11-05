@@ -47,7 +47,7 @@ local TODAY=20762 -- 2026-11-05 UTC
 
 -- Constants and day/seed ---------------------------------------------------------------
 check(Trial.RunSeconds==75 and Trial.SparkCount==20 and Trial.FirstRunGlow==40 and Trial.FirstRunXp==80 and Trial.XpRunsPerDay==5,"Trial constants")
-check(deepEqual(Trial.Medals,{Bronze=300,Silver=800,Gold=1600,Radiant=2800}),"Trial medals")
+check(deepEqual(Trial.Medals,{Bronze=300,Silver=800,Gold=2000,Radiant=5000}),"Trial medals")
 check(Trial.day(0)==0 and Trial.day(86399.999)==0 and Trial.day(86400)==1 and Trial.day(TODAY*86400+43200)==TODAY,"UTC day index")
 check(Trial.day(1793836800)==TODAY and Trial.day(1793836799)==TODAY-1,"2026-11-05T00:00:00Z boundary")
 for _,bad in ipairs({0/0,math.huge,-math.huge,"86400",nil,{},-5,-86400*3}) do
@@ -152,7 +152,7 @@ check(deepEqual(Trial.plan(TODAY),before),"Default placement restored")
 local expected={heat=0,perks={},captureRadius=11.5,capacity=10,dashCooldown=2.3,captureCooldown=0.65,missLock=0,
 	precisionFacing=0.7,chainSeconds=6,maxMultiplier=4,chainStep=5,dashCatchLimit=3,dashCatchRadius=4.5,haulCap=1.5,
 	popPoints=40,zapScatter=2,herdMultiplier=1,goldenMultiplier=1,goldenCompass=false,dashBonus=20,staticCap=2,
-	staticInterval=8,staticSpeed=8,sweepWarning=2,scoreMultiplier=1,medals={Bronze=300,Silver=800,Gold=1600,Radiant=2800}}
+	staticInterval=8,staticSpeed=8,sweepWarning=2,scoreMultiplier=1,medals={Bronze=300,Silver=800,Gold=2000,Radiant=5000}}
 local stats=Trial.stats()
 check(deepEqual(stats,expected),"Normalized stat values")
 local loadoutCases={Loadout.stats({},{},0),Loadout.stats({boots=3,magnet=3,basket=3},{"reach","rhythm","slipstream"},5),
@@ -166,7 +166,7 @@ check(deepEqual(Trial.stats({boots=3,magnet=3,basket=3},{"reach","rhythm"},5),st
 local mutated=Trial.stats()
 mutated.captureRadius=99; table.insert(mutated.perks,"reach"); mutated.medals.Gold=1
 check(deepEqual(Trial.stats(),expected),"Each stats() is a fresh table")
-check(Trial.Medals.Gold==1600,"Mutating stats().medals never touches Trial.Medals")
+check(Trial.Medals.Gold==2000,"Mutating stats().medals never touches Trial.Medals")
 local challenge=Challenge.new(1,nil,Trial.stats())
 check(challenge.rules.maxMultiplier==4 and challenge.rules.chainStep==5 and challenge.rules.haulCap==1.5
 	and deepEqual(challenge.rules.medals,Trial.Medals),"Challenge accepts normalized rules and trial medals")
@@ -208,8 +208,8 @@ for _,bad in ipairs({-1,0/0,math.huge,1.5,cap+1,"400",nil}) do check(Trial.xpFor
 check(Trial.xpFor(cap,1)==math.floor(2*math.sqrt(cap))+20,"XP bounded at ceiling")
 
 -- Medals ------------------------------------------------------------------------------------------
-local ladder={{0,"Unranked"},{299,"Unranked"},{300,"Bronze"},{799,"Bronze"},{800,"Silver"},{1599,"Silver"},
-	{1600,"Gold"},{2799,"Gold"},{2800,"Radiant"},{cap,"Radiant"}}
+local ladder={{0,"Unranked"},{299,"Unranked"},{300,"Bronze"},{799,"Bronze"},{800,"Silver"},{1999,"Silver"},
+	{2000,"Gold"},{4999,"Gold"},{5000,"Radiant"},{cap,"Radiant"}}
 for _,row in ipairs(ladder) do check(Trial.medal(row[1])==row[2],"Medal at "..row[1]) end
 for _,bad in ipairs({0/0,math.huge,nil,"3000",-5}) do check(Trial.medal(bad)=="Unranked","Bad medal input: "..tostring(bad)) end
 check(Trial.medal(-math.huge)=="Unranked","Negative infinity unranked")
@@ -239,6 +239,32 @@ check(Trial.schedule(10,custom).golden and Trial.schedule(5,custom).staticsActiv
 	and not Trial.schedule(30,custom).runActive,"Plan timings honored")
 check(Trial.schedule(50,{goldenAt=0/0}).golden and not Trial.schedule(49,{goldenAt=-1}).golden
 	and not Trial.schedule(49,{goldenAt=1e9}).golden,"Invalid plan timings fall back")
+
+-- Trial.settle: the shared reward/settlement rules used by Main and the economy model.
+do
+	local Profile=require("../game/ReplicatedStorage/Spark/Profile")
+	local Progression=require("../game/ReplicatedStorage/Spark/Progression")
+	local now=1793750400
+	local day=Trial.day(now)
+	local p=Profile.new()
+	Progression.ensureGoals(p,now)
+	local coins,xp=p.coins,p.xp
+	local r=Trial.settle(p,day,0,2,nil,now)
+	check(not r.completed and r.glow==0 and r.xp==0 and p.trial.runsToday==0 and p.coins==coins and p.xp==xp,"Incomplete run (<3 catches) earns and counts nothing")
+	r=Trial.settle(p,day,900,8,{["22"]={score=300,sampledAt=22}},now)
+	check(r.completed and r.improved and r.glow==Trial.FirstRunGlow and r.xp==Trial.FirstRunXp+Trial.xpFor(900,1),"First completed run pays the daily reward + run XP")
+	check(p.trial.best==900 and p.trial.bestRun.score==900 and p.trial.bestRun.checkpoints["22"].score==300 and p.trial.runsToday==1,"Best run with ghost splits stored")
+	check(p.daily.progress.d_trial==1,"Daily Stampede goal progressed")
+	r=Trial.settle(p,day,700,8,nil,now)
+	check(r.glow==0 and not r.improved and r.xp==Trial.xpFor(700,2) and p.trial.best==900,"Daily glow once per day; lower run keeps best")
+	for _=3,Trial.XpRunsPerDay do Trial.settle(p,day,500,5,nil,now) end
+	local capped=Trial.settle(p,day,5000,9,nil,now)
+	check(capped.xp==0 and capped.improved and p.trial.best==5000 and capped.xpRunsLeft==0,"XP stops after five runs; board-only runs still set bests")
+	local invalid=Trial.settle(p,day,Trial.maxScore()+1,9,nil,now)
+	check(not invalid.valid and not invalid.improved and invalid.xp==0 and p.trial.best==5000,"Impossible score rejected")
+	local nextDay=Trial.settle(p,day+1,400,4,nil,now+86400)
+	check(nextDay.glow==Trial.FirstRunGlow and nextDay.improved and p.trial.best==400 and p.trial.runsToday==1 and p.trial.day==day+1,"New UTC day: fresh best, runs and reward")
+end
 
 print(string.format("PASS SparkTrial: %d assertions (pure seeded plans over 365 days, %d respawns, normalized rules; ceiling %d, bot %d; no DataStore/arena)",
 	n,respawnChecks,cap,final.score))

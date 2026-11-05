@@ -16,7 +16,9 @@ Trial.SparkCount = 20
 Trial.FirstRunGlow = 40
 Trial.FirstRunXp = 80
 Trial.XpRunsPerDay = 5
-Trial.Medals = {Bronze=300, Silver=800, Gold=1600, Radiant=2800}
+-- Calibrated 2026-11-05 by tools/economy_model.luau (synthetic archetypes): novice
+-- median Bronze, regular median Silver / p90 Gold, expert median Gold / p90 Radiant.
+Trial.Medals = {Bronze=300, Silver=800, Gold=2000, Radiant=5000}
 
 -- Run choreography (seconds into the run).
 Trial.GoldenAt = 50
@@ -261,6 +263,45 @@ function Trial.medal(score)
 	if score >= m.Radiant then return "Radiant" elseif score >= m.Gold then return "Gold"
 	elseif score >= m.Silver then return "Silver" elseif score >= m.Bronze then return "Bronze" end
 	return "Unranked"
+end
+
+-- Settle one finished run into the profile (pure; the server and the economy model
+-- share it). Only completed runs (>= Cycle.CompletionCatches catches) count: they
+-- advance runsToday, may set today's best (with ghost-split checkpoints), pay the
+-- once-per-UTC-day reward (+40 glow, +80 XP) and capped XP for the first five runs,
+-- and progress the "Finish today's Daily Stampede" goal. Abandoned runs never get here.
+local MAX_COINS = 2000000000
+function Trial.settle(profile, day, score, catches, checkpoints, now)
+	local Progression = if script then require(script.Parent.Progression) else require("./Progression")
+	local Challenge = if script then require(script.Parent.Challenge) else require("./Challenge")
+	local Cycle = if script then require(script.Parent.Cycle) else require("./Cycle")
+	local t = profile.trial
+	day = dayIndex(day)
+	if t.runsDay ~= day then t.runsDay = day; t.runsToday = 0 end
+	if t.day ~= day then t.day = day; t.best = 0; t.bestRun = nil end
+	local completed = Cycle.completed(catches)
+	local valid = Trial.validScore(score)
+	local result = {completed = completed, valid = valid, improved = false, glow = 0, xp = 0, score = if valid then score else 0}
+	if completed then
+		t.runsToday = math.min(1000, t.runsToday + 1)
+		if valid and score > t.best then
+			t.best = score
+			t.bestRun = Challenge.sanitizeBestRun({score = score, checkpoints = checkpoints})
+			result.improved = true
+		end
+		if t.rewardedDay ~= day then
+			t.rewardedDay = day
+			result.glow = Trial.FirstRunGlow; result.xp += Trial.FirstRunXp
+			profile.coins = math.min(profile.coins + result.glow, MAX_COINS)
+		end
+		if valid then result.xp += Trial.xpFor(score, t.runsToday) end
+		if result.xp > 0 then Progression.awardXp(profile, result.xp) end
+		Progression.recordTrialRun(profile, now)
+	end
+	result.best = t.best
+	result.runsToday = t.runsToday
+	result.xpRunsLeft = math.max(0, Trial.XpRunsPerDay - t.runsToday)
+	return result
 end
 
 -- Run phase at `elapsed` seconds. Plan timings are used when valid, else defaults.

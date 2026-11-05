@@ -9,18 +9,21 @@ local Profile=require("../game/ReplicatedStorage/Spark/Profile")
 local Challenge=require("../game/ReplicatedStorage/Spark/Challenge")
 local Loadout=require("../game/ReplicatedStorage/Spark/Loadout")
 local Progression=require("../game/ReplicatedStorage/Spark/Progression")
+local Cosmetics=require("../game/ReplicatedStorage/Spark/Cosmetics")
+local Trial=require("../game/ReplicatedStorage/Spark/Trial")
 
 local Model={}
-Model.RoundMinutes=(110+12)/60 -- round + results/replay overhead
+Model.RoundMinutes=120/60 -- one synchronized Stampede Cycle (110 s play + 10 s intermission)
+Model.TrialMinutes=(Trial.RunSeconds+10)/60 -- one Daily Stampede run + results/retry
 
 -- Behaviour per archetype (per round). Rates are per catch unless noted.
 Model.Archetypes={
 	{id="novice",catches=14,precision=.2,dash=.1,multiPerRound=0.3,herded=0.4,pops=0.3,zaps=2,golden=.12,miss=.25,bankEvery=5,
-		roundsPerDay=8,maxHeat=0,perks={"reach","pockets","rhythm"}},
+		roundsPerDay=8,maxHeat=0,perks={"reach","pockets","rhythm"},trialRuns=1},
 	{id="regular",catches=24,precision=.4,dash=.25,multiPerRound=2,herded=2,pops=2,zaps=1,golden=.4,miss=.12,bankEvery=7,
-		roundsPerDay=12,maxHeat=2,perks={"slipstream","rhythm","pockets"}},
+		roundsPerDay=12,maxHeat=2,perks={"slipstream","rhythm","pockets"},trialRuns=2},
 	{id="expert",catches=36,precision=.65,dash=.45,multiPerRound=5,herded=4,pops=5,zaps=.4,golden=.8,miss=.05,bankEvery=9,
-		roundsPerDay=20,maxHeat=5,perks={"slipstream","breaker","rhythm"}},
+		roundsPerDay=20,maxHeat=5,perks={"slipstream","breaker","rhythm"},trialRuns=4},
 }
 
 local function lcg(seed)
@@ -71,30 +74,42 @@ local function spend(profile)
 			Progression.style(profile,trail.id)
 		end
 	end
+	-- Then priced formations, bank bursts and name tags (D20 long-tail sink).
+	local rank=Progression.rank(profile.xp)
+	local priced={}
+	for _,item in ipairs(Cosmetics.Items) do
+		if item.price and not Cosmetics.isUnlocked(profile,item) and (not item.rank or rank>=item.rank) then table.insert(priced,item) end
+	end
+	table.sort(priced,function(a,b) return a.price<b.price or (a.price==b.price and a.id<b.id) end)
+	for _,item in ipairs(priced) do
+		if profile.coins>=item.price then Cosmetics.equip(profile,item.category,item.id) end
+	end
 	return bought
 end
 
--- Simulate one 110s round for an archetype. Returns the Challenge summary.
-function Model.round(profile,archetype,rand,roundSerial,now)
-	local biome=chooseArena(profile,roundSerial)
-	-- Heat: highest unlocked up to the archetype's comfort ceiling.
-	profile.heat=math.min(archetype.maxHeat,Loadout.heatUnlocked(profile.records))
-	profile.loadout=Loadout.sanitize(archetype.perks,Progression.rank(profile.xp))
-	local stats=Loadout.stats(profile.upgrades,profile.loadout,profile.heat)
-	local challenge=Challenge.new(profile.rounds+1,nil,stats)
+-- One simulated run of `duration` seconds. opts.trial: normalized Daily Stampede
+-- (no glow/album banking, its own scaling); otherwise a normal shared round.
+local function simulate(profile,archetype,rand,challenge,stats,biome,duration,opts)
 	local species=arenaSpecies[biome]
-	-- Harder heat costs a little consistency (fewer catches, more zaps).
-	local heatPenalty=1-0.04*profile.heat
-	local catches=math.floor(archetype.catches*heatPenalty*math.min(1.25,1+stats.capacity/80))
+	local heat=if opts.trial then 0 else profile.heat
+	local heatPenalty=1-0.04*heat
+	local scale=duration/110*(if opts.trial then 1.1 else 1) -- 20 private Sparks: no competition for targets
+	local catches=math.floor(archetype.catches*scale*heatPenalty*math.min(1.25,1+stats.capacity/80))
 	local carry={}
 	local t=2
-	local spacing=100/math.max(1,catches)
+	local spacing=(duration-10)/math.max(1,catches)
 	local id=0
-	local multi=count(rand,archetype.multiPerRound)
-	local herded=count(rand,if biome~=2 then archetype.herded else 0)
-	local pops=count(rand,archetype.pops)
-	local zaps=count(rand,archetype.zaps*(1+0.15*profile.heat))
-	local golden=rand()<archetype.golden
+	local eventScale=if opts.trial then duration/110 else 1
+	local multi=count(rand,archetype.multiPerRound*eventScale)
+	local herded=count(rand,if biome~=2 then archetype.herded*eventScale else 0)
+	local pops=count(rand,archetype.pops*eventScale)
+	local zaps=count(rand,archetype.zaps*eventScale*(1+0.15*heat))
+	local golden=rand()<archetype.golden*(if opts.trial then 1.5 else 1)
+	local caught=0
+	local function bankNow(at)
+		if not opts.trial then Profile.bank(profile,carry) end
+		carry={}; Challenge.bank(challenge,at,{finale=duration-at<=25})
+	end
 	local events={}
 	for _=1,catches do table.insert(events,"catch") end
 	for _=1,multi do table.insert(events,"multi") end
@@ -107,31 +122,29 @@ function Model.round(profile,archetype,rand,roundSerial,now)
 	local sinceBank=0
 	for _,event in ipairs(events) do
 		t+=spacing*(0.6+rand()*0.6)
-		if t>=109 then break end
-		if #carry>=stats.capacity then
-			Profile.bank(profile,carry); carry={}; Challenge.bank(challenge,t,{finale=110-t<=25}); sinceBank=0
-		end
+		if t>=duration-1 then break end
+		if #carry>=stats.capacity then bankNow(t); sinceBank=0 end
 		local def=species[1+math.floor(rand()*#species)]
 		id+=1
 		if event=="catch" then
 			if rand()<archetype.miss then Challenge.miss(challenge,t,"miss") end
 			Challenge.capture(challenge,t,{distance=if rand()<archetype.precision then 3 else 7,facing=1,value=def.value,starter=false,
 				captureId=id,dashAge=if rand()<archetype.dash then 0.2 else nil})
-			table.insert(carry,def.id); sinceBank+=1
+			table.insert(carry,def.id); sinceBank+=1; caught+=1
 		elseif event=="multi" then
 			for index=1,2 do
 				id+=1
 				Challenge.capture(challenge,t,{distance=2,facing=1,value=def.value,starter=false,captureId=id,kind="dash",multiIndex=index})
 				table.insert(carry,def.id)
 			end
-			sinceBank+=2
+			sinceBank+=2; caught+=2
 		elseif event=="herd" then
 			Challenge.capture(challenge,t,{distance=0,facing=1,value=def.value,starter=false,captureId=id,kind="herd"})
-			table.insert(carry,def.id); sinceBank+=1
+			table.insert(carry,def.id); sinceBank+=1; caught+=1
 		elseif event=="golden" then
 			local rare=species[1+math.floor(rand()*#species)]
 			Challenge.capture(challenge,t,{distance=5,facing=1,value=rare.value,starter=false,captureId=id,kind="golden"})
-			table.insert(carry,"*"..rare.id); sinceBank+=1
+			table.insert(carry,"*"..rare.id); sinceBank+=1; caught+=1
 		elseif event=="pop" then
 			Challenge.award(challenge,t,"pop")
 		elseif event=="zap" then
@@ -142,16 +155,37 @@ function Model.round(profile,archetype,rand,roundSerial,now)
 		end
 		if sinceBank>=archetype.bankEvery and #carry>0 then
 			t+=3 -- walk to the gate
-			Profile.bank(profile,carry); carry={}; Challenge.bank(challenge,t,{finale=110-t<=25}); sinceBank=0
+			bankNow(t); sinceBank=0
 		end
 	end
-	Challenge.buzzer(challenge,110)
-	if #carry>0 then Profile.bank(profile,carry) end
-	local summary=Challenge.finish(challenge,110)
+	Challenge.buzzer(challenge,duration)
+	if #carry>0 then bankNow(duration) end
+	return Challenge.finish(challenge,duration),caught
+end
+
+-- Simulate one 110s round for an archetype. Returns the Challenge summary.
+function Model.round(profile,archetype,rand,roundSerial,now)
+	local biome=chooseArena(profile,roundSerial)
+	-- Heat: highest unlocked up to the archetype's comfort ceiling.
+	profile.heat=math.min(archetype.maxHeat,Loadout.heatUnlocked(profile.records))
+	profile.loadout=Loadout.sanitize(archetype.perks,Progression.rank(profile.xp))
+	local stats=Loadout.stats(profile.upgrades,profile.loadout,profile.heat)
+	local challenge=Challenge.new(profile.rounds+1,nil,stats)
+	local summary=simulate(profile,archetype,rand,challenge,stats,biome,110,{})
 	profile.rounds+=1
 	Profile.recordMastery(profile,Config.Biomes[biome].id,summary,profile.rounds)
 	Progression.applyRound(profile,summary,biome,profile.heat,profile.rounds,now)
 	return summary,biome
+end
+
+-- One Daily Stampede run: normalized rules, settled by the production Trial.settle.
+function Model.trial(profile,archetype,rand,now)
+	local day=Trial.day(now)
+	local plan=Trial.plan(day)
+	local stats=Trial.stats()
+	local challenge=Challenge.new(7+day%12,nil,stats)
+	local summary,caught=simulate(profile,archetype,rand,challenge,stats,plan.biome,Trial.RunSeconds,{trial=true})
+	return Trial.settle(profile,day,math.floor(summary.score),caught,summary.checkpoints,now),summary
 end
 
 function Model.run(archetype,maxRounds,seed)
@@ -159,11 +193,25 @@ function Model.run(archetype,maxRounds,seed)
 	local profile=Profile.new()
 	local now=1793750400
 	local milestones={}
-	local function mark(key) if not milestones[key] then milestones[key]=profile.rounds end end
+	local minutes=0
+	local roundsAt={}
+	local function mark(key) if not milestones[key] then milestones[key]=minutes/60; roundsAt[key]=profile.rounds end end
 	local scores,medals={},{}
+	local trialScores,trialMedals,trialGlow,trialXp={},{},0,0
 	for round=1,maxRounds do
 		if round>1 and (round-1)%archetype.roundsPerDay==0 then now+=86400 end
 		local summary=Model.round(profile,archetype,rand,round,now)
+		minutes+=Model.RoundMinutes
+		-- Daily Stampede after the second round of each day (unlocks after round 2).
+		if (round-1)%archetype.roundsPerDay==1 and profile.rounds>=2 then
+			for _=1,archetype.trialRuns do
+				local settled=Model.trial(profile,archetype,rand,now)
+				minutes+=Model.TrialMinutes
+				table.insert(trialScores,settled.score)
+				local medal=Trial.medal(settled.score); trialMedals[medal]=(trialMedals[medal] or 0)+1
+				trialGlow+=settled.glow; trialXp+=settled.xp
+			end
+		end
 		table.insert(scores,summary.score); medals[summary.medal]=(medals[summary.medal] or 0)+1
 		for _,quest in ipairs(Config.Quests) do Profile.claim(profile,quest.id) end
 		for _,id in ipairs(profile.daily.goals) do Progression.claimGoal(profile,id) end
@@ -190,40 +238,55 @@ function Model.run(archetype,maxRounds,seed)
 			if trail.price and not profile.style.owned[trail.id] then allTrails=false end
 		end
 		if allTrails then mark("allTrails") end
+		local allCosmetics=allTrails
+		for _,item in ipairs(Cosmetics.Items) do
+			if item.price and not Cosmetics.isUnlocked(profile,item) then allCosmetics=false end
+		end
+		if allCosmetics then mark("allCosmetics") end
 		if species>=12 then mark("album12") end
 		if prism>=12 then mark("allPrism") end
 		if radiant>=12 then mark("allRadiant") end
 		if Loadout.heatUnlocked(profile.records)>=1 then mark("heat1") end
 		if Loadout.heatUnlocked(profile.records)>=5 then mark("heat5") end
 	end
-	table.sort(scores)
+	table.sort(scores); table.sort(trialScores)
 	local achievements=0; for _ in pairs(profile.achievements) do achievements+=1 end
-	return {milestones=milestones,median=scores[math.max(1,#scores//2)],p90=scores[math.max(1,math.floor(#scores*.9))],
-		medals=medals,profile=profile,achievements=achievements,rounds=maxRounds}
+	return {milestones=milestones,roundsAt=roundsAt,median=scores[math.max(1,#scores//2)],p90=scores[math.max(1,math.floor(#scores*.9))],
+		medals=medals,profile=profile,achievements=achievements,rounds=maxRounds,hours=minutes/60,
+		trialMedian=trialScores[math.max(1,#trialScores//2)] or 0,trialP90=trialScores[math.max(1,math.floor(#trialScores*.9))] or 0,
+		trialRuns=#trialScores,trialMedals=trialMedals,trialGlow=trialGlow,trialXp=trialXp}
 end
 
-function Model.hours(rounds) return if rounds then rounds*Model.RoundMinutes/60 else nil end
+-- Milestones are stored in hours of play (rounds + Daily Stampede runs).
+function Model.hours(value) return value end
 
-local function fmt(rounds)
-	if not rounds then return "not reached" end
-	return string.format("%d rounds (%.1f h)",rounds,Model.hours(rounds))
+local function fmt(hours,rounds)
+	if not hours then return "not reached" end
+	return string.format("%d rounds (%.1f h)",rounds or 0,hours)
 end
 function Model.report(maxRounds)
 	local lines={"| Milestone | "..table.concat((function() local t={} for _,a in ipairs(Model.Archetypes) do table.insert(t,a.id) end return t end)()," | ").." |",
 		"| --- | --- | --- | --- |"}
 	local results={}
 	for index,a in ipairs(Model.Archetypes) do results[index]=Model.run(a,maxRounds,1000+index) end
-	for _,key in ipairs({"rank2","rank5","rank10","rank15","rank20","rank30","rank40","rank50","canyon","aurora","allUpgrades","album12","allPrism","allRadiant","gilded12","allTrails","heat1","heat5"}) do
+	for _,key in ipairs({"rank2","rank5","rank10","rank15","rank20","rank30","rank40","rank50","canyon","aurora","allUpgrades","album12","allPrism","allRadiant","gilded12","allTrails","allCosmetics","heat1","heat5"}) do
 		local row={key}
-		for index in ipairs(Model.Archetypes) do table.insert(row,fmt(results[index].milestones[key])) end
+		for index in ipairs(Model.Archetypes) do table.insert(row,fmt(results[index].milestones[key],results[index].roundsAt[key])) end
 		table.insert(lines,"| "..table.concat(row," | ").." |")
 	end
 	local med={"median score"}; local p90={"p90 score"}; local ach={"achievements after run"}; local glow={"glow balance after run"}
+	local tmed={"Daily Stampede median (medal)"}; local tp90={"Daily Stampede p90 (medal)"}; local truns={"Daily Stampede runs / glow / XP"}
+	local hours={"hours played"}
 	for index in ipairs(Model.Archetypes) do
-		table.insert(med,tostring(results[index].median)); table.insert(p90,tostring(results[index].p90))
-		table.insert(ach,tostring(results[index].achievements)); table.insert(glow,tostring(results[index].profile.coins))
+		local r=results[index]
+		table.insert(med,tostring(r.median)); table.insert(p90,tostring(r.p90))
+		table.insert(ach,tostring(r.achievements)); table.insert(glow,tostring(r.profile.coins))
+		table.insert(tmed,string.format("%d (%s)",r.trialMedian,Trial.medal(r.trialMedian)))
+		table.insert(tp90,string.format("%d (%s)",r.trialP90,Trial.medal(r.trialP90)))
+		table.insert(truns,string.format("%d / %d / %d",r.trialRuns,r.trialGlow,r.trialXp))
+		table.insert(hours,string.format("%.1f",r.hours))
 	end
-	for _,row in ipairs({med,p90,ach,glow}) do table.insert(lines,"| "..table.concat(row," | ").." |") end
+	for _,row in ipairs({med,p90,ach,glow,tmed,tp90,truns,hours}) do table.insert(lines,"| "..table.concat(row," | ").." |") end
 	return table.concat(lines,"\n"),results
 end
 

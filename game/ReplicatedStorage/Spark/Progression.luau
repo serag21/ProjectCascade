@@ -326,6 +326,20 @@ function Progression.rerollGoal(profile, id)
 	return true, "New goal: "..goalById[replacement].name
 end
 
+-- Active daily/weekly goals that are complete and unclaimed (claim-on-results).
+function Progression.claimable(profile)
+	local list = {}
+	for _, block in ipairs({profile.daily, profile.weekly}) do
+		if type(block) == "table" and type(block.goals) == "table" then
+			for _, id in ipairs(block.goals) do
+				local goal = goalById[id]
+				if goal and not block.claimed[id] and int(block.progress[id]) >= goal.target then table.insert(list, id) end
+			end
+		end
+	end
+	return list
+end
+
 function Progression.claimGoal(profile, id)
 	local goal = type(id) == "string" and goalById[id] or nil
 	if not goal then return false, "Unknown goal" end

@@ -730,38 +730,21 @@ settleTrial=function(player,s,now)
 	local summary=Challenge.snapshot(s.challenge,now)
 	local score=math.floor(summary.score)
 	local profile=s.profile
-	local t=profile.trial
 	local day=tr.day
-	if t.runsDay~=day then t.runsDay=day; t.runsToday=0 end
-	if t.day~=day then t.day=day; t.best=0; t.bestRun=nil end
-	t.runsToday=math.min(1000,t.runsToday+1)
 	local catches=s.roundCatches or 0
-	local completed=Cycle.completed(catches)
-	local valid=Trial.validScore(score)
-	local improved=valid and completed and score>t.best
-	if improved then
-		t.best=score
-		t.bestRun=Challenge.sanitizeBestRun({score=score,checkpoints=summary.checkpoints})
-	end
 	local rankBefore=Progression.rank(profile.xp)
-	local glow,xp=0,0
-	if completed and t.rewardedDay~=day then
-		-- First completed run each UTC day: a fixed, small, guaranteed reward.
-		t.rewardedDay=day; glow=Trial.FirstRunGlow; xp+=Trial.FirstRunXp
-		profile.coins=math.min(profile.coins+glow,2000000000)
-		economy(player,s,"source",glow,"daily_stampede")
-	end
-	if completed and valid then xp+=Trial.xpFor(score,t.runsToday) end
-	if xp>0 then Progression.awardXp(profile,xp) end
-	if completed then Progression.recordTrialRun(profile,os.time()) end
+	-- Shared pure settlement (Trial.settle): once-per-day reward, capped XP, today's best.
+	local settled=Trial.settle(profile,day,score,catches,summary.checkpoints,os.time())
+	local completed,improved,glow,xp=settled.completed,settled.improved,settled.glow,settled.xp
+	if glow>0 then economy(player,s,"source",glow,"daily_stampede") end
 	local rankAfter=Progression.rank(profile.xp)
-	local eligible=valid and completed and score>0 and tr.rejections<=TRIAL_REJECTION_LIMIT
+	local eligible=settled.valid and completed and score>0 and tr.rejections<=TRIAL_REJECTION_LIMIT
 	if eligible and improved then
 		dailyDirty=true
 		task.spawn(function() leaderboard.submitDaily(player.UserId,day,score) end)
 	end
-	s.lastResult={trial=true,score=score,medal=Trial.medal(score),best=t.best,improved=improved,xp=xp,glow=glow,
-		runsToday=t.runsToday,xpRunsLeft=math.max(0,Trial.XpRunsPerDay-t.runsToday),day=day,catches=catches,
+	s.lastResult={trial=true,score=score,medal=Trial.medal(score),best=settled.best,improved=improved,xp=xp,glow=glow,
+		runsToday=settled.runsToday,xpRunsLeft=settled.xpRunsLeft,day=day,catches=catches,
 		buzzer=forfeited,rankBefore=rankBefore,rankAfter=rankAfter,unlocks=Progression.unlocksBetween(rankBefore,rankAfter),
 		achievements={},titles={},full=true,incomplete=not completed,boardEligible=eligible,bestChain=summary.bestChain,
 		reason=if not completed then string.format("Catch %d+ Sparks to finish a run",Cycle.CompletionCatches)
@@ -1241,6 +1224,27 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 			end
 		end
 		if changed then Lifecycle.markDirty(s) end
+		send(player,s)
+	elseif action=="ClaimAll" then
+		-- Claim-on-results: every completed quest and goal in one validated request.
+		local count,total=0,0
+		for _,quest in ipairs(Config.Quests) do
+			if not s.profile.quests[quest.id] and Profile.questProgress(s.profile,quest)>=quest.target then
+				local before=s.profile.coins
+				if Profile.claim(s.profile,quest.id) then
+					count+=1; total+=s.profile.coins-before
+					economy(player,s,"source",s.profile.coins-before,"quest_"..quest.id)
+				end
+			end
+		end
+		for _,id in ipairs(Progression.claimable(s.profile)) do
+			local ok,_,glow=Progression.claimGoal(s.profile,id)
+			if ok then count+=1; total+=glow; economy(player,s,"source",glow,"goal_"..id) end
+		end
+		if count>0 then
+			Lifecycle.markDirty(s)
+			feedback(player,"Quest",string.format("CLAIMED %d reward%s • +%d glow",count,if count==1 then "" else "s",total))
+		end
 		send(player,s)
 	elseif action=="Goal" and type(payload)=="string" and #payload<=24 then
 		local ok,message,glow=Progression.claimGoal(s.profile,payload)

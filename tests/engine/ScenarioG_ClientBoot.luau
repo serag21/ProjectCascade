@@ -76,5 +76,31 @@ h:playRound(p, {timeout = 125})
 e.advance(2)
 h:assertClean("client full round")
 check(h:state(p).phase == "Results", "Results reached with client attached")
+-- Daily Stampede with the client attached: unlock (round 2), run the trial
+-- (arena 4 herd packets, trial HUD/results), then LEAVE through the client's button.
+-- (The button smoke above pressed SIT OUT; PLAY clears it.)
+h:send(p, "Play"); e.advance(0.3)
+check(h:awaitPlaying({p}, 20), "Round 2 starts (" .. tostring(h:state(p).phase) .. ")")
+h:playRound(p, {timeout = 125})
+e.advance(1)
+check(h:state(p).profile.rounds >= 2 and h:state(p).trial.available == true, "Trial unlocked with client attached")
+h:send(p, "Trial", "start"); e.advance(1)
+check(h:state(p).mode == "trial", "Trial run started")
+h:playRound(p, {timeout = 80})
+e.advance(1.5)
+h:assertClean("client trial run")
+local r = h:state(p)
+check(r.phase == "Results" and r.lastResult and r.lastResult.trial, "Trial results reached with client attached")
+local leave, title
+for _, d in ipairs(p.PlayerGui:GetDescendants()) do
+	if d.Name == "TrialLeaveButton" then leave = d end
+	if d.Name == "Title" and d:IsA("TextLabel") and d.Parent and d.Parent.Name == "Results" then title = d.Text end
+end
+check(leave ~= nil and leave.Visible, "Trial results show LEAVE")
+print("INFO client trial results title: " .. tostring(title))
+e.asClient(p, function() e.fire(e.eventSignal(leave, "Activated")) end)
+e.advance(1)
+h:assertClean("client trial leave")
+check(h:state(p).mode == "cycle" and h:state(p).biome == 1, "Client LEAVE returns to the shared cycle")
 h:report("client-boot")
 print("PASS ScenarioG_ClientBoot: " .. Harness.count() .. " checks")

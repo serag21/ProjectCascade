@@ -20,6 +20,7 @@ end)
 local Shared=ReplicatedStorage:WaitForChild("Spark")
 local Config=require(Shared:WaitForChild("Config"))
 local Profile=require(Shared:WaitForChild("Profile"))
+local Progression=require(Shared:WaitForChild("Progression"))
 local Targeting=require(Shared:WaitForChild("Targeting"))
 local Ui=require(script.Parent:WaitForChild("Ui"))
 local Menu=require(script.Parent:WaitForChild("Menu"))
@@ -225,7 +226,7 @@ local function togglePanel(name) menu.open(name) end
 menuButton.Activated:Connect(function() togglePanel(if menu.isOpen() then nil else "Play") end)
 
 -- Results ---------------------------------------------------------------------
-results=make("Frame",gui,{Name="Results",AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.fromOffset(420,512),
+results=make("Frame",gui,{Name="Results",AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.fromOffset(420,560),
 	BackgroundColor3=palette.paper,BorderSizePixel=0,Visible=false,ZIndex=3}); round(results,20)
 local resultScale=make("UIScale",results,{Scale=1})
 local resultTitle=label(results,"WHAT A PARADE!",25,UDim2.fromOffset(20,12),UDim2.new(1,-40,0,36)); resultTitle.TextXAlignment=Enum.TextXAlignment.Center
@@ -243,7 +244,7 @@ local _resultXp,resultXpFill=Ui.bar(results,"XpBar",UDim2.fromOffset(40,262),UDi
 local resultCallouts=label(results,"",13,UDim2.fromOffset(24,276),UDim2.new(1,-48,0,54),palette.purple)
 resultCallouts.Name="Callouts"; resultCallouts.TextXAlignment=Enum.TextXAlignment.Center; resultCallouts.TextYAlignment=Enum.TextYAlignment.Top
 -- Rounds auto-start each shared cycle; this button toggles Sit out / Play.
-replayButton=button(results,"SIT OUT NEXT ROUND",UDim2.fromOffset(20,416),UDim2.new(1,-40,0,44),palette.gold,function()
+replayButton=button(results,"SIT OUT NEXT ROUND",UDim2.fromOffset(20,464),UDim2.new(1,-40,0,44),palette.gold,function()
 	togglePanel(nil)
 	if latest and latest.mode=="trial" then Action:FireServer("Trial","retry")
 	elseif latest and (latest.sitOut or latest.phase=="SitOut") then Action:FireServer("Play") else Action:FireServer("SitOut") end
@@ -253,16 +254,22 @@ local resultCountdown=label(results,"",16,UDim2.fromOffset(20,334),UDim2.new(1,-
 resultCountdown.Name="NextRound"; resultCountdown.TextXAlignment=Enum.TextXAlignment.Center; resultCountdown.Font=Enum.Font.GothamBlack
 local podiumHolder=make("Frame",results,{Name="PodiumHolder",BackgroundTransparency=1,Position=UDim2.fromOffset(0,350),Size=UDim2.new(1,0,0,64)})
 local updatePodium=Podium.mount(podiumHolder,make,round,palette)
-local resultUpgrade=button(results,"UPGRADES",UDim2.fromOffset(20,466),UDim2.new(.5,-26,0,36),palette.mint,function() togglePanel("Upgrades") end)
+-- Claim-on-results (§6.9): every finished goal/quest in one tap, right where the round ends.
+local resultClaim=button(results,"CLAIM REWARDS",UDim2.fromOffset(20,416),UDim2.new(1,-40,0,44),palette.gold,function()
+	Action:FireServer("ClaimAll")
+end)
+resultClaim.Name="ClaimButton"; resultClaim.Visible=false
+local resultUpgrade=button(results,"UPGRADES",UDim2.fromOffset(20,514),UDim2.new(.5,-26,0,36),palette.mint,function() togglePanel("Upgrades") end)
 resultUpgrade.Name="UpgradeButton"
-local resultSetup=button(results,"PLAY SETUP",UDim2.new(.5,6,0,466),UDim2.new(.5,-26,0,36),palette.mint,function() togglePanel("Play") end)
+local resultSetup=button(results,"PLAY SETUP",UDim2.new(.5,6,0,514),UDim2.new(.5,-26,0,36),palette.mint,function() togglePanel("Play") end)
 resultSetup.Name="PlaySetupButton"
 -- Daily Stampede results: instant RETRY (above) or LEAVE back into the shared cycle.
-local resultLeave=button(results,"LEAVE • BACK TO THE STAMPEDE",UDim2.fromOffset(20,466),UDim2.new(1,-40,0,36),palette.mint,function()
+local resultLeave=button(results,"LEAVE • BACK TO THE STAMPEDE",UDim2.fromOffset(20,514),UDim2.new(1,-40,0,36),palette.mint,function()
 	togglePanel(nil); Action:FireServer("Trial","leave")
 end)
 resultLeave.Name="TrialLeaveButton"; resultLeave.Visible=false
 replayButton.NextSelectionDown=resultUpgrade
+resultClaim.NextSelectionDown=replayButton; replayButton.NextSelectionUp=resultClaim
 resultUpgrade.NextSelectionUp=replayButton; resultSetup.NextSelectionUp=replayButton
 resultUpgrade.NextSelectionRight=resultSetup; resultSetup.NextSelectionLeft=resultUpgrade
 for _,child in ipairs(results:GetDescendants()) do if child:IsA("GuiObject") then child.ZIndex=4 end end
@@ -300,9 +307,19 @@ local function renderTrialResults(d,r)
 	resultCountdown.Text=trialBoardLine(d)
 	updatePodium(nil,player.UserId)
 end
+local function claimableCount(profile)
+	local count=#Progression.claimable(profile)
+	for _,quest in ipairs(Config.Quests) do
+		if not profile.quests[quest.id] and Profile.questProgress(profile,quest)>=quest.target then count+=1 end
+	end
+	return count
+end
 local function renderResults(d)
 	local trialMode=d.mode=="trial"
 	resultLeave.Visible=trialMode; resultUpgrade.Visible=not trialMode; resultSetup.Visible=not trialMode
+	local claimable=claimableCount(d.profile)
+	resultClaim.Visible=claimable>0
+	resultClaim.Text=if claimable==1 then "CLAIM 1 REWARD" else string.format("CLAIM %d REWARDS",claimable)
 	if trialMode and type(d.lastResult)=="table" and d.lastResult.trial then renderTrialResults(d,d.lastResult); return end
 	local m=d.mastery
 	local r=d.lastResult
@@ -402,7 +419,7 @@ local function resize()
 	objective.TextScaled=true
 	menuButton.TextSize=if layout.collection.w<158 then 12 else 17
 	toast.Size=UDim2.fromOffset(math.min(500,size.X-24),56); toast.Position=UDim2.new(.5,-math.min(500,size.X-24)/2,.58,-28)
-	resultScale.Scale=math.clamp(math.min((size.X-24)/420,(size.Y-24)/512),0.45,1)
+	resultScale.Scale=math.clamp(math.min((size.X-24)/420,(size.Y-24)/560),0.45,1)
 	local narrow=size.X<500
 	brand.TextSize=if narrow then 13 else 18
 	glow.TextSize=if narrow then 14 else 20
@@ -770,8 +787,13 @@ local function soundId(entry)
 	if type(entry.id)=="string" and entry.id~="" then return entry.id end
 	return nil
 end
+-- The Trial Grounds (arena 4) borrow today's biome look: palette, haze, music, ambience.
+local function styleBiome(data)
+	if data.mode=="trial" and type(data.trial)=="table" and Config.Biomes[tonumber(data.trial.biome) or 0] then return data.trial.biome end
+	return if Config.Biomes[data.biome or 1] then (data.biome or 1) else 1
+end
 local function updateMusic(data)
-	local biome=Config.Biomes[data.biome or 1]
+	local biome=Config.Biomes[styleBiome(data)]
 	local base=audioCatalog and (audioCatalog["music_"..(biome and biome.id or "meadow")] or audioCatalog.music)
 	local layer=audioCatalog and type(base)=="table" and base.finale and audioCatalog[base.finale]
 	local level=math.clamp(tonumber(data.profile.settings.musicVolume) or 0.6,0,1)
@@ -805,7 +827,7 @@ State.OnClientEvent:Connect(function(data)
 	data.profile=cachedProfile
 	if not data.profile then return end -- the first state of a session always carries the profile
 	local previousPhase=latest and latest.phase
-	applyGrade(data.biome,data.profile.settings and data.profile.settings.reducedMotion)
+	applyGrade(styleBiome(data),data.profile.settings and data.profile.settings.reducedMotion)
 	latest=data
 	stateAt=os.clock()
 	local seconds=if data.phase=="Results" then (data.nextRoundIn or 0) else (data.remaining or 0)
@@ -867,6 +889,7 @@ State.OnClientEvent:Connect(function(data)
 	local quality=10
 	pcall(function() local v=UserSettings().GameSettings.SavedQualityLevel.Value; if type(v)=="number" and v>0 then quality=v end end)
 	for index in ipairs(Config.Biomes) do effects.ambience(index,Vector3.new((index-1)*300,0,0),quality) end
+	if type(data.trial)=="table" then effects.ambience(#Config.Biomes+1,Vector3.new(#Config.Biomes*300,0,0),quality,data.trial.biome) end
 	local paradeAttr=player:GetAttribute("SparkParade")
 	if type(paradeAttr)=="string" and paradeAttr~="" then
 		lastParade={}

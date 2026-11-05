@@ -75,6 +75,11 @@ local album1After = 0
 for _ in pairs(r1.profile.collection or {}) do album1After += 1 end
 check(album1After == album1, "Album unchanged by trial runs")
 check(r1.profile.daily.progress.d_trial == 1, "Daily goal 'Finish today's Daily Stampede' progressed")
+local coinsBeforeClaim = r1.profile.coins
+h:send(p1, "ClaimAll"); e.step(0.3)
+local claimed = h:state(p1)
+check(claimed.profile.daily.claimed.d_trial == true and claimed.profile.coins > coinsBeforeClaim, "Claim-on-results claims the finished Daily Stampede goal")
+r1 = claimed
 check(#h:creatures(function(m) return m:GetAttribute("StarterOwnerId") == 9201 end) == 0, "Trial Sparks cleaned up after the run")
 
 -- Retry: same course again; a second finish pays XP but never the daily glow twice.

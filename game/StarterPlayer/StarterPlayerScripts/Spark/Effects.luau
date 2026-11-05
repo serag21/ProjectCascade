@@ -255,8 +255,8 @@ function Effects.new(ctx)
 		{colors={Color3.fromRGB(255,214,170), Color3.fromRGB(240,170,120)}, speed=2.2, rise=0.2, size=0.22, light=0},
 		{colors={Color3.fromRGB(170,160,255), Color3.fromRGB(255,170,240)}, speed=0.8, rise=1.2, size=0.45, light=0.9},
 	}
-	function self.ambience(index, origin, quality)
-		local def = AMBIENCE[index]
+	function self.ambience(index, origin, quality, style)
+		local def = AMBIENCE[style or index] or AMBIENCE[index]
 		if not def or typeof(origin) ~= "Vector3" then return end
 		if not ambience[index] then
 			local field = anchoredPart(folder, "Ambience" .. index, Vector3.new(120, 1, 120), def.colors[1])
