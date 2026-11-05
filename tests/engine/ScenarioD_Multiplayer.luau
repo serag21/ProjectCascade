@@ -57,7 +57,7 @@ end
 print("INFO four-player round: " .. table.concat(totals, " "))
 
 -- Mid-round leave: player c leaves while carrying; final save banks the carry.
-h:send(c, "Replay"); h:send(d, "Replay"); e.advance(0.3)
+check(h:awaitPlaying({c, d}, 15), "Both players start the next shared round together")
 h:playRounds({c, d}, {timeout = 25, bankAt = 99})
 local carrying = h:state(c).carry
 local bankedBefore = h:state(c).profile.totalBanked

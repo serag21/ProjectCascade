@@ -24,6 +24,7 @@ local Targeting=require(Shared:WaitForChild("Targeting"))
 local Ui=require(script.Parent:WaitForChild("Ui"))
 local Menu=require(script.Parent:WaitForChild("Menu"))
 local Effects=require(script.Parent:WaitForChild("Effects"))
+local Podium=require(script.Parent:WaitForChild("Podium"))
 local remotes=Shared:WaitForChild("Remotes")
 local Action=remotes:WaitForChild("Action")
 local State=remotes:WaitForChild("State")
@@ -44,7 +45,7 @@ local function controllerActive()
 end
 local cooldownUntil={Capture=0,Dash=0}
 local function requestAction(action)
-	if (menu and menu.isOpen()) or not latest or latest.phase~="Playing" then return end
+	if (menu and menu.isOpen()) or not latest or (latest.phase~="Playing" and latest.phase~="Warmup") then return end
 	if cooldownUntil[action] and os.clock()<cooldownUntil[action] then return end
 	if action=="Capture" then cooldownUntil.Capture=os.clock()+(latest.captureCooldown or Config.CaptureCooldown) end
 	Action:FireServer(action)
@@ -125,11 +126,11 @@ local function showToast(text,kind)
 end
 
 local function syncOverlays()
-	local playing=latest~=nil and latest.phase=="Playing"
+	local playing=latest~=nil and (latest.phase=="Playing" or latest.phase=="Warmup")
 	local open=menu~=nil and menu.isOpen()
 	controls.Visible=playing and not open
 	bankGuide.Visible=playing and latest.carry>0 and not open
-	if results then results.Visible=latest~=nil and latest.phase=="Results" and not open end
+	if results then results.Visible=latest~=nil and (latest.phase=="Results" or latest.phase=="SitOut") and not open end
 end
 
 -- BEGIN STARTER VISIBILITY: exercised with event doubles by SparkStarterVisibilitySmoke.ps1.
@@ -206,7 +207,7 @@ local function togglePanel(name) menu.open(name) end
 menuButton.Activated:Connect(function() togglePanel(if menu.isOpen() then nil else "Play") end)
 
 -- Results ---------------------------------------------------------------------
-results=make("Frame",gui,{Name="Results",AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.fromOffset(420,430),
+results=make("Frame",gui,{Name="Results",AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.fromOffset(420,512),
 	BackgroundColor3=palette.paper,BorderSizePixel=0,Visible=false,ZIndex=3}); round(results,20)
 local resultScale=make("UIScale",results,{Scale=1})
 local resultTitle=label(results,"WHAT A PARADE!",25,UDim2.fromOffset(20,12),UDim2.new(1,-40,0,36)); resultTitle.TextXAlignment=Enum.TextXAlignment.Center
@@ -223,11 +224,19 @@ resultRank.Name="RankLine"; resultRank.TextXAlignment=Enum.TextXAlignment.Center
 local _resultXp,resultXpFill=Ui.bar(results,"XpBar",UDim2.fromOffset(40,262),UDim2.new(1,-80,0,10),Color3.fromRGB(214,216,240),palette.purple)
 local resultCallouts=label(results,"",13,UDim2.fromOffset(24,276),UDim2.new(1,-48,0,54),palette.purple)
 resultCallouts.Name="Callouts"; resultCallouts.TextXAlignment=Enum.TextXAlignment.Center; resultCallouts.TextYAlignment=Enum.TextYAlignment.Top
-replayButton=button(results,"CHASE AGAIN",UDim2.fromOffset(20,334),UDim2.new(1,-40,0,44),palette.gold,function() togglePanel(nil); Action:FireServer("Replay") end)
+-- Rounds auto-start each shared cycle; this button toggles Sit out / Play.
+replayButton=button(results,"SIT OUT NEXT ROUND",UDim2.fromOffset(20,416),UDim2.new(1,-40,0,44),palette.gold,function()
+	togglePanel(nil)
+	if latest and (latest.sitOut or latest.phase=="SitOut") then Action:FireServer("Play") else Action:FireServer("SitOut") end
+end)
 replayButton.Name="ReplayButton"
-local resultUpgrade=button(results,"UPGRADES",UDim2.fromOffset(20,384),UDim2.new(.5,-26,0,36),palette.mint,function() togglePanel("Upgrades") end)
+local resultCountdown=label(results,"",16,UDim2.fromOffset(20,334),UDim2.new(1,-40,0,22),palette.ink)
+resultCountdown.Name="NextRound"; resultCountdown.TextXAlignment=Enum.TextXAlignment.Center; resultCountdown.Font=Enum.Font.GothamBlack
+local podiumHolder=make("Frame",results,{Name="PodiumHolder",BackgroundTransparency=1,Position=UDim2.fromOffset(0,350),Size=UDim2.new(1,0,0,64)})
+local updatePodium=Podium.mount(podiumHolder,make,round,palette)
+local resultUpgrade=button(results,"UPGRADES",UDim2.fromOffset(20,466),UDim2.new(.5,-26,0,36),palette.mint,function() togglePanel("Upgrades") end)
 resultUpgrade.Name="UpgradeButton"
-local resultSetup=button(results,"PLAY SETUP",UDim2.new(.5,6,0,384),UDim2.new(.5,-26,0,36),palette.mint,function() togglePanel("Play") end)
+local resultSetup=button(results,"PLAY SETUP",UDim2.new(.5,6,0,466),UDim2.new(.5,-26,0,36),palette.mint,function() togglePanel("Play") end)
 resultSetup.Name="PlaySetupButton"
 replayButton.NextSelectionDown=resultUpgrade
 resultUpgrade.NextSelectionUp=replayButton; resultSetup.NextSelectionUp=replayButton
@@ -238,7 +247,9 @@ local function renderResults(d)
 	local r=d.lastResult
 	local medalName=(m and m.medal) or "Unranked"
 	local medal=Ui.medals[medalName] or Ui.medals.Unranked
-	resultTitle.Text=if d.personalBest or (r and r.newRecord and (r.previousRecord or 0)>0) then "NEW PERSONAL BEST!" else "WHAT A PARADE!"
+	resultTitle.Text=if d.phase=="SitOut" and not r then "TAKING A BREAK"
+		elseif r and r.incomplete then "CATCH 3+ FOR ROUND CREDIT"
+		elseif d.personalBest or (r and r.newRecord and (r.previousRecord or 0)>0) then "NEW PERSONAL BEST!" else "WHAT A PARADE!"
 	resultMedal.Text=medal.label..(if r and (r.heat or 0)>0 then "  •  HEAT "..r.heat else "")
 	resultMedal.BackgroundColor3=medal.color
 	if m then
@@ -263,7 +274,14 @@ local function renderResults(d)
 		for _,name in ipairs(r.titles or {}) do table.insert(callouts,"★ "..name) end
 		if r.newRecord and (r.previousRecord or 0)>0 then table.insert(callouts,string.format("Arena record +%d",(r.score or 0)-(r.previousRecord or 0))) end
 	end
+	if r and r.full==false and not r.incomplete then table.insert(callouts,"Joined mid-round • records count from full rounds") end
 	resultCallouts.Text=table.concat(callouts,"  •  ")
+	local sitting=d.sitOut or d.phase=="SitOut"
+	replayButton.Text=if sitting then "PLAY • JOIN THE STAMPEDE" else "SIT OUT NEXT ROUND"
+	resultCountdown.Text=if d.phase=="SitOut" then "Sitting out • join any time"
+		elseif d.nextRoundIn then (if sitting then string.format("Sitting out • next stampede in %ds",d.nextRoundIn) else string.format("NEXT STAMPEDE IN %d",d.nextRoundIn))
+		else ""
+	updatePodium(d.podium,player.UserId)
 end
 
 -- BEGIN PURE LAYOUT: extracted by tests/SparkClientLayoutSmoke.ps1 and tests/test_spark_client_blocks.py.
@@ -323,7 +341,7 @@ local function resize()
 	objective.TextScaled=true
 	menuButton.TextSize=if layout.collection.w<158 then 12 else 17
 	toast.Size=UDim2.fromOffset(math.min(500,size.X-24),56); toast.Position=UDim2.new(.5,-math.min(500,size.X-24)/2,.58,-28)
-	resultScale.Scale=math.clamp(math.min((size.X-24)/420,(size.Y-24)/430),0.5,1)
+	resultScale.Scale=math.clamp(math.min((size.X-24)/420,(size.Y-24)/512),0.45,1)
 	local narrow=size.X<500
 	brand.TextSize=if narrow then 13 else 18
 	glow.TextSize=if narrow then 14 else 20
@@ -428,7 +446,7 @@ local function aimPreview(now)
 	local humanoid=player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	local world=workspace:FindFirstChild("SparkWorld")
 	local herd=world and world:FindFirstChild("Creatures")
-	if root and humanoid and humanoid.Health>0 and herd and latest and latest.phase=="Playing" and not menu.isOpen() and latest.carry<latest.capacity then
+	if root and humanoid and humanoid.Health>0 and herd and latest and (latest.phase=="Playing" or latest.phase=="Warmup") and not menu.isOpen() and latest.carry<latest.capacity then
 		local function xyz(v) return {x=v.X,y=v.Y,z=v.Z} end
 		local radius=Ui.get(latest,"stats","captureRadius") or (Config.CaptureRadius+(latest.profile.upgrades.magnet or 0)*1.5)
 		for _,model in ipairs(herd:GetChildren()) do
@@ -473,6 +491,9 @@ Feedback.OnClientEvent:Connect(function(data)
 end)
 
 local function eventText(d)
+	if d.phase=="Warmup" then return string.format("WARM-UP • STAMPEDE IN %ds",d.remaining or 0) end
+	if d.phase=="Results" then return string.format("INTERMISSION • NEXT IN %ds",d.nextRoundIn or 0) end
+	if d.phase=="SitOut" then return "SITTING OUT" end
 	if d.phase~="Playing" then return d.event or "CHASE TIME" end
 	if (d.startersRemaining or 0)>0 or d.profile.totalBanked<3 then return d.event or "WARM UP" end
 	local prefix=if d.finale then "FINALE x1.25 • " else ""
@@ -521,7 +542,7 @@ State.OnClientEvent:Connect(function(data)
 	applyGrade(data.biome,data.profile.settings and data.profile.settings.reducedMotion)
 	latest=data
 	stateAt=os.clock()
-	local seconds=data.remaining or 0
+	local seconds=if data.phase=="Results" then (data.nextRoundIn or 0) else (data.remaining or 0)
 	timer.Text=Ui.clock(seconds)
 	timer.TextColor3=if data.phase=="Playing" and seconds<=15 then palette.warm else palette.ink
 	eventLabel.Text=eventText(data)
@@ -545,7 +566,7 @@ State.OnClientEvent:Connect(function(data)
 	local multiplier=tonumber(Ui.get(data,"stats","scoreMultiplier")) or 1
 	heatText.Text=if heat>0 then "HEAT "..heat..string.format(" • x%.1f",multiplier) else ""
 	saveLabel.Text=data.saveStatus
-	if data.phase=="Results" then renderResults(data) end
+	if data.phase=="Results" or data.phase=="SitOut" then renderResults(data) end
 	local h=data.hazard
 	sweep.Transparency=if h and h.visible then (if h.active then .25 else .65) else 1
 	sweepCue.Enabled=h~=nil and h.visible==true

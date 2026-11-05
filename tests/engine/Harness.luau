@@ -207,6 +207,23 @@ function Harness.playRounds(h, playerList, options)
 	return bots
 end
 
+-- Synchronized cycles: rounds auto-start at the next shared cycle boundary.
+-- Advance virtual time until every listed player is in a scored round.
+function Harness.awaitPlaying(h, playerList, timeout)
+	local e = h.engine
+	local deadline = e.now + (timeout or 20)
+	while e.now < deadline do
+		local all = true
+		for _, player in ipairs(playerList) do
+			local s = h:state(player)
+			if not s or s.phase ~= "Playing" then all = false end
+		end
+		if all then return true end
+		e.step(1 / 10)
+	end
+	return false
+end
+
 function Harness.assertClean(h, label)
 	local e = h.engine
 	-- Non-finite world geometry is always a defect (server math or harness).

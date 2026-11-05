@@ -22,13 +22,14 @@ check(Progression.rank(Progression.roundXp(100))>=2,"Any 100-point first round r
 
 -- Profile v2 defaults and migration -----------------------------------------------
 local p=Profile.new()
-check(p.version==2 and p.xp==0 and p.heat==0 and #p.loadout==0 and p.style.trail=="none","v2 defaults")
+check(p.version==3 and p.xp==0 and p.heat==0 and #p.loadout==0 and p.style.trail=="none","v3 defaults")
+check(p.cosmetics.formation=="line" and p.cosmetics.burst=="confetti" and p.settings.showOnPodium==true and p.settings.uiScale==1 and p.trial.best==0 and next(p.signatures)==nil,"v3 new fields")
 for _,biome in ipairs(Config.Biomes) do check(#p.records[biome.id]==6,"Record rows") end
 local v1={version=1,coins=321,totalBanked=95,rounds=12,album={pip=51,bunvolt=16,flutter=3},upgrades={boots=2,magnet=1,basket=3},
 	quests={first_haul=true},mastery={bestScore=850,bestChain=9,completed=4,precision=30,dashCatches=12,bestByBiome={meadow=1200,canyon=420}},
 	settings={music=false}}
 local m=Profile.sanitize(v1)
-check(m and m.version==2 and m.coins==321 and m.album.pip==51 and m.upgrades.basket==3 and m.quests.first_haul,"v1 collection/glow/upgrades/quests kept")
+check(m and m.version==3 and m.coins==321 and m.album.pip==51 and m.upgrades.basket==3 and m.quests.first_haul,"v1 collection/glow/upgrades/quests kept")
 check(m.mutations.pip==3 and m.mutations.bunvolt==2 and m.mutations.flutter==nil,"Radiant tier derived at 50")
 check(m.records.meadow[1]==1200 and m.records.canyon[1]==420 and m.records.aurora[1]==0,"v1 bests become heat-0 records")
 check(m.progressReceipt==12,"Migration cannot replay old rounds into progression")
@@ -54,7 +55,25 @@ check(e.heat==Loadout.heatUnlocked(e.records),"Heat clamped to unlocked ("..e.he
 check(#e.loadout==2 and e.loadout[1]=="goldnose" and e.loadout[2]=="reach","Loadout sanitized against rank")
 local poor=Profile.sanitize({version=2,style={trail="legend",title="stampede"},heat=4,loadout={"reach"}})
 check(poor.style.trail=="none" and poor.style.title=="" and poor.heat==0 and #poor.loadout==0,"Unearned equips stripped")
-check(Profile.sanitize({version=3})==nil,"Future versions refused")
+check(Profile.sanitize({version=4})==nil,"Future versions refused")
+-- v3 migration and malicious v3 fields
+local v3=Profile.sanitize({version=3,settings={uiScale=1.15,musicVolume=7,sfxVolume=-2,holdCatch=true,showOnPodium="no"},
+	cosmetics={owned={orbit=true,["bad id!"]=true,huge=("x"):rep(40)},formation="orbit",burst=5,tag="neon_tag"},
+	signatures={pip=12,fake=99,bunvolt=-3},trial={day=20400,best=900,runsDay=20400,runsToday=9999,rewardedDay=20400,bestRun={score=900,checkpoints={}}},
+	flags={seenHints={dash=true,["$$"]=true},firstSessionDone=true}})
+check(v3.settings.uiScale==1.15 and v3.settings.musicVolume==1 and v3.settings.sfxVolume==0 and v3.settings.holdCatch and v3.settings.showOnPodium==true,"v3 settings sanitized")
+check(v3.cosmetics.owned.orbit and v3.cosmetics.owned["bad id!"]==nil and v3.cosmetics.formation=="orbit" and v3.cosmetics.burst=="confetti","v3 cosmetics sanitized")
+check(v3.signatures.pip==12 and v3.signatures.fake==nil and v3.signatures.bunvolt==nil,"v3 signatures whitelisted")
+check(v3.trial.best==900 and v3.trial.runsToday==1000 and v3.trial.bestRun and v3.trial.bestRun.score==900,"v3 trial bounded")
+check(v3.flags.seenHints.dash and v3.flags.seenHints["$$"]==nil and v3.flags.firstSessionDone,"v3 flags sanitized")
+check(Profile.sanitize({version=3,settings={uiScale=3}}).settings.uiScale==1,"Unknown UI scale rejected")
+-- partial rounds never write score records; full rounds do
+local pr=Profile.new(); pr.rounds=1
+Profile.recordMastery(pr,"meadow",{finished=true,score=5000,bestChain=4,captures=10,precision=1,dashCatches=1},1,true)
+check(pr.mastery.bestScore==0 and (pr.mastery.bestByBiome.meadow or 0)==0 and pr.mastery.precision==1,"Partial round: counters only")
+local partialResult=Progression.applyRound(pr,{finished=true,score=5000,captures=10},1,0,1,NOW,true)
+check(partialResult and partialResult.partial and not partialResult.newRecord and pr.records.meadow[1]==0 and pr.xp>0,"Partial round: XP but no record row")
+check(Progression.roundXp(400,false)==Progression.roundXp(400)-60,"Incomplete rounds earn no completion bonus")
 check(Profile.sanitize({xp="lots"}).xp==0,"Type confusion")
 
 -- Golden banking --------------------------------------------------------------

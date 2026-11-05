@@ -38,8 +38,8 @@ for biome=1,3 do
 		local event=Events.herd(t,biome)
 		check(event.speedScale>=.6 and event.speedScale<=1.4,"Speed bounds")
 		check(event.turnScale>=.6 and event.turnScale<=1.4,"Turning bounds")
-		check(event.phase>=1 and event.phase<=4 and event.remaining>0 and event.remaining<=30,"Bounded phase timing")
-		local wrapped=Events.herd(t+110,biome)
+		check(event.phase>=1 and event.phase<=5 and event.remaining>0 and event.remaining<=30,"Bounded phase timing")
+		local wrapped=Events.herd(t+120,biome)
 		check(event.name==wrapped.name and event.speedScale==wrapped.speedScale,"Repeatable arena event cycle")
 	end
 	for _,time in ipairs({0,25,55,85,110}) do

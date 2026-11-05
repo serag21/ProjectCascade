@@ -35,8 +35,10 @@ function Progression.rankProgress(xp)
 	return {rank=rank, xp=int(xp,MAX_XP), floor=floor, nextXp=nextXp,
 		fraction=if nextXp > floor then (int(xp,MAX_XP) - floor) / (nextXp - floor) else 1}
 end
-function Progression.roundXp(score)
-	return math.floor(math.sqrt(int(score)) * 4) + 60
+-- completed=false (fewer than Cycle.CompletionCatches catches) earns no
+-- completion bonus, so idling through rounds never levels a player (D17).
+function Progression.roundXp(score, completed)
+	return math.floor(math.sqrt(int(score)) * 4) + (if completed == false then 0 else 60)
 end
 
 -- Earned cosmetics. Prices are guaranteed and shown; nothing is random or paid.
@@ -248,7 +250,8 @@ function Progression.unlocksBetween(fromRank, toRank)
 end
 
 -- One completed, server-owned round. roundSerial makes it idempotent across retries.
-function Progression.applyRound(profile, summary, biomeIndex, heat, roundSerial, now)
+-- partial=true: XP, stats and goals count; records rows are written only by full rounds.
+function Progression.applyRound(profile, summary, biomeIndex, heat, roundSerial, now, partial)
 	if type(summary) ~= "table" or summary.finished ~= true then return nil end
 	if type(roundSerial) ~= "number" or roundSerial % 1 ~= 0 or roundSerial <= profile.progressReceipt or roundSerial > profile.rounds then return nil end
 	local biome = Config.Biomes[biomeIndex]
@@ -262,7 +265,7 @@ function Progression.applyRound(profile, summary, biomeIndex, heat, roundSerial,
 	grantXp(profile, gained)
 	local row = profile.records[biome.id]
 	local previousRecord = int(row[heat + 1])
-	row[heat + 1] = math.max(previousRecord, score)
+	if partial ~= true then row[heat + 1] = math.max(previousRecord, score) end
 	local stats = profile.stats
 	local captures = int(summary.captures, 512)
 	for _, key in ipairs({"herded","assists","pops","zaps","golden","multiCatches"}) do
@@ -275,7 +278,7 @@ function Progression.applyRound(profile, summary, biomeIndex, heat, roundSerial,
 	advanceGoals(profile.weekly, summary, biomeIndex, heat)
 	local achievements = Progression.evaluateAchievements(profile)
 	local rankAfter = Progression.rank(profile.xp)
-	return {xp=gained, rankBefore=rankBefore, rankAfter=rankAfter, newRecord=score > previousRecord,
+	return {xp=gained, rankBefore=rankBefore, rankAfter=rankAfter, newRecord=partial ~= true and score > previousRecord, partial=partial == true,
 		previousRecord=previousRecord, achievements=achievements, unlocks=Progression.unlocksBetween(rankBefore, rankAfter)}
 end
 

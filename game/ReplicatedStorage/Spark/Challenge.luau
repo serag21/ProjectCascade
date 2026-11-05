@@ -23,6 +23,7 @@ local DEFAULT_RULES={chainSeconds=CHAIN_SECONDS,maxMultiplier=3,precisionFacing=
 	scoreMultiplier=1,dashBonus=20,popPoints=40,herdMultiplier=1,goldenMultiplier=1,finaleFactor=1.25,chainStep=3,
 	medals={Bronze=150,Silver=400,Gold=800,Radiant=1400}}
 local HAUL_STEP,MULTI_BONUS,HERD_BONUS,ASSIST_BONUS,GOLDEN_BONUS=0.05,25,40,30,250
+local CONTEST_BONUS=15
 local function rulesFrom(raw)
 	local rules=table.clone(DEFAULT_RULES)
 	if type(raw)~="table" then return rules end
@@ -224,13 +225,16 @@ end
 -- extending its length; an assist rewards flanking a teammate's herded Spark.
 function Challenge.award(state, now, kind)
 	if state.finished or not clockValid(state,now) then return false,0 end
-	if kind~="pop" and kind~="assist" then return false,0 end
+	if kind~="pop" and kind~="assist" and kind~="contest" then return false,0 end
 	if state.pops+state.assists>=512 then return false,0 end
 	state.lastEvent=now
 	local points
 	if kind=="pop" then
 		state.pops+=1; points=state.rules.popPoints
 		if activeChain(state,now)>0 then state.lastCatch=now end
+	elseif kind=="contest" then
+		-- A teammate caught the Spark this player was chasing (smaller than a gate assist).
+		state.assists+=1; points=CONTEST_BONUS
 	else
 		state.assists+=1; points=math.floor(ASSIST_BONUS*state.rules.herdMultiplier)
 	end

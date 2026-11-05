@@ -25,7 +25,7 @@ check(s.phase == "Results" and s.profile.rounds == 1, "Round recorded on product
 e.advance(31)
 local record = e.recOf(profiles).internal.values["player:6001"]
 check(type(record) == "table" and record.kind == "SparkProfile" and record.version == 1 and type(record.data) == "table", "Envelope saved")
-check(record.data.version == 2 and record.data.rounds == 1 and record.data.totalBanked == s.profile.totalBanked, "Saved profile matches session")
+check(record.data.version == 3 and record.data.rounds == 1 and record.data.totalBanked == s.profile.totalBanked, "Saved profile matches session")
 check(type(record.lease) == "table" and record.lease.expiresAt > e.os.time(), "Live session lease held")
 -- Analytics funnel and economy events carry valid argument shapes.
 local funnel, economy, custom = {}, 0, 0

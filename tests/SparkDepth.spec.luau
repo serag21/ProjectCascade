@@ -189,8 +189,8 @@ end
 
 -- Encounters --------------------------------------------------------------------
 local function dist(x1,z1,x2,z2) return math.sqrt((x1-x2)^2+(z1-z2)^2) end
--- A2: every possible join offset sees each encounter exactly once in a 110s round.
-for offset=0,109.5,0.5 do
+-- A2: every synchronized 110 s play window (cycle starts) contains each encounter.
+for offset=0,1200,120 do
 	for biome=1,3 do
 		local gateSeen,runStarts,goldenSpawns=false,{},0
 		local lastGoldenCycle=nil

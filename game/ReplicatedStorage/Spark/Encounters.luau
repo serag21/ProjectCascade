@@ -3,7 +3,8 @@
 -- no matter when a player joined. Coordinates are relative to the arena origin.
 -- Main owns spawning, hits and rewards; clients only draw what the server sends.
 local Encounters = {}
-Encounters.Cycle = 110
+Encounters.Cycle = 120 -- Cycle.Length: 110 s play + 10 s intermission
+Encounters.Play = 110
 Encounters.Island = 26.163
 Encounters.Bank = {x=0, z=44}
 Encounters.Spawn = {x=0, z=38}
@@ -70,8 +71,8 @@ function Encounters.golden(elapsed, biome, players)
 	if not t or not index then return {spawn=false,count=0} end
 	local count=1+math.floor((math.clamp(if finite(players) then math.floor(players) else 1,1,4)-1)/2)
 		+(if index==3 then 1 else 0)
-	return {spawn=t>=Encounters.GoldenAt,count=math.min(4,count),cycle=cycle,
-		remaining=Encounters.Cycle-t,expiresIn=math.max(0,Encounters.Cycle-t)}
+	return {spawn=t>=Encounters.GoldenAt and t<Encounters.Play,count=math.min(4,count),cycle=cycle,
+		remaining=math.max(0,Encounters.Play-t),expiresIn=math.max(0,Encounters.Play-t)}
 end
 
 function Encounters.staticStart(biome)
@@ -122,7 +123,8 @@ function Encounters.describe(elapsed, biome)
 	if index==2 then upcoming={name="STAMPEDE RUN",at=55} else upcoming={name="SPARK GATE",at=52} end
 	if t<upcoming.at then return {phase=if t<25 then "WARM UP" else "RHYTHM SHIFT",next=upcoming.name,nextIn=upcoming.at-t} end
 	if t<85 then return {phase=upcoming.name,next="GOLDEN FINALE",nextIn=86-t} end
-	return {phase="GOLDEN FINALE",next=nil,nextIn=0}
+	if t<Encounters.Play then return {phase="GOLDEN FINALE",next=nil,nextIn=0} end
+	return {phase="INTERMISSION",next="STAMPEDE",nextIn=Encounters.Cycle-t}
 end
 
 return Encounters

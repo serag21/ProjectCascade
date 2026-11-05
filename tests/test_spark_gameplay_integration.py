@@ -20,6 +20,8 @@ local ArenaEvents=require("./ArenaEvents")
 local Loadout=require("./Loadout")
 local Encounters=require("./Encounters")
 local Progression=require("./Progression")
+local Cycle=require("./Cycle")
+local arenaEpoch=0
 local Targeting=require("./Targeting")
 local now=1
 local os={clock=function() return now end,time=function() return 1000 end}
@@ -47,6 +49,7 @@ local clearPersonal,onRoundRecorded
 local recorded={}
 onRoundRecorded=function(_,_,summary,result) table.insert(recorded,{summary=summary,result=result}) end
 local function economy() end
+local function arenaClock() return now-arenaEpoch end
 local function statsFor(s) return Loadout.stats(s.profile.upgrades,s.profile.loadout,s.profile.heat) end
 local function stats(s) if not s.stats then s.stats=statsFor(s) end return s.stats end
 local herd={}
@@ -76,7 +79,8 @@ local function player(id)
     return {UserId=id,DisplayName="P"..id,root={Position=Vector3.new(0,0,0),CFrame={LookVector=Vector3.new(1,0,0)}}}
 end
 local function session()
-    return {ready=true,phase="Playing",started=0,biome=1,score=0,carry={},buckets={},metrics={},
+    return {ready=true,phase="Playing",started=0,endsAt=110,fullRound=true,cycleIndex=0,roundsAtStart=5,
+        biome=1,score=0,carry={},buckets={},metrics={},roundCatches=0,
         profile=Profile.new(),challenge=Challenge.new(1),motion={},suspiciousUntil=0,revision=0}
 end
 local function target(id,x,owner,z)
@@ -159,7 +163,7 @@ test("replay resets only ephemeral round state and never refills starters",funct
     local p,s=player(1),session();s.starterIssued=true;s.profile.coins=72;s.profile.rounds=2
     s.profile.mastery.bestScore=100;s.profile.album.pip=8;s.challenge=Challenge.new(2)
     s.challenge.score=100;s.phase="Results";s.newPersonalBest=true
-    beginRound(p,s)
+    beginRound(p,s,Cycle.fullRound(now))
     assert(s.phase=="Playing" and s.challenge.score==0 and s.challenge.roundIndex==3)
     assert(s.profile.coins==72 and s.profile.mastery.bestScore==100 and s.profile.album.pip==8)
     assert(s.starterRemaining==0 and not s.newPersonalBest and s.teleported)
@@ -323,11 +327,11 @@ test("personal statics spawn only after eligibility, pop on dash, zap otherwise"
 end)
 test("round start locks heat to unlocked tiers and sanitizes the loadout",function()
     local p,s=player(1),session();s.phase="Results";s.profile.heat=5;s.profile.loadout={"goldnose","reach"};s.starterIssued=true
-    beginRound(p,s)
+    beginRound(p,s,Cycle.fullRound(now))
     assert(s.profile.heat==0 and s.roundHeat==0 and #s.profile.loadout==0 and s.challenge.rules.maxMultiplier==4)
     s.phase="Results";s.profile.xp=Progression.xpFor(14);s.profile.loadout={"goldnose","reach"}
     s.profile.records.meadow[1]=Config.Medals.Silver;s.profile.heat=1
-    beginRound(p,s)
+    beginRound(p,s,Cycle.fullRound(now))
     assert(s.profile.heat==1 and s.roundHeat==1 and #s.profile.loadout==2 and s.challenge.rules.scoreMultiplier==1.2)
 end)
 test("settlement applies long-term progression exactly once",function()
@@ -339,6 +343,61 @@ test("settlement applies long-term progression exactly once",function()
     assert(s.profile.records.meadow[1]==s.challenge.score and s.profile.progressReceipt==1)
     now=111;settleRound(p,s,now)
     assert(s.profile.xp==xp and #recorded==1)
+end)
+
+test("warm-up catches bank glow only and roll straight into the next full round",function()
+    local p,s=player(1),session();s.phase="Warmup";s.endsAt=120;s.fullRound=false;s.starterIssued=true
+    now=112;target(1,2);capture(p,s)
+    assert(#s.carry==1,"Warm-up allows catching")
+    now=113;bank(p,s,false)
+    assert(s.profile.coins==3 and s.challenge.score==0 and rallies[1].total==0,"Warm-up glow, no skill or rally")
+    now=120;assert(settleRound(p,s,now))
+    assert(s.phase=="Playing" and s.fullRound and s.endsAt==120+Cycle.Play and s.profile.rounds==0,"Full round starts; no round credit for warm-up")
+    assert(not hazardFor(s,121).visible,"No hazard at round start")
+end)
+test("a round with fewer than three catches gives no round credit or XP",function()
+    local p,s=player(1),session();s.challengeBiome=1;s.roundHeat=0
+    for i=1,2 do now=i;target(i,2);capture(p,s) end
+    now=110;assert(settleRound(p,s,now))
+    assert(s.phase=="Results" and s.profile.rounds==0 and s.profile.xp==0 and s.lastResult.incomplete,"Incomplete round")
+    assert(s.profile.coins==6 and s.profile.totalBanked==2,"Glow and album still banked")
+    assert(s.resultsUntil==Cycle.Length,"Results last until the next cycle start")
+end)
+test("two idle rounds switch a player to sit out; activity resets the count",function()
+    local p,s=player(1),session();s.challengeBiome=1
+    now=110;settleRound(p,s,now);assert(s.idleRounds==1 and not s.sitOut)
+    s.phase="Playing";s.endsAt=230;s.started=120;s.active=false;s.cycleIndex=1
+    now=230;settleRound(p,s,now);assert(s.idleRounds==2 and s.sitOut,"Second idle round sits the player out")
+    s.phase="Playing";s.endsAt=350;s.started=240;s.active=false;s.cycleIndex=2;s.sitOut=false;s.idleRounds=1
+    now=241;target(9,2);capture(p,s)
+    now=350;settleRound(p,s,now);assert(s.idleRounds==0 and not s.sitOut,"Catching counts as activity")
+end)
+test("partial rounds earn XP and goals but never write score records",function()
+    local p,s=player(1),session();s.challengeBiome=1;s.roundHeat=0;s.fullRound=false
+    for i=1,4 do now=40+i;target(i,2);capture(p,s) end
+    now=110;assert(settleRound(p,s,now))
+    assert(s.profile.rounds==1 and s.profile.xp>0,"Partial round credit")
+    assert(s.profile.records.meadow[1]==0 and s.profile.mastery.bestScore==0 and not s.lastResult.newRecord and not s.lastResult.full,"No records from partial rounds")
+end)
+test("catching a Spark another player was chasing gives that player a teamwork assist",function()
+    local a,b=player(1),player(2);local sa,sb=session(),session();sessions[a]=sa;sessions[b]=sb
+    local spark=target(1,2);spark.spookedBy=1;spark.spookedAt=now
+    a.root.Position=Vector3.new(6,0,0)
+    capture(b,sb)
+    assert(spark.claimed and #sb.carry==1 and sa.challenge.assists==1 and sa.challenge.pendingBonus==15,"Chaser credited")
+    local far=target(2,2);far.spookedBy=1;far.spookedAt=now;a.root.Position=Vector3.new(30,0,0)
+    now=2;capture(b,sb);assert(sa.challenge.assists==1,"Too far away: no assist")
+    local stale=target(3,2);stale.spookedBy=1;stale.spookedAt=now-3;a.root.Position=Vector3.new(4,0,0)
+    now=3;capture(b,sb);assert(sa.challenge.assists==1,"Stale chase: no assist")
+end)
+test("new players meet sweeps in round two and statics in round three",function()
+    local p,s=player(1),session();s.profile.totalBanked=5;s.hazardStarted=0;s.roundsAtStart=0
+    s.challenge=Challenge.new(1,nil,stats(s))
+    assert(not hazardFor(s,27).visible,"Round 1: no sweep")
+    now=30;updateStatics(p,s,p.root,now,0.1);assert(#staticModels==0,"Round 1: no statics")
+    s.roundsAtStart=1;assert(hazardFor(s,27).active,"Round 2: sweeps")
+    updateStatics(p,s,p.root,now,0.1);assert(#staticModels==0,"Round 2: still no statics")
+    s.roundsAtStart=2;updateStatics(p,s,p.root,now+0.1,0.1);assert(#staticModels==1,"Round 3: statics")
 end)
 print("SparkGameplayIntegration: "..count.." exact production-function cases passed (engine dependencies mocked)")
 '''
@@ -358,7 +417,7 @@ def main() -> None:
     blocks += extract(source, "-- BEGIN CATCH TRANSACTIONS", "-- END CATCH TRANSACTIONS")
     with tempfile.TemporaryDirectory(prefix="spark-gameplay-") as directory:
         folder = Path(directory)
-        for name in ("Config", "Profile", "Challenge", "Rules", "Targeting", "ArenaRally", "ArenaEvents", "Loadout", "Encounters", "Progression"):
+        for name in ("Config", "Profile", "Challenge", "Rules", "Targeting", "ArenaRally", "ArenaEvents", "Loadout", "Encounters", "Progression", "Cycle"):
             shutil.copyfile(ROOT / f"game/ReplicatedStorage/Spark/{name}.luau", folder / f"{name}.luau")
         script = folder / "gameplay.spec.luau"
         script.write_text(PRELUDE + blocks + CASES, encoding="utf-8")

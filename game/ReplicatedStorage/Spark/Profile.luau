@@ -23,8 +23,29 @@ local function deriveMutations(profile)
 	end
 end
 
-Profile.Version = 2
+Profile.Version = 3
 Profile.StatKeys = {"herded","assists","pops","zaps","golden","multiCatches","bestMulti","flawless","bestBankCount","rallies"}
+Profile.UiScales = {0.85, 1, 1.15}
+Profile.MaxHints = 64
+local function safeId(value)
+	return type(value) == "string" and #value > 0 and #value <= 24 and string.match(value, "^[%w_]+$") ~= nil
+end
+-- Generic v3 cosmetics sanitizer; Cosmetics.sanitize/stripUnearned validate ids
+-- against the catalog where the module is available.
+local function sanitizeCosmetics(raw)
+	local result = {owned={}, formation="line", burst="confetti", tag="default", title=""}
+	if type(raw) ~= "table" then return result end
+	if type(raw.owned) == "table" then
+		local count = 0
+		for id, value in pairs(raw.owned) do
+			if value == true and safeId(id) and count < 128 then result.owned[id] = true; count += 1 end
+		end
+	end
+	for _, key in ipairs({"formation", "burst", "tag", "title"}) do
+		if safeId(raw[key]) or (key == "title" and raw[key] == "") then result[key] = raw[key] end
+	end
+	return result
+end
 local function emptyRecords()
 	local records = {}
 	for _, biome in ipairs(Config.Biomes) do records[biome.id] = {0,0,0,0,0,0} end
@@ -36,11 +57,18 @@ function Profile.new()
 	return {version=Profile.Version, coins=0, totalBanked=0, rounds=0, album={}, mutations={},
 		upgrades={boots=0,magnet=0,basket=0}, quests={},
 		mastery={bestScore=0,bestChain=0,completed=0,precision=0,dashCatches=0,lastRecordedRound=0,bestByBiome={},bestRuns={}},
-		settings={reducedMotion=false,music=true,sfx=true,competition=false}, lastSeen=0,
+		settings={reducedMotion=false,music=true,sfx=true,competition=false,
+			-- v3 (FINAL_PRODUCTION_PLAN §6.11/§6.15)
+			showOnPodium=true,holdCatch=false,highContrast=false,uiScale=1,musicVolume=0.6,sfxVolume=0.8}, lastSeen=0,
 		-- Version 2: long-term progression. All earned in play; nothing purchasable with Robux.
 		xp=0, loadout={}, heat=0, records=emptyRecords(), gilded={}, stats=stats, achievements={},
 		daily={day=0,goals={},progress={},claimed={},bonus=false}, weekly={week=0,goals={},progress={},claimed={}},
-		style={owned={},trail="none",title=""}, progressReceipt=0}
+		style={owned={},trail="none",title=""}, progressReceipt=0,
+		-- Version 3: cosmetics categories, species signatures, Daily Stampede, coaching flags.
+		cosmetics={owned={},formation="line",burst="confetti",tag="default",title=""},
+		signatures={},
+		trial={day=0,best=0,runsToday=0,runsDay=0,rewardedDay=0,bestRun=nil},
+		flags={seenHints={},firstSessionDone=false}}
 end
 local function goalBlock(raw, key, pool)
 	local block = {[key]=0, goals={}, progress={}, claimed={}}
@@ -67,7 +95,7 @@ function Profile.sanitize(raw)
 	if raw == nil then return Profile.new(), "new" end
 	if type(raw) ~= "table" then return nil, "corrupt" end
 	-- Version 1 saves migrate forward; anything newer is refused without overwrite.
-	if raw.version ~= nil and raw.version ~= 1 and raw.version ~= 2 then return nil, "future-version" end
+	if raw.version ~= nil and raw.version ~= 1 and raw.version ~= 2 and raw.version ~= 3 then return nil, "future-version" end
 	local result = Profile.new()
 	result.coins = integer(raw.coins, MAX_COINS)
 	result.totalBanked = integer(raw.totalBanked, MAX_COUNT)
@@ -108,8 +136,17 @@ function Profile.sanitize(raw)
 		end
 	end
 	if type(raw.settings) == "table" then
-		for key in pairs(result.settings) do
-			if type(raw.settings[key]) == "boolean" then result.settings[key] = raw.settings[key] end
+		for key, default in pairs(result.settings) do
+			local value = raw.settings[key]
+			if type(default) == "boolean" and type(value) == "boolean" then result.settings[key] = value
+			elseif type(default) == "number" and type(value) == "number" and value == value then
+				if key == "uiScale" then
+					-- Only the three offered UI scales are accepted.
+					for _, allowed in ipairs(Profile.UiScales) do if math.abs(value - allowed) < 1e-6 then result.settings[key] = allowed end end
+				else
+					result.settings[key] = math.clamp(value, 0, 1)
+				end
+			end
 		end
 	end
 	-- Version 2 fields (absent on v1 saves -> safe defaults).
@@ -151,6 +188,33 @@ function Profile.sanitize(raw)
 		if type(raw.style.trail) == "string" and Progression.TrailById[raw.style.trail] then result.style.trail = raw.style.trail end
 		if type(raw.style.title) == "string" and Progression.AchievementById[raw.style.title] then result.style.title = raw.style.title end
 	end
+	-- Version 3 fields (absent on v1/v2 saves -> safe defaults).
+	result.cosmetics = sanitizeCosmetics(raw.cosmetics)
+	if type(raw.signatures) == "table" then
+		for id in pairs(species) do
+			local count = integer(raw.signatures[id], MAX_COUNT)
+			if count > 0 then result.signatures[id] = count end
+		end
+	end
+	if type(raw.trial) == "table" then
+		local t = raw.trial
+		result.trial.day = integer(t.day, 10000000)
+		result.trial.best = integer(t.best, MAX_COUNT)
+		result.trial.runsDay = integer(t.runsDay, 10000000)
+		result.trial.runsToday = integer(t.runsToday, 1000)
+		result.trial.rewardedDay = integer(t.rewardedDay, 10000000)
+		local run = Challenge.sanitizeBestRun(t.bestRun)
+		if run.score > 0 and run.score == result.trial.best then result.trial.bestRun = run end
+	end
+	if type(raw.flags) == "table" then
+		if type(raw.flags.seenHints) == "table" then
+			local count = 0
+			for id, value in pairs(raw.flags.seenHints) do
+				if value == true and safeId(id) and count < Profile.MaxHints then result.flags.seenHints[id] = true; count += 1 end
+			end
+		end
+		result.flags.firstSessionDone = raw.flags.firstSessionDone == true
+	end
 	deriveMutations(result)
 	-- Validate equips against what this profile has actually earned.
 	if not Progression.styleUnlocked(result, Progression.TrailById[result.style.trail]) then result.style.trail = "none" end
@@ -171,7 +235,9 @@ end
 -- Main supplies its incremented profile.rounds as roundSerial. This persisted
 -- receipt makes retries idempotent across sanitization/save/load. Three-argument
 -- calls are retained for old pure-module callers, which must ensure exactly once.
-function Profile.recordMastery(profile,biomeId,summary,roundSerial)
+-- partial=true (joined mid-cycle): counters still accumulate but score records,
+-- arena bests and PB splits are written only by full synchronized rounds.
+function Profile.recordMastery(profile,biomeId,summary,roundSerial,partial)
 	if type(summary)~="table" or summary.finished~=true then return false end
 	local known=false
 	for _,biome in ipairs(Config.Biomes) do if biome.id==biomeId then known=true; break end end
@@ -188,13 +254,13 @@ function Profile.recordMastery(profile,biomeId,summary,roundSerial)
 		mastery.lastRecordedRound=roundSerial
 	end
 	local captures=integer(summary.captures,512)
-	local improved=score>mastery.bestScore
-	mastery.bestScore=math.max(mastery.bestScore,score)
+	local improved=partial~=true and score>mastery.bestScore
+	if partial~=true then mastery.bestScore=math.max(mastery.bestScore,score) end
 	mastery.bestChain=math.max(mastery.bestChain,math.min(captures,integer(summary.bestChain,512)))
 	mastery.precision=math.min(MAX_COUNT,mastery.precision+math.min(captures,integer(summary.precision,512)))
 	mastery.dashCatches=math.min(MAX_COUNT,mastery.dashCatches+math.min(captures,integer(summary.dashCatches,512)))
 	local arenaBest=mastery.bestByBiome[biomeId] or 0
-	if score>arenaBest then
+	if partial~=true and score>arenaBest then
 		mastery.bestByBiome[biomeId]=score
 		mastery.bestRuns[biomeId]=Challenge.sanitizeBestRun({score=score,checkpoints=summary.checkpoints})
 	end

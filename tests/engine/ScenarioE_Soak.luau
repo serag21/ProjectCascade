@@ -11,11 +11,11 @@ local baseline = e.countInstances()
 local samples = {}
 local scores = {}
 for round = 1, 10 do
-	if round > 1 then h:send(a, "Replay"); h:send(b, "Replay"); e.advance(0.3) end
+	if round > 1 then check(h:awaitPlaying({a, b}, 15), "Round " .. round .. " auto-starts for both") end
 	h:playRounds({a, b}, {timeout = 125})
 	h:assertClean("round " .. round)
 	-- Let delayed respawns and Debris cleanups settle before sampling.
-	e.advance(3)
+	e.advance(2)
 	local sa, sb = h:state(a), h:state(b)
 	check(sa.phase == "Results" and sb.phase == "Results", "Round " .. round .. " settled for both")
 	check(sa.profile.rounds == round and sb.profile.rounds == round, "Round count " .. round)

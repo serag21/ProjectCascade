@@ -16,10 +16,18 @@ local ArenaEvents = require(Shared.ArenaEvents)
 local Loadout = require(Shared.Loadout)
 local Encounters = require(Shared.Encounters)
 local Progression = require(Shared.Progression)
+local Cycle = require(Shared.Cycle)
 local World = require(script.Parent.World)
 local Persistence = require(script.Parent.Persistence)
 local Services = require(script.Parent.Services)
 
+-- Players never collide with each other: nobody can body-block the bank or gate.
+local PhysicsService = game:GetService("PhysicsService")
+local PLAYER_GROUP = "SparkPlayers"
+pcall(function()
+	if not PhysicsService:IsCollisionGroupRegistered(PLAYER_GROUP) then PhysicsService:RegisterCollisionGroup(PLAYER_GROUP) end
+	PhysicsService:CollisionGroupSetCollidable(PLAYER_GROUP,PLAYER_GROUP,false)
+end)
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
 remotes.Parent = Shared
@@ -108,6 +116,7 @@ function Lifecycle.leaseValid(deadline, now)
 end
 -- END PURE LIFECYCLE
 local lifecycle=Lifecycle.new()
+local podiums={} -- [biome]={cycle=index,awards={...}} computed at each shared buzzer
 local arenaEpoch=os.clock()
 local rallies={}
 for index in ipairs(Config.Biomes) do rallies[index]=ArenaRally.new(arenaEpoch) end
@@ -189,26 +198,40 @@ local function clearStarters(userId)
 end
 local issueStarters
 local clearPersonal,onRoundRecorded
+-- Synchronized cycles (Cycle.luau): "Playing" is a scored round ending at the
+-- shared buzzer; "Warmup" is free catching until the next cycle starts.
 local function roundPlaying(s,now)
-	return s.phase=="Playing" and s.started~=nil and Rules.roundPhase(s.started,now,Config.RoundSeconds)=="Playing"
+	return (s.phase=="Playing" or s.phase=="Warmup") and s.endsAt~=nil and now<s.endsAt
 end
+local function scoredRound(s,now)
+	return s.phase=="Playing" and s.endsAt~=nil and now<s.endsAt
+end
+-- Staged threats (D18): sweeps from a player's 2nd round, statics from the 3rd.
+local function sweepsAllowed(s) return (s.roundsAtStart or 0)>=1 end
+local function staticsAllowed(s) return (s.roundsAtStart or 0)>=2 end
 local function hazardFor(s,now)
-	return if roundPlaying(s,now) and s.hazardStarted and s.challenge
+	return if scoredRound(s,now) and sweepsAllowed(s) and s.hazardStarted and s.challenge
 		then ArenaEvents.hazard(now-s.hazardStarted,s.challenge.difficulty,s.biome,stats(s).sweepWarning) else {visible=false,active=false}
 end
 local function objective(s)
 	if not s.ready then return "Connecting your collection…" end
-	if s.phase == "Results" then return "Round banked! Upgrade or chase again • "..s.saveStatus end
+	local now=os.clock()
+	if s.phase=="Results" then
+		return string.format("Next stampede in %ds • check Goals and Upgrades • %s",math.max(0,math.ceil((s.resultsUntil or now)-now)),s.saveStatus)
+	end
+	if s.phase=="SitOut" then return "Taking a break • press PLAY to join the stampede" end
 	if #s.carry > 0 then return "Bring your parade to the glowing BANK gate" end
 	if (s.starterRemaining or 0)>0 then return "CATCH your first Sparks • then chase into the arena" end
-	if s.started and Config.RoundSeconds-(os.clock()-s.started)<=15 and s.challenge and s.challenge.pendingBonus>0 then
+	if s.phase=="Warmup" then
+		return string.format("WARM-UP • catch freely • the stampede starts in %ds",math.max(0,math.ceil((s.endsAt or now)-now)))
+	end
+	if s.endsAt and s.endsAt-now<=15 and s.challenge and s.challenge.pendingBonus>0 then
 		return "BUZZER SOON! Bank now to keep your style bonus"
 	end
 	return "Dash THROUGH Sparks • Chain catches • Bank big hauls"
 end
 local function send(player,s)
 	if not s.profile or player.Parent~=Players then return end
-	local elapsed = if s.started then os.clock()-s.started else 0
 	local now=os.clock()
 	-- Public, nonsensitive server summaries make live assertions reproducible.
 	player:SetAttribute("SparkPhase",s.phase)
@@ -253,7 +276,10 @@ local function send(player,s)
 	if includeProfile then s.profileSent=s.revision; s.profileSentAt=now end
 	local boardsChanged=s.boardsSent~=leaderboard.version
 	State:FireClient(player,{
-		phase=s.phase,remaining=math.max(0,math.ceil(Config.RoundSeconds-elapsed)),
+		phase=s.phase,remaining=if s.endsAt and roundPlaying(s,now) then math.max(0,math.ceil(s.endsAt-now)) else 0,
+		cycle=Cycle.at(clockNow),fullRound=s.fullRound==true,sitOut=s.sitOut==true,
+		nextRoundIn=if s.phase=="Results" and s.resultsUntil then math.max(0,math.ceil(s.resultsUntil-now)) else nil,
+		podium=if (s.phase=="Results" or s.phase=="SitOut") and podiums[s.biome] and podiums[s.biome].cycle==s.settledCycle then podiums[s.biome].awards else nil,
 		biome=s.biome,carry=#s.carry,capacity=capacity(s),score=s.score,
 		profile=if includeProfile then s.profile else nil,profileRevision=s.revision,
 		saveStatus=s.saveStatus,event=event.name,arenaEvent=event,objective=objective(s),
@@ -263,7 +289,7 @@ local function send(player,s)
 			staticCap=st.staticCap},
 		rank=Progression.rankProgress(s.profile.xp),heatUnlocked=Loadout.heatUnlocked(s.profile.records),
 		perkSlots=Loadout.slots(Progression.rank(s.profile.xp)),lastResult=s.lastResult,
-		finale=s.phase=="Playing" and Config.RoundSeconds-elapsed<=25,
+		finale=scoredRound(s,now) and s.endsAt-now<=Cycle.FinaleSeconds,
 		statics=s.statics and s.staticCount or 0,
 		boards=if boardsChanged then leaderboard.boards else nil,boardsVersion=leaderboard.version,
 		mastery=mastery,personalBest=s.newPersonalBest or false,arenaBest=s.newArenaBest or false,ranking=ranking,
@@ -304,6 +330,7 @@ local function teleport(player,s)
 		root.CFrame=CFrame.lookAt(arena.spawn,arena.origin+Vector3.new(0,3,0))
 		root.AssemblyLinearVelocity=Vector3.zero
 		s.motion={position=xyz(root.Position),at=os.clock(),credit=10,blockedUntil=0}
+		s.startPos=root.Position
 		s.suspiciousUntil=0
 	end
 	if humanoid then humanoid.WalkSpeed=speed(s); humanoid.JumpPower=42 end
@@ -347,16 +374,19 @@ local function bank(player,s,automatic)
 	if s.profile.totalBanked>=3 then clearStarters(player.UserId) end
 	if s.profile.totalBanked>=3 and not s.hazardStarted then s.hazardStarted=os.clock() end
 	s.score+=reward
-	-- Final 25 seconds of the personal round: finale bank bonus (manual banks only).
-	local finale=not automatic and s.started~=nil and Config.RoundSeconds-(os.clock()-s.started)<=25
-	local skillPoints=if s.challenge then Challenge.bank(s.challenge,os.clock(),{finale=finale}) else 0
+	-- Final 25 seconds of the shared round: finale bank bonus (manual banks only).
+	local warm=s.phase=="Warmup"
+	local finale=not automatic and not warm and s.endsAt~=nil and s.endsAt-os.clock()<=Cycle.FinaleSeconds
+	local skillPoints=if s.challenge and not warm then Challenge.bank(s.challenge,os.clock(),{finale=finale}) else 0
+	if not automatic then s.active=true end
 	metric(player,s,"first_bank")
 	economy(player,s,"source",reward,"bank")
-	feedback(player,"Bank",string.format("+%d glow • %d skill secured%s%s",reward,skillPoints,
+	feedback(player,"Bank",if warm then string.format("+%d glow banked%s • warm-up",reward,if newSpecies>0 then " • NEW SPARK!" else "")
+		else string.format("+%d glow • %d skill secured%s%s",reward,skillPoints,
 		if finale and skillPoints>0 then " • FINALE x1.25" else "",if newSpecies>0 then " • NEW SPARK!" else ""),nil,nil,
-		{count=#catches,skill=skillPoints,glow=reward})
+		{count=#catches,skill=skillPoints,glow=reward,newSpecies=newSpecies,position=world.arenas[s.biome].bank})
 	Lifecycle.markDirty(s)
-	if not automatic and ordinary>0 then
+	if not automatic and not warm and ordinary>0 then
 		local recipients=ArenaRally.deposit(rallies[s.biome],os.clock(),player.UserId,ordinary)
 		for _,userId in ipairs(recipients) do
 			for other,session in pairs(sessions) do
@@ -373,39 +403,80 @@ local function bank(player,s,automatic)
 	end
 	send(player,s)
 end
+local beginRound
+-- Shared buzzer for this session's round. Warm-ups end into the next full round;
+-- scored rounds bank, record and move to Results until the next cycle starts.
 local function settleRound(player,s,now)
-	if s.phase~="Playing" or roundPlaying(s,now) then return false end
+	if (s.phase~="Playing" and s.phase~="Warmup") or roundPlaying(s,now) then return false end
+	if s.phase=="Warmup" then
+		-- Glow and album from warm-up catches are kept; no score, rounds or records.
+		clearPersonal(player,s)
+		if #s.carry>0 then bank(player,s,true) end
+		beginRound(player,s,Cycle.fullRound(arenaClock()))
+		return true
+	end
 	clearStarters(player.UserId)
 	clearPersonal(player,s)
 	-- Buzzer: carried style bonus is forfeited; carried Sparks and base points still bank.
 	local forfeited=Challenge.buzzer(s.challenge,os.clock())
-	bank(player,s,true); s.phase="Results"; s.profile.rounds=math.min(1000000,s.profile.rounds+1)
+	bank(player,s,true); s.phase="Results"
 	Challenge.finish(s.challenge,os.clock())
-	Challenge.checkpoint(s.challenge,math.max(110,os.clock()-s.started))
+	if s.fullRound then Challenge.checkpoint(s.challenge,math.max(Cycle.Play,os.clock()-s.started)) end
 	local summary=Challenge.snapshot(s.challenge,os.clock())
-	s.newArenaBest=summary.score>(s.profile.mastery.bestByBiome[Config.Biomes[s.challengeBiome].id] or 0)
-	s.newPersonalBest=Profile.recordMastery(s.profile,Config.Biomes[s.challengeBiome].id,summary,s.profile.rounds)
-	local result=Progression.applyRound(s.profile,summary,s.challengeBiome,s.roundHeat or 0,s.profile.rounds,os.time())
-	if result then
-		result.score=summary.score; result.medal=summary.medal; result.heat=s.roundHeat or 0; result.buzzer=forfeited
-		result.titles={}
-		for _,id in ipairs(result.achievements) do
-			local a=Progression.AchievementById[id]; if a then table.insert(result.titles,a.name) end
+	local biomeId=Config.Biomes[s.challengeBiome].id
+	local catches=s.roundCatches or 0
+	local completed=Cycle.completed(catches)
+	local partial=not s.fullRound
+	s.settledCycle=s.cycleIndex
+	s.resultsUntil=arenaEpoch+(s.cycleIndex+1)*Cycle.Length
+	s.lastSummary={userId=player.UserId,name=player.DisplayName,score=summary.score,bestChain=summary.bestChain,
+		golden=summary.golden,assists=summary.assists,herded=summary.herded,pops=summary.pops,
+		showOnPodium=s.profile.settings.showOnPodium~=false,cycle=s.cycleIndex,biome=s.challengeBiome}
+	-- AFK (D17): two idle rounds in a row switch the player to Sit out.
+	if s.active then s.idleRounds=0 else s.idleRounds=(s.idleRounds or 0)+1 end
+	if (s.idleRounds or 0)>=2 and not s.sitOut then
+		s.sitOut=true
+		feedback(player,"Hint","Taking a break? You're sitting out • press PLAY to rejoin")
+	end
+	if completed then
+		s.profile.rounds=math.min(1000000,s.profile.rounds+1)
+		s.newArenaBest=not partial and summary.score>(s.profile.mastery.bestByBiome[biomeId] or 0)
+		s.newPersonalBest=Profile.recordMastery(s.profile,biomeId,summary,s.profile.rounds,partial)
+		local result=Progression.applyRound(s.profile,summary,s.challengeBiome,s.roundHeat or 0,s.profile.rounds,os.time(),partial)
+		if result then
+			result.score=summary.score; result.medal=summary.medal; result.heat=s.roundHeat or 0; result.buzzer=forfeited
+			result.full=not partial
+			result.titles={}
+			for _,id in ipairs(result.achievements) do
+				local a=Progression.AchievementById[id]; if a then table.insert(result.titles,a.name) end
+			end
+			s.lastResult=result
+			onRoundRecorded(player,s,summary,result)
 		end
-		s.lastResult=result
-		onRoundRecorded(player,s,summary,result)
+		metric(player,s,"first_round")
+	else
+		s.newArenaBest=false; s.newPersonalBest=false
+		s.lastResult={incomplete=true,score=summary.score,medal=summary.medal,heat=s.roundHeat or 0,buzzer=forfeited,
+			xp=0,rankBefore=Progression.rank(s.profile.xp),rankAfter=Progression.rank(s.profile.xp),unlocks={},achievements={},titles={},
+			full=not partial,catches=catches}
 	end
 	Lifecycle.markDirty(s)
-	metric(player,s,"first_round")
-	feedback(player,"Results",if forfeited>0 then string.format("BUZZER! %d style bonus unbanked • Round complete",forfeited)
+	feedback(player,"Results",if not completed then string.format("Catch %d+ Sparks in a round to earn round credit",Cycle.CompletionCatches)
+		elseif forfeited>0 then string.format("BUZZER! %d style bonus unbanked • Round complete",forfeited)
 		else "Round complete! Your parade earned "..s.score.." glow")
 	send(player,s)
 	return true
 end
-local function beginRound(player,s)
+-- plan: Cycle.joinPlan(...) or Cycle.fullRound(...); times are arena-clock seconds.
+beginRound=function(player,s,plan)
 	if not s.ready then return end
+	local now=os.clock()
 	if s.started then metric(player,s,"replay") end
-	s.phase="Playing"; s.started=os.clock(); s.carry={}; s.score=0; s.buckets={}
+	local warm=plan.mode=="warmup"
+	s.phase=if warm then "Warmup" else "Playing"
+	s.started=now; s.endsAt=arenaEpoch+plan.endsAt; s.fullRound=plan.full==true; s.cycleIndex=plan.cycle
+	s.carry={}; s.score=0; s.buckets={}; s.roundCatches=0; s.active=false
+	s.roundsAtStart=s.profile.rounds
 	local biomeId=Config.Biomes[s.biome].id
 	local previous=s.profile.mastery.bestRuns[biomeId] or {score=s.profile.mastery.bestByBiome[biomeId] or 0}
 	-- Heat and loadout lock for the whole round; records are filed under this heat.
@@ -415,15 +486,23 @@ local function beginRound(player,s)
 	if Progression.ensureGoals(s.profile,os.time()) then Lifecycle.markDirty(s) end
 	s.lastResult=nil
 	clearPersonal(player,s)
-	s.challenge=Challenge.new(s.profile.rounds+1,previous,s.stats); s.newPersonalBest=false; s.newArenaBest=false; s.challengeBiome=s.biome
+	s.challenge=Challenge.new(s.profile.rounds+1,if s.fullRound then previous else nil,s.stats)
+	s.newPersonalBest=false; s.newArenaBest=false; s.challengeBiome=s.biome
 	s.eventPhase=nil
 	s.hazardUntil=0; s.hazardNext=0
-	s.hazardStarted=if s.profile.totalBanked>=3 then s.started else nil
+	s.hazardStarted=if not warm and s.profile.totalBanked>=3 then now else nil
 	parade(player,s)
 	teleport(player,s)
 	issueStarters(player,s)
-	feedback(player,"Round","CHASE • CATCH • BANK   |   110 seconds!")
+	local left=math.max(0,math.ceil(s.endsAt-now))
+	feedback(player,"Round",if warm then string.format("WARM-UP • catch freely • stampede starts in %ds",left)
+		elseif s.fullRound then "3-2-1 STAMPEDE! • CHASE • CATCH • BANK"
+		else string.format("JOIN THE STAMPEDE! • %ds left",left),nil,nil,{cycleStart=s.fullRound,warmup=warm})
 	send(player,s)
+end
+local function startNow(player,s)
+	s.sitOut=false; s.idleRounds=0
+	beginRound(player,s,Cycle.joinPlan(arenaClock()))
 end
 -- options (all server-owned): def, position, golden, extra (no respawn on catch),
 -- runner={direction,speed,untilT}, expiresAt.
@@ -510,6 +589,7 @@ end
 local function claim(player,s,creature,kind,aim,multiIndex)
 	local now=os.clock()
 	creature.claimed=true -- atomic claim before effects and respawn scheduling
+	s.roundCatches=(s.roundCatches or 0)+1; s.active=true
 	if creature.starterOwner then s.starterRemaining=math.max(0,(s.starterRemaining or 0)-1) end
 	table.insert(s.carry,if creature.golden then "*"..creature.def.id else creature.def.id)
 	parade(player,s)
@@ -533,7 +613,19 @@ local function claim(player,s,creature,kind,aim,multiIndex)
 	end
 	feedback(player,"Catch",message,creature.def,creature.position,{tags=tags,points=if scored then skill.points else 0,
 		chain=if scored then skill.chain else 0,multiplier=if scored then skill.multiplier else 1,golden=creature.golden})
-	if creature.golden or kind=="herd" then creditAssist(creature,player.UserId,now) end
+	if creature.golden or kind=="herd" then creditAssist(creature,player.UserId,now)
+	elseif creature.spookedBy and creature.spookedBy~=player.UserId and creature.spookedAt and now-creature.spookedAt<=1.5 then
+		-- Contested catch (D25): the player who was chasing it within 8 studs gets a
+		-- small ASSIST, so "stealing" a chased Spark becomes teamwork.
+		local other,session=sessionFor(creature.spookedBy)
+		local otherRoot=other and rootOf(other)
+		if other and session.ready and session.challenge and session.biome==creature.biome and scoredRound(session,now)
+			and session.started and creature.spookedAt>=session.started and otherRoot
+			and (otherRoot.Position-creature.position).Magnitude<=8 then
+			local ok,points=Challenge.award(session.challenge,now,"contest")
+			if ok then feedback(other,"Assist",string.format("ASSIST! +%d style • teamwork",points),nil,creature.position,{tags={"ASSIST"},points=points}) end
+		end
+	end
 	if creature.golden then
 		for other,session in pairs(sessions) do
 			if other~=player and session.ready and session.biome==creature.biome then
@@ -560,7 +652,7 @@ local function capture(player,s)
 	local radius=st.captureRadius
 	local nearest,best=nil,nil
 	for _,creature in pairs(herd) do
-		local allowed=Rules.canCapture({phase=s.phase,ready=s.ready,carry=#s.carry,biome=s.biome,userId=player.UserId,totalBanked=s.profile.totalBanked,
+		local allowed=Rules.canCapture({phase=if roundPlaying(s,now) then "Playing" else s.phase,ready=s.ready,carry=#s.carry,biome=s.biome,userId=player.UserId,totalBanked=s.profile.totalBanked,
 			position=xyz(root.Position),suspiciousUntil=s.suspiciousUntil},
 			{claimed=creature.claimed,biome=creature.biome,starterOwner=creature.starterOwner,position=xyz(creature.position)},now,radius,capacity(s))
 		local aim=if allowed then Targeting.measure(xyz(root.Position),xyz(root.CFrame.LookVector),xyz(creature.position),radius) else nil
@@ -594,7 +686,7 @@ local function dashSweep(player,s,root,now)
 	local st=stats(s)
 	local candidates={}
 	for _,creature in pairs(herd) do
-		local allowed=Rules.canCapture({phase=s.phase,ready=s.ready,carry=#s.carry,biome=s.biome,userId=player.UserId,totalBanked=s.profile.totalBanked,
+		local allowed=Rules.canCapture({phase=if roundPlaying(s,now) then "Playing" else s.phase,ready=s.ready,carry=#s.carry,biome=s.biome,userId=player.UserId,totalBanked=s.profile.totalBanked,
 			position=here,suspiciousUntil=s.suspiciousUntil},
 			{claimed=creature.claimed,biome=creature.biome,starterOwner=creature.starterOwner,position=xyz(creature.position)},now,500,capacity(s))
 		local hit=if allowed then Targeting.sweep(from,here,xyz(creature.position),st.dashCatchRadius) else nil
@@ -660,7 +752,7 @@ local function updateStatics(player,s,root,now,step)
 	if not s.statics then clearPersonal(player,s) end
 	local origin=world.arenas[s.biome].origin
 	local st=stats(s)
-	local eligible=roundPlaying(s,now) and s.hazardStarted~=nil and s.profile.totalBanked>=3
+	local eligible=scoredRound(s,now) and staticsAllowed(s) and s.hazardStarted~=nil and s.profile.totalBanked>=3
 		and now-s.hazardStarted>=Encounters.staticStart(s.biome)
 	local rel={x=root.Position.X-origin.X,z=root.Position.Z-origin.Z}
 	if eligible and s.staticCount<st.staticCap and now>=s.staticNext then
@@ -719,22 +811,34 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 	if not s or type(action)~="string" or #action>24 then return end
 	-- Ready/Replay are idempotent phase transitions with their own bucket, so a
 	-- catch press in the same instant can never swallow a Replay click.
-	local bucket=if action=="Ready" or action=="Replay" then action else "request"
+	local phaseAction=action=="Ready" or action=="Replay" or action=="Play" or action=="SitOut"
+	local bucket=if phaseAction then action else "request"
 	if not Rules.allow(s.transport,bucket,os.clock(),if bucket=="request" then 0.08 else 0.25) then return end
 	if action=="Ready" then
 		s.clientReady=true
-		if s.ready and s.phase=="Loading" then beginRound(player,s) else send(player,s) end
+		if s.ready and s.phase=="Loading" then startNow(player,s) else send(player,s) end
 		return
 	end
 	if not s.ready then return end
 	if not Lifecycle.leaseValid(persistence:leaseDeadline(player.UserId),os.time()) then
 		haltForLease(player,s,"acknowledged lease expired"); return
 	end
-	if action=="Replay" then
-		if s.phase=="Results" then beginRound(player,s) end
+	if action=="Replay" or action=="Play" then
+		-- Rounds start automatically each cycle; Play clears Sit out.
+		s.sitOut=false; s.idleRounds=0
+		if s.phase=="SitOut" then startNow(player,s) else send(player,s) end
+	elseif action=="SitOut" then
+		s.sitOut=true
+		if s.phase=="Warmup" then
+			clearPersonal(player,s); if #s.carry>0 then bank(player,s,true) end
+			s.phase="SitOut"
+		end
+		send(player,s)
 	elseif action=="Capture" then
+		s.active=true
 		capture(player,s)
 	elseif action=="Dash" and roundPlaying(s,os.clock()) then
+		s.active=true
 		local root,humanoid=rootOf(player)
 		if validApproach(player,s) and root and humanoid and humanoid.Health>0 and Rules.allow(s.buckets,"dash",os.clock(),dashCooldown(s)) then
 			local direction=humanoid.MoveDirection
@@ -814,9 +918,9 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 	elseif action=="Biome" and type(payload)=="number" and payload%1==0 and Config.Biomes[payload] then
 		if s.phase=="Playing" then feedback(player,"Hint","Choose your next arena after this round"); return end
 		if #s.carry>0 then feedback(player,"Hint","Bank your parade before travelling"); return end
-		clearPersonal(player,s)
 		if s.profile.totalBanked < Config.Biomes[payload].unlock then feedback(player,"Hint","Bank more Sparks to unlock this arena"); return end
-		s.biome=payload; teleport(player,s); send(player,s)
+		clearPersonal(player,s)
+		s.biome=payload; s.challengeBiome=payload; teleport(player,s); send(player,s)
 	end
 end)
 
@@ -830,7 +934,10 @@ local function join(player)
 	end
 	sessions[player]=s
 	player.CameraMinZoomDistance=9; player.CameraMaxZoomDistance=27
-	player.CharacterAdded:Connect(function()
+	player.CharacterAdded:Connect(function(character)
+		local function group(item) if item:IsA("BasePart") then item.CollisionGroup=PLAYER_GROUP end end
+		for _,item in ipairs(character:GetDescendants()) do group(item) end
+		character.DescendantAdded:Connect(group)
 		task.wait(0.25)
 		if sessions[player]==s and s.ready then
 			if s.challenge then Challenge.miss(s.challenge,os.clock(),"respawn") end
@@ -858,7 +965,7 @@ local function join(player)
 	metric(player,s,"join")
 	if profile.lastSeen and profile.lastSeen>0 then metric(player,s,"return") end
 	applyStyle(player,s)
-	if s.clientReady then beginRound(player,s) end
+	if s.clientReady then startNow(player,s) end
 end
 
 
@@ -903,6 +1010,7 @@ for _,player in ipairs(Players:GetPlayers()) do task.spawn(join,player) end
 
 local accumulator,networkAt=0,0
 local goldenCycle,runKey,surplusNext={},{},{}
+local podiumCycle={}
 RunService.Heartbeat:Connect(function(dt)
 	if lifecycle.closing then return end
 	accumulator+=dt
@@ -913,10 +1021,15 @@ RunService.Heartbeat:Connect(function(dt)
 		if not s.ready then continue end
 		if not Lifecycle.leaseValid(persistence:leaseDeadline(player.UserId),os.time()) then haltForLease(player,s,"acknowledged lease expired"); continue end
 		-- Observe secured score before this tick's banking; missed historical splits stay absent.
-		if roundPlaying(s,now) then Challenge.checkpoint(s.challenge,now-s.started) end
+		if scoredRound(s,now) and s.fullRound then Challenge.checkpoint(s.challenge,now-s.started) end
 		-- Settle expired rounds before movement/hazards: no post-deadline captures or penalties.
 		settleRound(player,s,now)
-		if roundPlaying(s,now) then
+		-- Intermission over: everyone in Results starts the next shared round together.
+		if s.phase=="Results" and s.resultsUntil and now>=s.resultsUntil then
+			if s.sitOut then s.phase="SitOut"; send(player,s)
+			else beginRound(player,s,Cycle.fullRound(arenaClock())) end
+		end
+		if scoredRound(s,now) then
 			local event=arenaEvent(s.biome)
 			if s.eventPhase~=nil and s.eventPhase~=event.phase and s.profile.totalBanked>=3 then
 				feedback(player,"Round",event.name.." • Read the herd's new rhythm")
@@ -928,6 +1041,7 @@ RunService.Heartbeat:Connect(function(dt)
 			local arena=world.arenas[s.biome]
 			local accepted=validApproach(player,s)
 			if not accepted then s.dashSweep=nil end
+			if accepted and not s.active and s.startPos and roundPlaying(s,now) and (root.Position-s.startPos).Magnitude>10 then s.active=true end
 			if accepted and roundPlaying(s,now) then
 				dashSweep(player,s,root,now)
 				updateStatics(player,s,root,now,step)
@@ -946,7 +1060,7 @@ RunService.Heartbeat:Connect(function(dt)
 					end
 				end
 			end
-			if accepted and s.phase=="Playing" and (root.Position-arena.bank).Magnitude<10 then bank(player,s,false) end
+			if accepted and roundPlaying(s,now) and (root.Position-arena.bank).Magnitude<10 then bank(player,s,false) end
 		end
 	end
 	local centroids={}
@@ -1022,6 +1136,25 @@ RunService.Heartbeat:Connect(function(dt)
 				end
 				for player,s in pairs(sessions) do
 					if s.ready and s.biome==biome and roundPlaying(s,now) then feedback(player,"Event","STAMPEDE RUN! Dash through the lane") end
+				end
+			end
+		end
+	end
+	-- Shared buzzer passed: build each arena's positive podium from this cycle's rounds.
+	local cycleNow=Cycle.at(clockNow)
+	if cycleNow.phase=="Intermission" then
+		for biome in ipairs(world.arenas) do
+			if podiumCycle[biome]~=cycleNow.index then
+				local entries={}
+				for _,s in pairs(sessions) do
+					if s.lastSummary and s.lastSummary.cycle==cycleNow.index and s.lastSummary.biome==biome then table.insert(entries,s.lastSummary) end
+				end
+				if #entries>0 then
+					podiumCycle[biome]=cycleNow.index
+					podiums[biome]={cycle=cycleNow.index,awards=Cycle.awards(entries)}
+					for player,s in pairs(sessions) do
+						if s.ready and s.biome==biome and (s.phase=="Results" or s.phase=="SitOut") then send(player,s) end
+					end
 				end
 			end
 		end

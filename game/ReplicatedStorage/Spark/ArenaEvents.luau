@@ -7,7 +7,8 @@ local hazards={
 	{name="CANYON CROSSING",cue="SIDESTEP"},
 	{name="AURORA WEAVE",cue="READ THE LOOP"},
 }
-local phases={0,25,55,85,110}
+-- Cycle: 110 s play then a 10 s intermission (Cycle.luau); phase 5 is the calm break.
+local phases={0,25,55,85,110,120}
 local events={
 	{
 		{name="MEADOW WARM UP",speedScale=.65,turnScale=1},
@@ -64,10 +65,10 @@ function ArenaEvents.herd(elapsed,biome)
 	if not index or not finite(elapsed) or elapsed<0 then
 		return {name="WARM UP",speedScale=1,turnScale=1,remaining=0,phase=0}
 	end
-	local cycle=elapsed%110
+	local cycle=elapsed%120
 	local phase=1
-	for i=2,4 do if cycle>=phases[i] then phase=i end end
-	local def=events[index][phase]
+	for i=2,5 do if cycle>=phases[i] then phase=i end end
+	local def=if phase==5 then {name="INTERMISSION",speedScale=.6,turnScale=1} else events[index][phase]
 	return {name=def.name,speedScale=def.speedScale,turnScale=def.turnScale,
 		remaining=phases[phase+1]-cycle,phase=phase}
 end
