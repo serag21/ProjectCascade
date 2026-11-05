@@ -27,12 +27,15 @@ local Effects=require(script.Parent:WaitForChild("Effects"))
 local Podium=require(script.Parent:WaitForChild("Podium"))
 local CreatureView=require(script.Parent:WaitForChild("CreatureView"))
 local HerdNet=require(Shared:WaitForChild("HerdNet"))
+local Cosmetics=require(Shared:WaitForChild("Cosmetics"))
 local remotes=Shared:WaitForChild("Remotes")
 local Action=remotes:WaitForChild("Action")
 local State=remotes:WaitForChild("State")
 local Feedback=remotes:WaitForChild("Feedback")
 local HerdFeed=remotes:WaitForChild("HerdNet")
 local creatureView=nil -- living-herd renderer (D13), created once the herd folder exists
+local setPhotoModeRef=nil -- assigned after the HUD exists (photo mode button in Settings)
+local hitPulse,roundBeat -- defined with the HUD helpers below
 local palette,make,round,label,button=Ui.palette,Ui.make,Ui.round,Ui.label,Ui.button
 local playerGui=player:WaitForChild("PlayerGui")
 local gui=Instance.new("ScreenGui")
@@ -81,6 +84,7 @@ local carry=label(top,"PARADE 0 / 8",12,UDim2.new(1,-165,0,40),UDim2.fromOffset(
 carry.Name="Carry"
 carry.TextXAlignment=Enum.TextXAlignment.Right
 -- Rank chip with a thin XP bar; heat shown as text, not only colour.
+local rankChipWide,rankChipEarned=true,false
 local rankChip=make("Frame",top,{Name="RankChip",BackgroundTransparency=1,Position=UDim2.fromOffset(150,10),Size=UDim2.fromOffset(120,50)})
 local rankText=label(rankChip,"RANK 1",13,UDim2.new(),UDim2.fromOffset(120,18),palette.purple)
 rankText.Name="RankText"
@@ -203,6 +207,11 @@ menu=Menu.new({gui=gui,data=function() return latest end,
 	fire=function(action,payload) Action:FireServer(action,payload) end,
 	miniature=miniature,controllerActive=controllerActive,toast=function(text) showToast(text,"Hint") end,
 	boards=function() return cachedBoards end,
+	photoMode=function() if setPhotoModeRef then setPhotoModeRef(true) end end,
+	inviteFriends=function()
+		-- Optional and unrewarded: Roblox's own invite prompt (AGENTS: never required).
+		pcall(function() game:GetService("SocialService"):PromptGameInvite(player) end)
+	end,
 	onChanged=function()
 		syncOverlays()
 		if not menu.isOpen() and controllerActive() and results and results.Visible then GuiService.SelectedObject=replayButton end
@@ -358,7 +367,8 @@ local function resize()
 	carry.Size=UDim2.fromOffset(if narrow then 115 else 150,18)
 	brand.Size=UDim2.fromOffset(if narrow then 82 else 130,if narrow then 40 else 54)
 	-- Rank chip needs clear space between brand and the centered timer.
-	rankChip.Visible=size.X>=640
+	rankChipWide=size.X>=640
+	rankChip.Visible=rankChipWide and rankChipEarned
 end
 local viewportConnection
 local function bindViewport()
@@ -377,12 +387,32 @@ UserInputService.LastInputTypeChanged:Connect(function()
 	end
 end)
 
+-- Hold to catch (§6.11): while held, catches fire only when the aim preview has
+-- a target, at the server cooldown. Removes mashing; the server still validates.
+local catchHeld=false
 local function bind(name,action,...)
 	ContextActionService:BindAction(name,function(_,state)
+		if action=="Capture" and (state==Enum.UserInputState.End or state==Enum.UserInputState.Cancel) then catchHeld=false end
 		if state~=Enum.UserInputState.Begin or UserInputService:GetFocusedTextBox() or menu.isOpen() then return Enum.ContextActionResult.Pass end
+		if action=="Capture" then catchHeld=true end
 		requestAction(action); return Enum.ContextActionResult.Sink
 	end,false,...)
 end
+captureButton.MouseButton1Down:Connect(function() catchHeld=true end)
+captureButton.MouseButton1Up:Connect(function() catchHeld=false end)
+captureButton.MouseLeave:Connect(function() catchHeld=false end)
+-- Photo mode: hide the HUD for clean captures (H / Settings button).
+local hudHidden=false
+local function setPhotoMode(on)
+	hudHidden=on
+	gui.Enabled=not on
+	if on then showToast("Photo mode • press H to show the HUD","Hint") end
+end
+setPhotoModeRef=setPhotoMode
+ContextActionService:BindAction("SparkPhoto",function(_,state)
+	if state~=Enum.UserInputState.Begin or UserInputService:GetFocusedTextBox() then return Enum.ContextActionResult.Pass end
+	setPhotoMode(not hudHidden); return Enum.ContextActionResult.Sink
+end,false,Enum.KeyCode.H)
 bind("SparkCapture","Capture",Enum.KeyCode.E,Enum.KeyCode.ButtonX)
 bind("SparkDash","Dash",Enum.KeyCode.LeftShift,Enum.KeyCode.ButtonB)
 bind("SparkBank","Bank",Enum.KeyCode.R,Enum.KeyCode.ButtonY)
@@ -397,7 +427,12 @@ local audioCatalog=if catalogModule then require(catalogModule) else nil
 local music=make("Sound",SoundService,{Name="SparkMusic",Volume=.16,Looped=true})
 local effectsFolder=make("Folder",workspace,{Name="SparkLocalEffects"})
 local function reduced() return latest~=nil and latest.profile~=nil and latest.profile.settings.reducedMotion==true end
-local effects=Effects.new({playerGui=playerGui,gui=gui,folder=effectsFolder,reduced=reduced,
+local function settingValue(key,default)
+	local value=latest and latest.profile and latest.profile.settings and latest.profile.settings[key]
+	if value==nil then return default end
+	return value
+end
+local effects=Effects.new({playerGui=playerGui,gui=gui,folder=effectsFolder,reduced=reduced,sfxVolume=function() return settingValue("sfxVolume",0.8) end,
 	sfx=function() return not (latest and latest.profile and latest.profile.settings.sfx==false) end,
 	catalog=audioCatalog,musicPlaying=function() return music.IsPlaying end,viewerId=player.UserId})
 
@@ -502,6 +537,20 @@ local function startFlight(species,creatureId,position)
 	mini:PivotTo(from)
 	table.insert(flights,{model=mini,from=from.Position,started=os.clock(),duration=0.38})
 end
+-- Bank fountain: the carried Sparks (last parade we saw) pour into the gate.
+local lastParade={}
+local function startFountain(bankPosition)
+	if reduced() then return end
+	local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	for index,id in ipairs(lastParade) do
+		if index>8 or #flights>=12 or not defs[id] then break end
+		local mini=miniature(id,effectsFolder); mini:ScaleTo(0.45)
+		local from=root.Position+Vector3.new((index%3-1)*1.5,1+index*0.2,2+index*0.6)
+		mini:PivotTo(CFrame.new(from))
+		table.insert(flights,{model=mini,from=from,started=os.clock()+index*0.04,duration=0.45,to=bankPosition+Vector3.new(0,1,0)})
+	end
+end
 local function updateFlights(now)
 	local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 	for index=#flights,1,-1 do
@@ -510,7 +559,7 @@ local function updateFlights(now)
 		if alpha>=1 or not root or not flight.model.Parent then
 			flight.model:Destroy(); table.remove(flights,index)
 		else
-			local target=root.Position+Vector3.new(0,1.5,0)
+			local target=flight.to or (root.Position+Vector3.new(0,1.5,0))
 			local eased=1-(1-alpha)*(1-alpha)
 			local position=flight.from:Lerp(target,eased)+Vector3.new(0,math.sin(alpha*math.pi)*4,0)
 			-- Squash on launch, shrink into the parade near the end.
@@ -523,6 +572,13 @@ Feedback.OnClientEvent:Connect(function(data)
 	if type(data)~="table" then return end
 	local extra=if type(data.extra)=="table" then data.extra else {}
 	if data.kind=="Catch" and typeof(data.position)=="Vector3" then startFlight(extra.species or data.creature,extra.creatureId,data.position) end
+	if data.kind=="BankBurst" then
+		effects.bankBurst(data.position,Cosmetics.resolve("burst",extra.burst))
+		return
+	end
+	if data.kind=="Bank" and typeof(extra.position)=="Vector3" then startFountain(extra.position) end
+	if data.kind=="Zap" then hitPulse() end
+	if data.kind=="Results" then roundBeat("TIME!","buzzer") end
 	if data.kind=="Dash" then cooldownUntil.Dash=os.clock()+(latest and latest.dashCooldown or Config.DashCooldown) end
 	local hasTags=type(extra.tags)=="table" and #extra.tags>0
 	-- Scored catches speak through floating tags; toasts stay for onboarding and events.
@@ -567,9 +623,9 @@ local lastReduced=nil
 local grade=Instance.new("ColorCorrectionEffect")
 grade.Name="SparkArenaGrade"; grade.Parent=game:GetService("Lighting")
 local grades={
-	{tint=Color3.fromRGB(255,252,240),saturation=0.08,contrast=0.03},
-	{tint=Color3.fromRGB(255,240,228),saturation=0.1,contrast=0.05},
-	{tint=Color3.fromRGB(238,236,255),saturation=0.12,contrast=0.06},
+	{tint=Color3.fromRGB(255,252,240),saturation=0.08,contrast=0.03,haze=Color3.fromRGB(204,236,255),decay=Color3.fromRGB(190,226,214)},
+	{tint=Color3.fromRGB(255,240,228),saturation=0.1,contrast=0.05,haze=Color3.fromRGB(255,224,196),decay=Color3.fromRGB(236,176,150)},
+	{tint=Color3.fromRGB(238,236,255),saturation=0.12,contrast=0.06,haze=Color3.fromRGB(214,206,255),decay=Color3.fromRGB(170,150,230)},
 }
 local gradedBiome=nil
 local function applyGrade(biome,reduced)
@@ -581,6 +637,110 @@ local function applyGrade(biome,reduced)
 		for key,value in pairs(goal) do (grade :: any)[key]=value end
 	else
 		game:GetService("TweenService"):Create(grade,TweenInfo.new(1.2,Enum.EasingStyle.Sine),goal):Play()
+	end
+	-- Each arena also gets its own sky haze (local only): meadow mint, canyon apricot, aurora violet.
+	local atmosphere=game:GetService("Lighting"):FindFirstChild("SparkAtmosphere")
+	if atmosphere and atmosphere:IsA("Atmosphere") then
+		local airGoal={Color=target.haze,Decay=target.decay}
+		if reduced then atmosphere.Color=target.haze; atmosphere.Decay=target.decay
+		else game:GetService("TweenService"):Create(atmosphere,TweenInfo.new(1.2,Enum.EasingStyle.Sine),airGoal):Play() end
+	end
+end
+-- Hit feedback: a brief, gentle desaturation (no flash, no shake; off in reduced motion).
+hitPulse=function()
+	if reduced() then return end
+	grade.Saturation=-0.35
+	game:GetService("TweenService"):Create(grade,TweenInfo.new(0.35,Enum.EasingStyle.Quad),{Saturation=(grades[gradedBiome or 1] or grades[1]).saturation}):Play()
+end
+-- Round beats: big centre text + cue (countdown, STAMPEDE!, TIME!).
+local beat=label(gui,"",64,UDim2.new(.5,-220,.32,-50),UDim2.fromOffset(440,100),palette.gold)
+beat.Name="RoundBeat"; beat.TextXAlignment=Enum.TextXAlignment.Center; beat.Font=Enum.Font.GothamBlack
+beat.TextStrokeTransparency=0.15; beat.TextStrokeColor3=palette.ink; beat.Visible=false; beat.ZIndex=6
+local beatSerial=0
+roundBeat=function(text,cue)
+	beatSerial+=1; local serial=beatSerial
+	beat.Text=text; beat.Visible=true; beat.TextTransparency=0
+	if not reduced() then
+		beat.Size=UDim2.fromOffset(330,75)
+		game:GetService("TweenService"):Create(beat,TweenInfo.new(0.25,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Size=UDim2.fromOffset(440,100)}):Play()
+	end
+	if cue then effects.sound(cue,1) end
+	task.delay(0.8,function() if beatSerial==serial then beat.Visible=false end end)
+end
+-- NEW SPARK! album card: shown the first time a species reaches the album.
+local card=make("Frame",gui,{Name="AlbumCard",Size=UDim2.fromOffset(250,74),Position=UDim2.new(0,12,1,-170),BackgroundColor3=palette.paper,
+	BorderSizePixel=0,Visible=false,ZIndex=5})
+round(card,14)
+local cardSwatch=make("Frame",card,{Name="Swatch",Size=UDim2.fromOffset(52,52),Position=UDim2.fromOffset(11,11),BorderSizePixel=0,ZIndex=6})
+round(cardSwatch,26)
+local cardTitle=label(card,"NEW SPARK!",13,UDim2.fromOffset(72,6),UDim2.new(1,-80,0,18),palette.purple); cardTitle.ZIndex=6; cardTitle.Font=Enum.Font.GothamBlack
+local cardName=label(card,"",17,UDim2.fromOffset(72,24),UDim2.new(1,-80,0,22),palette.ink); cardName.ZIndex=6
+local cardHint=label(card,"",11,UDim2.fromOffset(72,46),UDim2.new(1,-80,0,24),palette.ink); cardHint.ZIndex=6
+local knownSpecies=nil
+local cardQueue={}
+local cardBusy=false
+local SIGNATURE_HINT={DASH="Signature: dash-catch it",PRECISE="Signature: close + facing",TOGETHER="Signature: multi-dash or herd it",RHYTHM="Signature: catch at x2+"}
+local function nextCard()
+	if cardBusy or #cardQueue==0 then return end
+	cardBusy=true
+	local def=table.remove(cardQueue,1)
+	cardSwatch.BackgroundColor3=Color3.fromRGB(table.unpack(def.color))
+	cardName.Text=def.name.."  •  "..def.rarity
+	cardHint.Text=SIGNATURE_HINT[def.signature or ""] or def.trait
+	card.Visible=true
+	effects.sound("signature",1)
+	task.delay(2.6,function() card.Visible=false; cardBusy=false; nextCard() end)
+end
+local function checkNewSpecies(profile)
+	local album=profile.album or {}
+	if knownSpecies==nil then
+		knownSpecies={}; for id in pairs(album) do knownSpecies[id]=true end
+		return
+	end
+	for _,def in ipairs(Config.Creatures) do
+		if (album[def.id] or 0)>0 and not knownSpecies[def.id] then knownSpecies[def.id]=true; table.insert(cardQueue,def) end
+	end
+	nextCard()
+end
+-- UI scale (0.85/1/1.15) applied to the main HUD groups.
+local uiScales={}
+for _,object in ipairs({top,objective,controls,card}) do uiScales[object]=make("UIScale",object,{Scale=1}) end
+local appliedScale=1
+local function applyUiScale(scale)
+	if scale==appliedScale then return end
+	appliedScale=scale
+	for _,ui in pairs(uiScales) do ui.Scale=scale end
+end
+-- Arena music: base loop per arena with a finale layer faded in for the last 25 s.
+local finaleLayer=make("Sound",SoundService,{Name="SparkMusicFinale",Volume=0,Looped=true})
+local musicKey=nil
+local function soundId(entry)
+	if type(entry)~="table" then return nil end
+	if type(entry.id)=="string" and entry.id~="" then return entry.id end
+	return nil
+end
+local function updateMusic(data)
+	local biome=Config.Biomes[data.biome or 1]
+	local base=audioCatalog and (audioCatalog["music_"..(biome and biome.id or "meadow")] or audioCatalog.music)
+	local layer=audioCatalog and type(base)=="table" and base.finale and audioCatalog[base.finale]
+	local level=math.clamp(tonumber(data.profile.settings.musicVolume) or 0.6,0,1)
+	local baseId=soundId(base)
+	if not data.profile.settings.music or level<=0 or not baseId then
+		music:Stop(); finaleLayer:Stop(); musicKey=nil; return
+	end
+	if musicKey~=baseId then
+		musicKey=baseId
+		music.SoundId=baseId; music.TimePosition=0; music:Play()
+		local layerId=soundId(layer)
+		if layerId then finaleLayer.SoundId=layerId; finaleLayer.TimePosition=0; finaleLayer:Play() else finaleLayer:Stop() end
+	end
+	local baseVolume=math.clamp((tonumber(base.volume) or .2)*level,0,.4)
+	music.Volume=baseVolume
+	local finaleOn=data.finale==true
+	local target=if finaleOn and layer then math.clamp((tonumber(layer.volume) or .2)*level,0,.4) else 0
+	game:GetService("TweenService"):Create(finaleLayer,TweenInfo.new(if reduced() then 0 else 1.5),{Volume=target}):Play()
+	if finaleLayer.IsPlaying and music.IsPlaying and math.abs(finaleLayer.TimePosition-music.TimePosition)>0.08 then
+		finaleLayer.TimePosition=music.TimePosition -- keep the layer in sync with the base loop
 	end
 end
 State.OnClientEvent:Connect(function(data)
@@ -613,6 +773,13 @@ State.OnClientEvent:Connect(function(data)
 		rankText.Text="RANK "..data.rank.rank
 		xpFill.Size=UDim2.fromScale(math.clamp(data.rank.fraction or 0,0,1),1)
 	end
+	-- Progressive HUD (§6.3.2): rank chip after the first round, event line after the first bank.
+	do
+		local profile=data.profile
+		rankChipEarned=(profile.rounds or 0)>=1
+		rankChip.Visible=rankChipWide and rankChipEarned
+		eventLabel.Visible=(profile.totalBanked or 0)>=3 or data.phase~="Playing"
+	end
 	local heat=Ui.get(data,"stats","heat") or data.profile.heat or 0
 	local multiplier=tonumber(Ui.get(data,"stats","scoreMultiplier")) or 1
 	heatText.Text=if heat>0 then "HEAT "..heat..string.format(" • x%.1f",multiplier) else ""
@@ -636,12 +803,20 @@ State.OnClientEvent:Connect(function(data)
 			if type(data.cooldowns[key])=="number" then cooldownUntil[action]=os.clock()+math.max(0,data.cooldowns[key]) end
 		end
 	end
-	local entry=audioCatalog and audioCatalog.music
-	if type(entry)=="table" and type(entry.id)=="string" and entry.id~="" and data.profile.settings.music then
-		if music.SoundId~=entry.id then music.SoundId=entry.id end
-		music.Volume=math.clamp(entry.volume or .16,0,.4)
-		if not music.IsPlaying then music:Play() end
-	else music:Stop() end
+	updateMusic(data)
+	checkNewSpecies(data.profile)
+	applyUiScale(tonumber(data.profile.settings.uiScale) or 1)
+	local contrast=data.profile.settings.highContrast==true
+	aimOutline.DepthMode=if contrast then Enum.HighlightDepthMode.AlwaysOnTop else Enum.HighlightDepthMode.Occluded
+	aimOutline.OutlineTransparency=if contrast then 0 else .15
+	local quality=10
+	pcall(function() local v=UserSettings().GameSettings.SavedQualityLevel.Value; if type(v)=="number" and v>0 then quality=v end end)
+	for index in ipairs(Config.Biomes) do effects.ambience(index,Vector3.new((index-1)*300,0,0),quality) end
+	local paradeAttr=player:GetAttribute("SparkParade")
+	if type(paradeAttr)=="string" and paradeAttr~="" then
+		lastParade={}
+		for _,entry in ipairs(string.split(paradeAttr,",")) do local id=speciesOf(entry); if id then table.insert(lastParade,id) end end
+	end
 	if not data.profile.settings.sfx then effects.clearSounds() end
 	local reducedNow=data.profile.settings.reducedMotion==true
 	if reducedNow~=lastReduced then lastReduced=reducedNow; effects.setReduced() end
@@ -682,6 +857,7 @@ Players.PlayerRemoving:Connect(function(other)
 	followers[other]=nil
 end)
 local guideAt=0
+local lastBeat=nil
 RunService.RenderStepped:Connect(function(dt)
 	updateFlights(os.clock())
 	if creatureView then creatureView.render(os.clock()) end
@@ -689,7 +865,11 @@ RunService.RenderStepped:Connect(function(dt)
 	aimPreview(now)
 	local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 	effects.render(dt,latest,root,workspace.CurrentCamera)
-	if latest and latest.mastery and latest.phase=="Playing" and (latest.startersRemaining or 0)==0 and not menu.isOpen() then
+	-- Combo meter appears once chains matter: after the first 2-chain or from round 2.
+	local comboKnown=latest~=nil and latest.profile~=nil and ((latest.profile.rounds or 0)>=1
+		or (latest.profile.flags and latest.profile.flags.seenHints and latest.profile.flags.seenHints.chain)
+		or (latest.mastery~=nil and (latest.mastery.chain or 0)>=2))
+	if comboKnown and latest.mastery and latest.phase=="Playing" and (latest.startersRemaining or 0)==0 and not menu.isOpen() then
 		local m=latest.mastery
 		local window=math.max(1,tonumber(m.chainWindow) or 6)
 		local chainTime=math.max(0,(tonumber(m.chainSeconds) or 0)-(now-stateAt))
@@ -700,8 +880,24 @@ RunService.RenderStepped:Connect(function(dt)
 		comboFill.Size=UDim2.fromScale(math.clamp(chainTime/window,0,1),1)
 		comboFill.BackgroundColor3=if chainTime<1.5 and chain>0 then palette.warm else palette.mint
 		combo.Visible=true
+		effects.chainAura(root,if chainTime>0 then m.multiplier else 1,chainTime)
 	else
 		combo.Visible=false
+		effects.chainAura(nil)
+	end
+	if catchHeld and aimOutline.Enabled and settingValue("holdCatch",false) then requestAction("Capture") end
+	-- Countdown beats: last 3 s of the intermission, then STAMPEDE!; 15 s warning tone.
+	if latest then
+		local elapsed=now-stateAt
+		if latest.phase=="Results" and latest.nextRoundIn then
+			local left=math.ceil(latest.nextRoundIn-elapsed)
+			if left~=lastBeat and left>=1 and left<=3 then lastBeat=left; roundBeat(tostring(left),"countdown") end
+		elseif latest.phase=="Playing" then
+			local left=math.ceil((latest.remaining or 0)-elapsed)
+			if lastBeat~=nil and lastBeat>=1 and lastBeat<=3 and left>100 then roundBeat("STAMPEDE!","start_whistle") end
+			if left==15 and lastBeat~=15 then effects.sound("countdown",0.8) end
+			lastBeat=left
+		end
 	end
 	for action,b in pairs({Capture=captureButton,Dash=dashButton}) do
 		local remaining=math.max(0,cooldownUntil[action]-now)
@@ -714,9 +910,11 @@ RunService.RenderStepped:Connect(function(dt)
 	for other,f in pairs(followers) do
 		local otherRoot=other.Character and other.Character:FindFirstChild("HumanoidRootPart")
 		if otherRoot then
+			-- Parade Formation cosmetic (replicated attribute) shapes the followers.
+			local formation=other:GetAttribute("SparkFormation")
 			for index,mini in ipairs(f.models) do
-				local offset=Vector3.new((index%2*2-1)*1.7,-1+(if still then 0 else math.sin(now*4-index)*.2),2+index*1.15)
-				mini:PivotTo(otherRoot.CFrame*CFrame.new(offset))
+				local x,y,z=Cosmetics.formationXYZ(if type(formation)=="string" then formation else "line",index,#f.models,now,still)
+				mini:PivotTo(otherRoot.CFrame*CFrame.new(x,y,z))
 			end
 		else
 			for _,mini in ipairs(f.models) do mini:PivotTo(CFrame.new(0,-1000,0)) end

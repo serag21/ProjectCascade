@@ -104,7 +104,8 @@ function Effects.new(ctx)
 		if type(id) ~= "string" or id == "" then return end
 		local limit = if ctx.musicPlaying() then 5 else 6
 		while #self.voices >= limit do retire(self.voices[1]) end
-		local cue = make("Sound", SoundService, {Name="SparkCue_"..key, SoundId=id, Volume=math.clamp(tonumber(volume) or .25, 0, .6),
+		local level = if ctx.sfxVolume then math.clamp(tonumber(ctx.sfxVolume()) or 1, 0, 1) else 1
+		local cue = make("Sound", SoundService, {Name="SparkCue_"..key, SoundId=id, Volume=math.clamp((tonumber(volume) or .25) * level, 0, .6),
 			PlaybackSpeed=math.clamp(rate * (tonumber(speed) or 1), 0.5, 2)})
 		table.insert(self.voices, cue)
 		cue.Ended:Connect(function() retire(cue) end)
@@ -180,8 +181,100 @@ function Effects.new(ctx)
 		TextColor3=palette.ink, Visible=false, ZIndex=2})
 	Ui.round(compass, 23)
 
+	-- Golden beacons: a soft light pillar above each golden Spark so the shared
+	-- finale target is readable across the arena. Fixed pool of four.
+	local beacons = {}
+	for index = 1, 4 do beacons[index] = anchoredPart(folder, "GoldenBeacon" .. index, Vector3.new(0.9, 34, 0.9), palette.gold) end
+	local function placeBeacons()
+		local index = 0
+		for model in pairs(self.goldens) do
+			if model.Parent and model.PrimaryPart and index < #beacons then
+				index += 1
+				beacons[index].CFrame = CFrame.new(model.PrimaryPart.Position + Vector3.new(0, 18, 0))
+				beacons[index].Transparency = if ctx.reduced() then 0.75 else 0.6 + math.sin(os.clock() * 2 + index) * 0.08
+			end
+		end
+		for rest = index + 1, #beacons do beacons[rest].Transparency = 1 end
+	end
+
+	-- Chain tier aura: a disc under the player that changes colour per tier and
+	-- dims as the chain is about to expire (information, so kept in reduced motion).
+	local ring = make("Part", folder, {Name="ChainAura", Shape=Enum.PartType.Cylinder, Size=Vector3.new(0.1, 6, 6), Anchored=true,
+		CanCollide=false, CanTouch=false, CanQuery=false, CastShadow=false, Material=Enum.Material.Neon, Color=palette.mint, Transparency=1})
+	local tierColors = {[2]=palette.mint, [3]=palette.gold, [4]=palette.radiant}
+	function self.chainAura(root, multiplier, chainSeconds)
+		if not root or (tonumber(multiplier) or 1) < 2 or (tonumber(chainSeconds) or 0) <= 0 then ring.Transparency = 1; return end
+		local tier = math.min(4, math.floor(multiplier))
+		local size = 5 + tier
+		ring.Color = tierColors[tier] or palette.gold
+		ring.Size = Vector3.new(0.1, size, size)
+		ring.CFrame = CFrame.new(root.Position - Vector3.new(0, 2.85, 0)) * CFrame.Angles(0, 0, math.pi / 2)
+		ring.Transparency = if chainSeconds < 1.5 then 0.82 else 0.6
+	end
+
+	-- Bank Bursts (cosmetic, seen by everyone in the arena): built-in particle
+	-- texture, colours/count/speed from the Cosmetics catalog. Three emitters rotate.
+	local burstSlots = {}
+	for index = 1, 3 do
+		local holder = anchoredPart(folder, "BurstHolder" .. index, Vector3.new(2, 0.2, 2), palette.gold)
+		local emitter = make("ParticleEmitter", holder, {Name="BankBurst", Rate=0, Lifetime=NumberRange.new(0.8, 1.5),
+			Speed=NumberRange.new(8, 14), SpreadAngle=Vector2.new(55, 55), Acceleration=Vector3.new(0, -16, 0), Drag=1.2,
+			LightEmission=0.35, Size=NumberSequence.new(0.55, 0.08), Rotation=NumberRange.new(0, 360), RotSpeed=NumberRange.new(-160, 160),
+			EmissionDirection=Enum.NormalId.Top})
+		burstSlots[index] = {holder=holder, emitter=emitter}
+	end
+	local burstNext = 1
+	local SHAPE_SIZE = {bubbles=0.9, rings=0.8, hearts=0.7, petals=0.6, leaves=0.6, ribbons=0.55, confetti=0.5, stars=0.6, sparks=0.35, glitter=0.3}
+	function self.bankBurst(position, def)
+		if typeof(position) ~= "Vector3" or type(def) ~= "table" or ctx.reduced() then return end
+		local slot = burstSlots[burstNext]
+		burstNext = burstNext % #burstSlots + 1
+		local keypoints = {}
+		local colors = if type(def.colors) == "table" and #def.colors > 0 then def.colors else {{255, 219, 90}}
+		for index, c in ipairs(colors) do
+			if index > 4 then break end
+			local t = if #colors == 1 then 0 else (index - 1) / (math.min(#colors, 4) - 1)
+			table.insert(keypoints, ColorSequenceKeypoint.new(t, Color3.fromRGB(c[1], c[2], c[3])))
+		end
+		if #keypoints == 1 then table.insert(keypoints, ColorSequenceKeypoint.new(1, keypoints[1].Value)) end
+		slot.emitter.Color = ColorSequence.new(keypoints)
+		local speed = math.clamp(tonumber(def.speed) or 10, 4, 16)
+		slot.emitter.Speed = NumberRange.new(speed * 0.6, speed)
+		local size = SHAPE_SIZE[def.shape] or 0.5
+		slot.emitter.Size = NumberSequence.new(size, size * 0.15)
+		slot.holder.Position = position + Vector3.new(0, 1, 0)
+		slot.emitter:Emit(math.clamp(math.floor(tonumber(def.count) or 12), 4, 24))
+	end
+
+	-- Arena ambience: sparse drifting particles over each arena (petals, dust,
+	-- light ribbons). Disabled in reduced motion; halved on low graphics quality.
+	local ambience = {}
+	local AMBIENCE = {
+		{colors={Color3.fromRGB(255,190,220), Color3.fromRGB(255,240,160)}, speed=1.2, rise=-0.6, size=0.35, light=0.1},
+		{colors={Color3.fromRGB(255,214,170), Color3.fromRGB(240,170,120)}, speed=2.2, rise=0.2, size=0.22, light=0},
+		{colors={Color3.fromRGB(170,160,255), Color3.fromRGB(255,170,240)}, speed=0.8, rise=1.2, size=0.45, light=0.9},
+	}
+	function self.ambience(index, origin, quality)
+		local def = AMBIENCE[index]
+		if not def or typeof(origin) ~= "Vector3" then return end
+		if not ambience[index] then
+			local field = anchoredPart(folder, "Ambience" .. index, Vector3.new(120, 1, 120), def.colors[1])
+			field.Position = origin + Vector3.new(0, 7, 0)
+			local emitter = make("ParticleEmitter", field, {Name="Drift", Rate=6, Lifetime=NumberRange.new(6, 9),
+				Speed=NumberRange.new(def.speed * 0.5, def.speed), SpreadAngle=Vector2.new(180, 180), Acceleration=Vector3.new(0, def.rise, 0),
+				LightEmission=def.light, Size=NumberSequence.new(def.size, def.size * 0.6),
+				Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.2, 0.35), NumberSequenceKeypoint.new(0.8, 0.45), NumberSequenceKeypoint.new(1, 1)}),
+				Color=ColorSequence.new(def.colors[1], def.colors[2]), Rotation=NumberRange.new(0, 360), RotSpeed=NumberRange.new(-20, 20)})
+			ambience[index] = emitter
+		end
+		local emitter = ambience[index]
+		emitter.Enabled = not ctx.reduced()
+		emitter.Rate = if (tonumber(quality) or 10) <= 3 then 3 else 6
+	end
+
 	-- Per frame: smooth the gate ring and place the compass. No allocation churn.
 	function self.render(dt, data, root, camera)
+		placeBeacons()
 		if gate.visible and gate.target then
 			local alpha = math.clamp((dt or 0) * 4, 0, 1)
 			gate.center = gate.center:Lerp(gate.target, alpha)
