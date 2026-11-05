@@ -145,6 +145,8 @@ Progression.DailyPool = {
 	{id="d_canyon", name="Finish a round in Fizz Canyon", metric="canyonRounds", target=1, requires="canyon"},
 	{id="d_aurora", name="Finish a round in Aurora Arcade", metric="auroraRounds", target=1, requires="aurora"},
 	{id="d_heat", name="Finish a round at Heat 1+", metric="heatRounds", target=1, requires="heat"},
+	-- Fixed third slot every day (D23): the fair, seeded Daily Stampede run.
+	{id="d_trial", name="Finish today's Daily Stampede", metric="trialRuns", target=1, fixed=true},
 }
 Progression.WeeklyPool = {
 	{id="w_catch", name="Catch 300 Sparks", metric="captures", target=300},
@@ -177,7 +179,7 @@ end
 -- so unlocking an arena mid-day never reshuffles goals already in progress.
 local function pick(profile, pool, period, salt, count)
 	local options = {}
-	for _, goal in ipairs(pool) do if eligible(profile, goal) then table.insert(options, goal.id) end end
+	for _, goal in ipairs(pool) do if eligible(profile, goal) and not goal.fixed then table.insert(options, goal.id) end end
 	local seed = (period * 2654435761 + salt) % 4294967296
 	local chosen = {}
 	while #chosen < count and #options > 0 do
@@ -190,7 +192,9 @@ function Progression.ensureGoals(profile, now)
 	local changed = false
 	local day, week = Progression.day(now), Progression.week(now)
 	if profile.daily.day ~= day then
-		profile.daily = {day=day, goals=pick(profile, Progression.DailyPool, day, 17, 3), progress={}, claimed={}, bonus=false}
+		local goals = pick(profile, Progression.DailyPool, day, 17, 2)
+		table.insert(goals, "d_trial")
+		profile.daily = {day=day, goals=goals, progress={}, claimed={}, bonus=false, rerolled=false}
 		changed = true
 	end
 	if profile.weekly.week ~= week then
@@ -219,8 +223,18 @@ local function advanceGoals(block, summary, biomeIndex, heat)
 	end
 end
 
+-- Every XP grant pays any Glow Gift ranks crossed (Cosmetics.RankRewards), so
+-- each gift is paid exactly once whichever source (round, goal, achievement) levels you.
 local function grantXp(profile, amount)
+	local before = Progression.rank(profile.xp)
 	profile.xp = math.min(MAX_XP, int(profile.xp, MAX_XP) + int(amount))
+	local after = Progression.rank(profile.xp)
+	if after > before then
+		-- Lazy require: Cosmetics requires Progression at load time.
+		local Cosmetics = if script then require(script.Parent.Cosmetics) else require("./Cosmetics")
+		local gift = Cosmetics.glowBetween(before, after)
+		if gift > 0 then profile.coins = math.min(MAX_COINS, int(profile.coins, MAX_COINS) + gift) end
+	end
 end
 
 -- Newly earned achievements grant XP once. Returns their ids (stable order).
@@ -237,16 +251,11 @@ function Progression.evaluateAchievements(profile)
 end
 
 -- Rewards unlocked by crossing ranks (perks, slots, trails) for result callouts.
+-- Rank reward callouts come from the single rank table (Cosmetics.RankRewards):
+-- perks, slot, trails, formations, bursts, tags, titles and glow gifts.
 function Progression.unlocksBetween(fromRank, toRank)
-	local list = {}
-	for rank = fromRank + 1, toRank do
-		for _, perk in ipairs(Loadout.Perks) do if perk.rank == rank then table.insert(list, "Perk: "..perk.name) end end
-		if rank == 15 then table.insert(list, "Third perk slot") end
-		for _, trail in ipairs(Progression.Trails) do
-			if trail.rank == rank and not trail.price then table.insert(list, "Trail: "..trail.name) end
-		end
-	end
-	return list
+	local Cosmetics = if script then require(script.Parent.Cosmetics) else require("./Cosmetics")
+	return Cosmetics.unlocksBetween(fromRank, toRank)
 end
 
 -- One completed, server-owned round. roundSerial makes it idempotent across retries.
@@ -280,6 +289,38 @@ function Progression.applyRound(profile, summary, biomeIndex, heat, roundSerial,
 	local rankAfter = Progression.rank(profile.xp)
 	return {xp=gained, rankBefore=rankBefore, rankAfter=rankAfter, newRecord=partial ~= true and score > previousRecord, partial=partial == true,
 		previousRecord=previousRecord, achievements=achievements, unlocks=Progression.unlocksBetween(rankBefore, rankAfter)}
+end
+
+-- A finished Daily Stampede run advances today's fixed trial goal (once).
+function Progression.recordTrialRun(profile, now)
+	Progression.ensureGoals(profile, now)
+	if table.find(profile.daily.goals, "d_trial") and not profile.daily.claimed.d_trial then
+		profile.daily.progress.d_trial = 1
+		return true
+	end
+	return false
+end
+
+-- One free reroll per day of a daily PLAY goal (never the fixed trial slot,
+-- never a claimed goal). Deterministic replacement; progress restarts at 0.
+function Progression.rerollGoal(profile, id)
+	local goal = type(id) == "string" and goalById[id] or nil
+	if not goal or goal.kind ~= "daily" or goal.fixed then return false, "That goal can't be rerolled" end
+	local block = profile.daily
+	local slot = table.find(block.goals, id)
+	if not slot then return false, "Not an active goal" end
+	if block.claimed[id] then return false, "Already claimed" end
+	if block.rerolled then return false, "Reroll used today" end
+	local options = {}
+	for _, candidate in ipairs(Progression.DailyPool) do
+		if not candidate.fixed and eligible(profile, candidate) and not table.find(block.goals, candidate.id) then table.insert(options, candidate.id) end
+	end
+	if #options == 0 then return false, "No other goals available" end
+	local replacement = options[(block.day * 7 + slot) % #options + 1]
+	block.goals[slot] = replacement
+	block.progress[id] = nil; block.progress[replacement] = 0
+	block.rerolled = true
+	return true, "New goal: "..goalById[replacement].name
 end
 
 function Progression.claimGoal(profile, id)

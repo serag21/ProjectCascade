@@ -30,16 +30,58 @@ function Harness.boot(options)
 	return setmetatable(h, {__index = Harness})
 end
 
+-- HerdNet packets (server stops moving creature models; clients render them).
+-- The harness plays the client's role for scenario bots: it applies the latest
+-- snapshot per arena to the shared fake models so GetPivot() follows the herd.
+function Harness.decodeHerd(packet)
+	if type(packet) ~= "buffer" or buffer.len(packet) < 8 then return nil end
+	local count = buffer.readu16(packet, 2)
+	if buffer.len(packet) ~= 8 + count * 10 then return nil end
+	local out = {arena = buffer.readu8(packet, 1), clock = buffer.readf32(packet, 4), entries = {}}
+	for i = 0, count - 1 do
+		local o = 8 + i * 10
+		table.insert(out.entries, {id = buffer.readu32(packet, o), x = buffer.readi16(packet, o + 4) / 10,
+			z = buffer.readi16(packet, o + 6) / 10, flags = buffer.readu8(packet, o + 9)})
+	end
+	return out
+end
+function Harness.applyHerd(h, packets)
+	if not h.world then return end
+	local byId = {}
+	for _, model in ipairs(h.world.Creatures:GetChildren()) do
+		local id = model:GetAttribute("CreatureId")
+		if id then byId[id] = model end
+	end
+	for _, packet in pairs(packets) do
+		local decoded = Harness.decodeHerd(packet)
+		if decoded then
+			local originX = (decoded.arena - 1) * 300
+			for _, entry in ipairs(decoded.entries) do
+				local model = byId[entry.id]
+				if model and model.Parent then model:PivotTo(DT.CFrame.new(originX + entry.x, 2.2, entry.z)) end
+			end
+		end
+	end
+end
+
 -- Latest server->client payloads, recorded from the FireClient log.
 function Harness.collect(h)
 	local log = h.engine.remoteLog
 	local last = h.lastSeq or 0
 	local start = #log + 1
 	while start > 1 and log[start - 1].seq > last do start -= 1 end
+	local herd = {}
 	for i = start, #log do
 		local entry = log[i]
 		local userId = entry.player.UserId
-		if entry.remote == "State" then
+		if entry.remote == "HerdNet" then
+			local packet = entry.args[1]
+			if type(packet) == "buffer" and buffer.len(packet) >= 2 then
+				herd[buffer.readu8(packet, 1)] = packet
+				h.herdPackets = (h.herdPackets or 0) + 1
+				h.herdBytes = (h.herdBytes or 0) + buffer.len(packet)
+			end
+		elseif entry.remote == "State" then
 			local data = entry.args[1]
 			local previous = h.states[userId]
 			-- The server omits the profile when unchanged; keep the client's cached copy.
@@ -51,6 +93,7 @@ function Harness.collect(h)
 		end
 	end
 	if #log > 0 then h.lastSeq = log[#log].seq end
+	h:applyHerd(herd)
 end
 function Harness.state(h, player) h:collect(); return h.states[player.UserId] end
 function Harness.feedbackOf(h, player, kind)

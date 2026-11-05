@@ -947,12 +947,44 @@ function Fake.new(options)
 			for _, p in ipairs(classMethods.Players.GetPlayers()) do classMethods.RemoteEvent.FireClient(proxy, p, ...) end
 		end,
 	}
+	-- UnreliableRemoteEvent: same routing, but Roblox drops payloads over ~900 bytes.
+	local function payloadBytes(args)
+		local total = 0
+		local function measure(v)
+			local t = type(v)
+			if t == "buffer" then total += buffer.len(v)
+			elseif t == "string" then total += #v
+			elseif t == "number" then total += 8
+			elseif t == "table" then for k, x in pairs(v) do measure(k); measure(x) end
+			else total += 1 end
+		end
+		for i = 1, args.n do measure(args[i]) end
+		return total
+	end
+	engine.unreliableDropped = 0
+	classMethods.UnreliableRemoteEvent = {
+		FireServer = classMethods.RemoteEvent.FireServer,
+		FireClient = function(proxy, player, ...)
+			local args = table.pack(...)
+			if payloadBytes(args) > 900 then
+				engine.unreliableDropped += 1
+				local issue = recs[proxy].props.Name .. ": unreliable payload over 900 bytes is dropped"
+				if not engine.remoteIssueSeen then engine.remoteIssueSeen = {} end
+				if not engine.remoteIssueSeen[issue] then engine.remoteIssueSeen[issue] = true; table.insert(engine.remoteIssues, issue) end
+				return
+			end
+			classMethods.RemoteEvent.FireClient(proxy, player, ...)
+		end,
+		FireAllClients = function(proxy, ...)
+			for _, p in ipairs(classMethods.Players.GetPlayers()) do classMethods.UnreliableRemoteEvent.FireClient(proxy, p, ...) end
+		end,
+	}
 	-- OnClientEvent depends on which client is asking.
 	local baseIndex = InstanceMt.__index
 	InstanceMt.__index = function(self, key)
 		if key == "OnClientEvent" then
 			local rec = recs[self]
-			if rec.class.name == "RemoteEvent" then
+			if rec.class.name == "RemoteEvent" or rec.class.name == "UnreliableRemoteEvent" then
 				local ctx = currentContext()
 				if ctx.kind ~= "client" then return eventSignal(rec, "OnClientEventServerSide") end
 				return clientSignal(rec, ctx.player)

@@ -2,6 +2,7 @@ local Config = if script then require(script.Parent.Config) else require("./Conf
 local Challenge = if script then require(script.Parent.Challenge) else require("./Challenge")
 local Loadout = if script then require(script.Parent.Loadout) else require("./Loadout")
 local Progression = if script then require(script.Parent.Progression) else require("./Progression")
+local Cosmetics = if script then require(script.Parent.Cosmetics) else require("./Cosmetics")
 local Profile = {}
 local MAX_COUNT = 1000000
 local MAX_COINS = 2000000000
@@ -62,7 +63,7 @@ function Profile.new()
 			showOnPodium=true,holdCatch=false,highContrast=false,uiScale=1,musicVolume=0.6,sfxVolume=0.8}, lastSeen=0,
 		-- Version 2: long-term progression. All earned in play; nothing purchasable with Robux.
 		xp=0, loadout={}, heat=0, records=emptyRecords(), gilded={}, stats=stats, achievements={},
-		daily={day=0,goals={},progress={},claimed={},bonus=false}, weekly={week=0,goals={},progress={},claimed={}},
+		daily={day=0,goals={},progress={},claimed={},bonus=false,rerolled=false}, weekly={week=0,goals={},progress={},claimed={}},
 		style={owned={},trail="none",title=""}, progressReceipt=0,
 		-- Version 3: cosmetics categories, species signatures, Daily Stampede, coaching flags.
 		cosmetics={owned={},formation="line",burst="confetti",tag="default",title=""},
@@ -178,6 +179,7 @@ function Profile.sanitize(raw)
 	end
 	result.daily = goalBlock(raw.daily, "day", Progression.DailyPool)
 	result.daily.bonus = type(raw.daily) == "table" and raw.daily.bonus == true
+	result.daily.rerolled = type(raw.daily) == "table" and raw.daily.rerolled == true
 	result.weekly = goalBlock(raw.weekly, "week", Progression.WeeklyPool)
 	if type(raw.style) == "table" then
 		if type(raw.style.owned) == "table" then
@@ -189,7 +191,7 @@ function Profile.sanitize(raw)
 		if type(raw.style.title) == "string" and Progression.AchievementById[raw.style.title] then result.style.title = raw.style.title end
 	end
 	-- Version 3 fields (absent on v1/v2 saves -> safe defaults).
-	result.cosmetics = sanitizeCosmetics(raw.cosmetics)
+	result.cosmetics = Cosmetics.sanitize(sanitizeCosmetics(raw.cosmetics))
 	if type(raw.signatures) == "table" then
 		for id in pairs(species) do
 			local count = integer(raw.signatures[id], MAX_COUNT)
@@ -219,6 +221,7 @@ function Profile.sanitize(raw)
 	-- Validate equips against what this profile has actually earned.
 	if not Progression.styleUnlocked(result, Progression.TrailById[result.style.trail]) then result.style.trail = "none" end
 	if Progression.titleText(result) == "" then result.style.title = "" end
+	Cosmetics.stripUnearned(result)
 	local rank = Progression.rank(result.xp)
 	result.loadout = Loadout.sanitize(raw.loadout, rank)
 	result.heat = math.min(integer(raw.heat, Loadout.MaxHeat), Loadout.heatUnlocked(result.records))

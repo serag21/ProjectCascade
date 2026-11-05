@@ -21,6 +21,9 @@ local Loadout=require("./Loadout")
 local Encounters=require("./Encounters")
 local Progression=require("./Progression")
 local Cycle=require("./Cycle")
+local Cosmetics=require("./Cosmetics")
+local Players={}
+local Feedback={FireClient=function() end}
 local arenaEpoch=0
 local Targeting=require("./Targeting")
 local now=1
@@ -399,6 +402,18 @@ test("new players meet sweeps in round two and statics in round three",function(
     updateStatics(p,s,p.root,now,0.1);assert(#staticModels==0,"Round 2: still no statics")
     s.roundsAtStart=2;updateStatics(p,s,p.root,now+0.1,0.1);assert(#staticModels==1,"Round 3: statics")
 end)
+test("first bank spawns the dash practice line once and hints persist",function()
+    local p,s=player(1),session();s.starterRemaining=3;s.starterIssued=true
+    for i=1,3 do now=i;target(i,2,1);capture(p,s) end
+    now=4;bank(p,s,false)
+    local practice=0
+    for _,entry in ipairs(spawned) do if entry.options and entry.options.beginner and entry.options.extra then practice+=1 end end
+    assert(practice==3 and s.profile.flags.seenHints.practice,"Three practice Sparks and a persisted hint")
+    local hints=0; for _,m in ipairs(messages) do if m.kind=="Hint" then hints+=1 end end
+    assert(not hintOnce(p,s,"practice","again") and hintOnce(p,s,"chain","x") and not hintOnce(p,s,"chain","x"),"Hints show once")
+    s.profile.totalBanked=2;spawned={};target(9,2);now=6;capture(p,s);now=7;bank(p,s,false)
+    assert(#spawned==0,"Practice line never repeats")
+end)
 print("SparkGameplayIntegration: "..count.." exact production-function cases passed (engine dependencies mocked)")
 '''
 
@@ -413,11 +428,12 @@ def main() -> None:
     blocks = extract(source, "-- BEGIN PURE LIFECYCLE", "-- END PURE LIFECYCLE")
     blocks += extract(source, "local function creatureBase(entry)", "local function rootOf(player)")
     blocks += extract(source, "local function roundPlaying(s,now)", "local function objective(")
-    blocks += extract(source, "local function bank(player,s,automatic)", "local function spawnCreature(")
+    blocks += extract(source, "local function hintOnce(player,s,id,text)", "local function stopDash(root)")
+    blocks += extract(source, "local function bank(player,s,automatic)", "-- options (all server-owned): def, position, golden, extra")
     blocks += extract(source, "-- BEGIN CATCH TRANSACTIONS", "-- END CATCH TRANSACTIONS")
     with tempfile.TemporaryDirectory(prefix="spark-gameplay-") as directory:
         folder = Path(directory)
-        for name in ("Config", "Profile", "Challenge", "Rules", "Targeting", "ArenaRally", "ArenaEvents", "Loadout", "Encounters", "Progression", "Cycle"):
+        for name in ("Config", "Profile", "Challenge", "Rules", "Targeting", "ArenaRally", "ArenaEvents", "Loadout", "Encounters", "Progression", "Cycle", "Cosmetics"):
             shutil.copyfile(ROOT / f"game/ReplicatedStorage/Spark/{name}.luau", folder / f"{name}.luau")
         script = folder / "gameplay.spec.luau"
         script.write_text(PRELUDE + blocks + CASES, encoding="utf-8")

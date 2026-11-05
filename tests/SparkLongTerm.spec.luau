@@ -58,11 +58,16 @@ check(poor.style.trail=="none" and poor.style.title=="" and poor.heat==0 and #po
 check(Profile.sanitize({version=4})==nil,"Future versions refused")
 -- v3 migration and malicious v3 fields
 local v3=Profile.sanitize({version=3,settings={uiScale=1.15,musicVolume=7,sfxVolume=-2,holdCatch=true,showOnPodium="no"},
-	cosmetics={owned={orbit=true,["bad id!"]=true,huge=("x"):rep(40)},formation="orbit",burst=5,tag="neon_tag"},
+	cosmetics={owned={heart=true,orbit=true,["bad id!"]=true,huge=("x"):rep(40)},formation="heart",burst=5,tag="neon_tag",title="unknown_title"},
 	signatures={pip=12,fake=99,bunvolt=-3},trial={day=20400,best=900,runsDay=20400,runsToday=9999,rewardedDay=20400,bestRun={score=900,checkpoints={}}},
 	flags={seenHints={dash=true,["$$"]=true},firstSessionDone=true}})
 check(v3.settings.uiScale==1.15 and v3.settings.musicVolume==1 and v3.settings.sfxVolume==0 and v3.settings.holdCatch and v3.settings.showOnPodium==true,"v3 settings sanitized")
-check(v3.cosmetics.owned.orbit and v3.cosmetics.owned["bad id!"]==nil and v3.cosmetics.formation=="orbit" and v3.cosmetics.burst=="confetti","v3 cosmetics sanitized")
+check(v3.cosmetics.owned.heart and v3.cosmetics.owned.orbit==nil and v3.cosmetics.owned["bad id!"]==nil,"v3 cosmetics: only priced catalog items stored as owned")
+check(v3.cosmetics.formation=="heart" and v3.cosmetics.burst=="confetti" and v3.cosmetics.tag=="default" and v3.cosmetics.title=="","v3 cosmetics: owned equip kept, unknown/unearned equips reset")
+local unearned=Profile.sanitize({version=3,cosmetics={formation="orbit"}})
+check(unearned.cosmetics.formation=="line","Rank-locked free formation stripped at rank 1")
+local earned=Profile.sanitize({version=3,xp=Progression.xpFor(25),cosmetics={formation="orbit"}})
+check(earned.cosmetics.formation=="orbit","Rank-unlocked formation kept once earned")
 check(v3.signatures.pip==12 and v3.signatures.fake==nil and v3.signatures.bunvolt==nil,"v3 signatures whitelisted")
 check(v3.trial.best==900 and v3.trial.runsToday==1000 and v3.trial.bestRun and v3.trial.bestRun.score==900,"v3 trial bounded")
 check(v3.flags.seenHints.dash and v3.flags.seenHints["$$"]==nil and v3.flags.firstSessionDone,"v3 flags sanitized")
@@ -193,4 +198,34 @@ Profile.recordMastery(live,"meadow",final,1)
 local res=Progression.applyRound(live,final,1,0,1,NOW)
 check(res and live.records.meadow[1]==final.score and live.mastery.bestByBiome.meadow==final.score,"End-to-end round records")
 check(Progression.rank(live.xp)>=2,"First solid round unlocks perks rank")
+-- Daily trial slot, reroll and glow gifts (D20/D23) ------------------------------
+local dg=Profile.new(); Progression.ensureGoals(dg,NOW)
+check(#dg.daily.goals==3 and dg.daily.goals[3]=="d_trial","Third daily slot is always the Daily Stampede")
+for d=0,40 do local r=Profile.new(); Progression.ensureGoals(r,NOW+d*DAY)
+	check(r.daily.goals[3]=="d_trial" and r.daily.goals[1]~="d_trial" and r.daily.goals[2]~="d_trial","Trial slot fixed, never drawn") end
+check(not Progression.rerollGoal(dg,"d_trial"),"Trial slot cannot be rerolled")
+local first=dg.daily.goals[1]
+dg.daily.progress[first]=2
+local okReroll=Progression.rerollGoal(dg,first)
+check(okReroll and dg.daily.goals[1]~=first and dg.daily.rerolled and (dg.daily.progress[dg.daily.goals[1]] or 0)==0,"Reroll replaces a play goal with fresh progress")
+check(not table.find({dg.daily.goals[2],dg.daily.goals[3]},dg.daily.goals[1]),"Replacement is not a duplicate")
+check(not Progression.rerollGoal(dg,dg.daily.goals[2]),"Only one reroll per day")
+check(Progression.recordTrialRun(dg,NOW) and dg.daily.progress.d_trial==1,"Trial run completes the trial goal")
+local coinsBefore=dg.coins
+check(Progression.claimGoal(dg,"d_trial") and dg.coins>coinsBefore,"Trial goal claimable")
+local rdg=Profile.sanitize(dg); check(rdg.daily.rerolled==true and rdg.daily.goals[3]=="d_trial","Reroll state persists")
+Progression.ensureGoals(dg,NOW+DAY); check(dg.daily.rerolled==false,"New day restores the reroll")
+-- Glow gifts are paid once when XP crosses a gift rank, whatever the XP source.
+local Cosmetics=require("../game/ReplicatedStorage/Spark/Cosmetics")
+local giftRank=nil
+for r=2,50 do if Cosmetics.glowBetween(r-1,r)>0 then giftRank=r; break end end
+check(giftRank~=nil,"At least one glow gift rank exists")
+local gp=Profile.new(); gp.xp=Progression.xpFor(giftRank)-1; gp.rounds=1
+local coins0=gp.coins
+Progression.applyRound(gp,{finished=true,score=400,captures=10},1,0,1,NOW)
+check(gp.coins-coins0>=Cosmetics.glowBetween(giftRank-1,giftRank),"Glow gift paid on crossing the gift rank")
+local coins1=gp.coins; gp.rounds=2
+Progression.applyRound(gp,{finished=true,score=0,captures=10},1,0,2,NOW)
+check(gp.coins==coins1 or Progression.rank(gp.xp)>giftRank,"Gift never paid twice")
+for r=2,50 do check(#Progression.unlocksBetween(r-1,r)>0,"Rank "..r.." grants something") end
 print("PASS SparkLongTerm: "..n.." assertions (rank, goals, achievements, styles, v2 migration; pure modules)")

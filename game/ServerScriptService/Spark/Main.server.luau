@@ -17,6 +17,8 @@ local Loadout = require(Shared.Loadout)
 local Encounters = require(Shared.Encounters)
 local Progression = require(Shared.Progression)
 local Cycle = require(Shared.Cycle)
+local HerdNet = require(Shared.HerdNet)
+local Cosmetics = require(Shared.Cosmetics)
 local World = require(script.Parent.World)
 local Persistence = require(script.Parent.Persistence)
 local Services = require(script.Parent.Services)
@@ -37,6 +39,10 @@ local function remote(name)
 	return value
 end
 local Action, State, Feedback = remote("Action"), remote("State"), remote("Feedback")
+-- Living herd (D13): compact creature snapshots at 10 Hz; clients interpolate and
+-- animate. Unreliable delivery is fine: every packet is a full arena snapshot.
+local HerdFeed = Instance.new("UnreliableRemoteEvent")
+HerdFeed.Name = "HerdNet"; HerdFeed.Parent = remotes
 local world = World.build(Config)
 local creaturesFolder = world.root:FindFirstChild("Creatures") or Instance.new("Folder")
 creaturesFolder.Name = "Creatures"; creaturesFolder.Parent = world.root
@@ -159,13 +165,25 @@ local function applyStyle(player,s)
 		trail.Transparency=NumberSequence.new(0.25,1); trail.Lifetime=0.4; trail.LightEmission=0.5
 		trail.FaceCamera=true; trail.Parent=root
 	end
+	-- Visible social flex (D20): formation and burst replicate as attributes;
+	-- the name tag style frames the equipped title (rank title or achievement title).
+	local cos=s.profile.cosmetics
+	player:SetAttribute("SparkFormation",Cosmetics.resolve("formation",cos.formation).id)
+	player:SetAttribute("SparkBurst",Cosmetics.resolve("burst",cos.burst).id)
 	local title=Progression.titleText(s.profile)
-	if head and title~="" then
-		local gui=Instance.new("BillboardGui"); gui.Name="SparkTitle"; gui.Size=UDim2.fromOffset(150,22)
+	if title=="" then title=Cosmetics.titleText(s.profile) end
+	local tag=Cosmetics.resolve("tag",cos.tag)
+	if head and (title~="" or tag.id~="default") then
+		local function rgb(c,fallback) return if type(c)=="table" then Color3.fromRGB(c[1],c[2],c[3]) else fallback end
+		local gui=Instance.new("BillboardGui"); gui.Name="SparkTitle"; gui.Size=UDim2.fromOffset(170,24)
 		gui.StudsOffset=Vector3.new(0,2.4,0); gui.MaxDistance=55; gui.LightInfluence=0; gui.Parent=head
-		local text=Instance.new("TextLabel"); text.Size=UDim2.fromScale(1,1); text.BackgroundTransparency=1
-		text.Font=Enum.Font.GothamBold; text.TextSize=14; text.TextColor3=Color3.fromRGB(255,219,90)
-		text.TextStrokeTransparency=0.4; text.Text=title; text.Parent=gui
+		local text=Instance.new("TextLabel"); text.Size=UDim2.fromScale(1,1)
+		text.BackgroundTransparency=if tag.frame then (tag.frameTransparency or 0.3) else 1
+		text.BackgroundColor3=rgb(tag.frame,Color3.new(0,0,0))
+		text.Font=Enum.Font.GothamBold; text.TextSize=14; text.TextColor3=rgb(tag.text,Color3.fromRGB(255,219,90))
+		text.TextStrokeColor3=rgb(tag.stroke,Color3.new(0,0,0)); text.TextStrokeTransparency=0.3
+		text.Text=if title~="" then title else player.DisplayName; text.Parent=gui
+		local corner=Instance.new("UICorner"); corner.CornerRadius=UDim.new(0,8); corner.Parent=text
 	end
 end
 -- Every gameplay stat derives from the saved upgrades, perk loadout and heat.
@@ -196,7 +214,7 @@ local function clearStarters(userId)
 	end
 	for owner,s in pairs(sessions) do if owner.UserId==userId then s.starterRemaining=0 end end
 end
-local issueStarters
+local issueStarters,spawnCreature
 local clearPersonal,onRoundRecorded
 -- Synchronized cycles (Cycle.luau): "Playing" is a scored round ending at the
 -- shared buzzer; "Warmup" is free catching until the next cycle starts.
@@ -316,6 +334,14 @@ onRoundRecorded=function(player,s,summary,result)
 	end
 	for _,name in ipairs(result.titles) do feedback(player,"Quest","ACHIEVEMENT • "..name) end
 end
+-- Coaching hints persist in the profile (flags.seenHints): never repeated across sessions.
+local function hintOnce(player,s,id,text)
+	local seen=s.profile.flags.seenHints
+	if seen[id] then return false end
+	seen[id]=true; Lifecycle.markDirty(s)
+	feedback(player,"Hint",text,nil,nil,{coach=id})
+	return true
+end
 local function stopDash(root)
 	for _,name in ipairs({"SparkDashVelocity","SparkDashAttachment"}) do
 		local item=root:FindFirstChild(name)
@@ -370,8 +396,21 @@ local function bank(player,s,automatic)
 	local catches=s.carry; s.carry={}
 	local ordinary=if s.challenge then s.challenge.pendingCount else 0
 	parade(player,s)
+	local wasNew=s.profile.totalBanked<3
 	local reward,newSpecies=Profile.bank(s.profile,catches)
 	if s.profile.totalBanked>=3 then clearStarters(player.UserId) end
+	if wasNew and s.profile.totalBanked>=3 and not automatic and not s.profile.flags.seenHints.practice then
+		-- Dash practice line (§7): three slow Sparks in a row straight out from the
+		-- bank, so the first dash-through is guaranteed to be a MULTI catch.
+		local pool={}
+		for _,def in ipairs(Config.Creatures) do if def.biome==s.biome then table.insert(pool,def) end end
+		local origin=world.arenas[s.biome].origin
+		for n=1,3 do
+			spawnCreature(s.biome,nil,nil,{def=pool[(n-1)%#pool+1],extra=true,beginner=true,expiresAt=os.clock()+25,
+				position=origin+Vector3.new(0,2.2,13-(n-1)*4)})
+		end
+		hintOnce(player,s,"practice","DASH THROUGH THE LINE! Run at the three Sparks and press DASH (Shift / B)")
+	end
 	if s.profile.totalBanked>=3 and not s.hazardStarted then s.hazardStarted=os.clock() end
 	s.score+=reward
 	-- Final 25 seconds of the shared round: finale bank bonus (manual banks only).
@@ -386,6 +425,15 @@ local function bank(player,s,automatic)
 		if finale and skillPoints>0 then " • FINALE x1.25" else "",if newSpecies>0 then " • NEW SPARK!" else ""),nil,nil,
 		{count=#catches,skill=skillPoints,glow=reward,newSpecies=newSpecies,position=world.arenas[s.biome].bank})
 	Lifecycle.markDirty(s)
+	if not automatic and #catches>0 then
+		-- Everyone in the arena sees this player's Bank Burst celebration.
+		local burst=Cosmetics.resolve("burst",s.profile.cosmetics.burst).id
+		for other,session in pairs(sessions) do
+			if session.ready and session.biome==s.biome and other.Parent==Players then
+				Feedback:FireClient(other,{kind="BankBurst",position=world.arenas[s.biome].bank,extra={burst=burst,userId=player.UserId,count=#catches}})
+			end
+		end
+	end
 	if not automatic and not warm and ordinary>0 then
 		local recipients=ArenaRally.deposit(rallies[s.biome],os.clock(),player.UserId,ordinary)
 		for _,userId in ipairs(recipients) do
@@ -506,7 +554,7 @@ local function startNow(player,s)
 end
 -- options (all server-owned): def, position, golden, extra (no respawn on catch),
 -- runner={direction,speed,untilT}, expiresAt.
-local function spawnCreature(biome,index,starterPlayer,options)
+spawnCreature=function(biome,index,starterPlayer,options)
 	options=options or {}
 	local defs={}
 	for _,def in ipairs(Config.Creatures) do
@@ -548,7 +596,7 @@ local function spawnCreature(biome,index,starterPlayer,options)
 	model:PivotTo(CFrame.new(position))
 	if options.golden then model:SetAttribute("Golden",true) end
 	herd[nextCreatureId]={id=nextCreatureId,def=def,model=model,biome=biome,
-		position=position,home=position,beginner=starterPlayer~=nil,starterOwner=starterPlayer and starterPlayer.UserId,
+		position=position,home=position,beginner=starterPlayer~=nil or options.beginner==true,starterOwner=starterPlayer and starterPlayer.UserId,
 		heading=if options.runner then math.atan2(options.runner.direction.Z,options.runner.direction.X) else angle,
 		seed=random:NextNumber(0,20),claimed=false,index=index,
 		golden=options.golden==true,extra=options.extra==true,runner=options.runner,expiresAt=options.expiresAt}
@@ -612,7 +660,8 @@ local function claim(player,s,creature,kind,aim,multiIndex)
 		message=string.format("+%d skill • %sx%d",skill.points,if #tags>0 then table.concat(tags," • ").." • " else "",skill.multiplier)
 	end
 	feedback(player,"Catch",message,creature.def,creature.position,{tags=tags,points=if scored then skill.points else 0,
-		chain=if scored then skill.chain else 0,multiplier=if scored then skill.multiplier else 1,golden=creature.golden})
+		chain=if scored then skill.chain else 0,multiplier=if scored then skill.multiplier else 1,golden=creature.golden,
+		creatureId=creature.id,species=creature.def.id})
 	if creature.golden or kind=="herd" then creditAssist(creature,player.UserId,now)
 	elseif creature.spookedBy and creature.spookedBy~=player.UserId and creature.spookedAt and now-creature.spookedAt<=1.5 then
 		-- Contested catch (D25): the player who was chasing it within 8 studs gets a
@@ -764,11 +813,7 @@ local function updateStatics(player,s,root,now,step)
 				model:PivotTo(CFrame.new(origin+Vector3.new(spot.x,3,spot.z)))
 				s.statics[s.staticSerial]={id=s.staticSerial,pos=spot,born=now,model=model}
 				s.staticCount+=1
-				if not s.hinted then s.hinted={} end
-				if not s.hinted.static then
-					s.hinted.static=true
-					feedback(player,"Hint","STATIC PUFF! DASH through it to POP it • touching it zaps your parade")
-				end
+				hintOnce(player,s,"static","STATIC PUFF! DASH through it to POP it • touching it zaps your parade")
 				break
 			end
 		end
@@ -882,14 +927,40 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 		feedback(player,if ok then "Quest" else "Hint",message); send(player,s)
 	elseif action=="Settings" and type(payload)=="table" then
 		local changed=false
-		for _,key in ipairs({"reducedMotion","music","sfx","competition"}) do
+		for _,key in ipairs({"reducedMotion","music","sfx","competition","showOnPodium","holdCatch","highContrast"}) do
 			if type(payload[key])=="boolean" and payload[key]~=s.profile.settings[key] then s.profile.settings[key]=payload[key]; changed=true end
+		end
+		for _,key in ipairs({"musicVolume","sfxVolume"}) do
+			local value=payload[key]
+			if type(value)=="number" and value==value then
+				value=math.clamp(math.floor(value*20+0.5)/20,0,1)
+				if value~=s.profile.settings[key] then s.profile.settings[key]=value; changed=true end
+			end
+		end
+		if type(payload.uiScale)=="number" then
+			for _,allowed in ipairs(Profile.UiScales) do
+				if math.abs(payload.uiScale-allowed)<1e-6 and s.profile.settings.uiScale~=allowed then s.profile.settings.uiScale=allowed; changed=true end
+			end
 		end
 		if changed then Lifecycle.markDirty(s) end
 		send(player,s)
 	elseif action=="Goal" and type(payload)=="string" and #payload<=24 then
 		local ok,message,glow=Progression.claimGoal(s.profile,payload)
 		if ok then Lifecycle.markDirty(s); economy(player,s,"source",glow,"goal_"..payload) end
+		feedback(player,if ok then "Quest" else "Hint",message); send(player,s)
+	elseif action=="Style" and type(payload)=="table" and type(payload.category)=="string" and type(payload.id)=="string"
+		and #payload.category<=12 and #payload.id<=24 then
+		local ok,message,price=Cosmetics.equip(s.profile,payload.category,payload.id)
+		if ok then
+			-- Rank titles and achievement titles are exclusive: one tag text at a time.
+			if payload.category=="title" and payload.id~="" then s.profile.style.title="" end
+			Lifecycle.markDirty(s); applyStyle(player,s)
+			if price and price>0 then economy(player,s,"sink",price,"cosmetic_"..payload.id) end
+		end
+		feedback(player,if ok then "Upgrade" else "Hint",message); send(player,s)
+	elseif action=="Reroll" and type(payload)=="string" and #payload<=24 then
+		local ok,message=Progression.rerollGoal(s.profile,payload)
+		if ok then Lifecycle.markDirty(s) end
 		feedback(player,if ok then "Quest" else "Hint",message); send(player,s)
 	elseif action=="Style" and type(payload)=="string" and #payload<=24 then
 		local ok,message,price=Progression.style(s.profile,payload)
@@ -900,7 +971,10 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 		feedback(player,if ok then "Upgrade" else "Hint",message); send(player,s)
 	elseif action=="Title" and type(payload)=="string" and #payload<=24 then
 		local ok,message=Progression.setTitle(s.profile,payload)
-		if ok then Lifecycle.markDirty(s); applyStyle(player,s) end
+		if ok then
+			if payload~="" then s.profile.cosmetics.title="" end
+			Lifecycle.markDirty(s); applyStyle(player,s)
+		end
 		feedback(player,if ok then "Quest" else "Hint",message); send(player,s)
 	elseif action=="Loadout" and type(payload)=="table" then
 		-- Between rounds only: a round's rules never change mid-round.
@@ -1170,7 +1244,7 @@ RunService.Heartbeat:Connect(function(dt)
 		if c.runner then
 			c.position+=c.runner.direction*c.runner.speed*step
 			local bob=Vector3.new(c.position.X,2.2+math.abs(math.sin((now+c.seed)*9))*0.6,c.position.Z)
-			c.model:PivotTo(CFrame.lookAt(bob,bob+c.runner.direction))
+			c.renderPosition=bob
 			continue
 		end
 		local time=now+c.seed
@@ -1205,6 +1279,9 @@ RunService.Heartbeat:Connect(function(dt)
 			if c.spookedBy~=nearestId then c.assistBy=c.spookedBy; c.assistAt=c.spookedAt end
 			c.spookedBy=nearestId; c.spookedAt=now
 		end
+		local fleeing=nearest~=nil and dist>0.1 and dist<awareness
+		if fleeing and not c.fleeing then c.startledUntil=now+0.6 end
+		c.fleeing=fleeing
 		if nearest and dist>0.1 and dist<awareness then
 			local away=Vector3.new(c.position.X-nearest.X,0,c.position.Z-nearest.Z)
 			if away.Magnitude>0.1 then
@@ -1254,7 +1331,7 @@ RunService.Heartbeat:Connect(function(dt)
 			c.position=Vector3.new(safe.x,safe.y,safe.z)
 		end
 		c.position=Vector3.new(c.position.X,2.2+math.sin(time*4)*0.35,c.position.Z)
-		c.model:PivotTo(CFrame.lookAt(c.position,c.position+direction)*CFrame.Angles(0,0,math.sin(time*4)*0.08))
+		-- Models are no longer moved on the server: HerdNet carries the pose.
 		local gate=gates[c.biome]
 		if gate.active and not c.starterOwner and not c.golden and not c.claimed and c.spookedBy and now-c.spookedAt<=4 then
 			local gateCenter=arena.origin+Vector3.new(gate.x,0,gate.z)
@@ -1263,15 +1340,47 @@ RunService.Heartbeat:Connect(function(dt)
 			end
 		end
 	end
-	-- One-time contextual coaching per session for shared encounters.
+	-- First-encounter coaching (D18): one line the first time each thing happens,
+	-- persisted in the profile so returning players are never lectured again.
 	for player,s in pairs(sessions) do
 		if s.ready and roundPlaying(s,now) and s.profile.totalBanked>=3 then
-			s.hinted=s.hinted or {}
 			local gate=gates[s.biome]
-			if gate.visible and not s.hinted.gate then
-				s.hinted.gate=true
-				feedback(player,"Hint","SPARK GATE! Chase Sparks so they flee THROUGH the glowing ring")
+			local run=Encounters.stampede(clockNow,s.biome)
+			if gate.visible then hintOnce(player,s,"gate","SPARK GATE! Chase Sparks so they flee THROUGH the glowing ring") end
+			if run.visible then hintOnce(player,s,"stampede","STAMPEDE RUN! Stand by the lane and DASH through the fast herd") end
+			if goldenCycle[s.biome]==Cycle.at(clockNow).index and Cycle.at(clockNow).finale then
+				hintOnce(player,s,"golden","GOLDEN SPARK! It's fast and worth triple glow • catch it before the buzzer")
 			end
+			if scoredRound(s,now) and s.endsAt-now<=15 and s.challenge and s.challenge.pendingBonus>0 then
+				hintOnce(player,s,"buzzer","15 SECONDS! Bank before the buzzer or your style bonus is lost")
+			end
+			local hazard=hazardFor(s,now)
+			if hazard.visible then hintOnce(player,s,"sweep","SWEEP INCOMING! Step out of the orange circle • hits scatter your parade") end
+			if s.challenge and s.challenge.chain>=2 then hintOnce(player,s,"chain","CHAIN! Keep catching within "..math.floor(stats(s).chainSeconds).."s to build x2, x3, x4") end
+		end
+	end
+	-- Broadcast one snapshot per arena to the players currently in it (10 Hz).
+	local packets={}
+	for biome,arena in ipairs(world.arenas) do
+		local entries={}
+		for _,c in pairs(herd) do
+			if c.biome==biome and not c.claimed then
+				local flags=0
+				if c.fleeing then flags+=HerdNet.Flags.fleeing end
+				if c.dazedUntil and now<c.dazedUntil then flags+=HerdNet.Flags.dazed end
+				if c.golden then flags+=HerdNet.Flags.golden end
+				if c.runner then flags+=HerdNet.Flags.runner end
+				if c.startledUntil and now<c.startledUntil then flags+=HerdNet.Flags.startled end
+				if c.trialOwner then flags+=HerdNet.Flags.trial end
+				table.insert(entries,{id=c.id,x=c.position.X-arena.origin.X,z=c.position.Z-arena.origin.Z,heading=c.heading or 0,flags=flags})
+			end
+		end
+		packets[biome]=HerdNet.pack(biome,now-arenaEpoch,entries)
+	end
+	for player,s in pairs(sessions) do
+		local list=s.ready and packets[s.herdArena or s.biome]
+		if list and player.Parent==Players then
+			for _,packet in ipairs(list) do HerdFeed:FireClient(player,packet) end
 		end
 	end
 	-- Resolve gate herding after movement so herd iteration never mutates mid-step.

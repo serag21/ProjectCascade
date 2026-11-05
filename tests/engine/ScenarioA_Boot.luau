@@ -28,11 +28,28 @@ check(h.world:FindFirstChild("Statics") ~= nil, "Statics folder")
 local booted = false
 for _, line in ipairs(e.output) do if string.find(line, "Staged build booted", 1, true) then booted = true end end
 check(booted, "Main reached end of boot")
--- Creatures keep moving without players (herd loop runs) and stay in arena bounds.
+-- Living herd (D13): the server never moves creature models (no CFrame
+-- replication); with nobody in the game no herd packets are sent at all.
 local first = creatures[1]:GetPivot().Position
 e.advance(5)
 h:assertClean("idle herd")
-check((creatures[1]:GetPivot().Position - first).Magnitude > 0.5, "Herd moves")
+check((creatures[1]:GetPivot().Position - first).Magnitude < 1e-6, "Server does not move creature models")
+check((h.herdPackets or 0) == 0, "No herd packets without players")
+-- A player receives compact snapshots of their arena; the harness applies them
+-- like a client would, so models follow the authoritative herd.
+local p = h:join(1501)
+local before = creatures[1]:GetPivot().Position
+e.advance(3)
+h:collect()
+check((h.herdPackets or 0) >= 20, "Herd snapshots arrive at ~10 Hz (" .. tostring(h.herdPackets) .. ")")
+check(h.herdBytes / h.herdPackets <= 900, "Every packet within the unreliable payload limit")
+check(e.unreliableDropped == 0, "No unreliable packet dropped")
+local moved = 0
+for _, model in ipairs(h:creatures()) do
+	if model:GetPivot().Position.X < 150 and (model:GetPivot().Position - before).Magnitude > 0 then moved += 1 end
+end
+check(moved >= 10, "Arena creatures follow the snapshots (" .. moved .. ")")
+print(string.format("INFO herd: packets=%d avgBytes=%.0f bytesPerSecond=%.0f", h.herdPackets, h.herdBytes / h.herdPackets, h.herdBytes / 3))
 for _, model in ipairs(h:creatures()) do
 	local biome = 1
 	local p = model:GetPivot().Position

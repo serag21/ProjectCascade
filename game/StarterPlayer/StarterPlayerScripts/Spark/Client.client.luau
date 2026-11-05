@@ -25,10 +25,14 @@ local Ui=require(script.Parent:WaitForChild("Ui"))
 local Menu=require(script.Parent:WaitForChild("Menu"))
 local Effects=require(script.Parent:WaitForChild("Effects"))
 local Podium=require(script.Parent:WaitForChild("Podium"))
+local CreatureView=require(script.Parent:WaitForChild("CreatureView"))
+local HerdNet=require(Shared:WaitForChild("HerdNet"))
 local remotes=Shared:WaitForChild("Remotes")
 local Action=remotes:WaitForChild("Action")
 local State=remotes:WaitForChild("State")
 local Feedback=remotes:WaitForChild("Feedback")
+local HerdFeed=remotes:WaitForChild("HerdNet")
+local creatureView=nil -- living-herd renderer (D13), created once the herd folder exists
 local palette,make,round,label,button=Ui.palette,Ui.make,Ui.round,Ui.label,Ui.button
 local playerGui=player:WaitForChild("PlayerGui")
 local gui=Instance.new("ScreenGui")
@@ -400,17 +404,33 @@ local effects=Effects.new({playerGui=playerGui,gui=gui,folder=effectsFolder,redu
 task.spawn(function()
 	local world=workspace:WaitForChild("SparkWorld")
 	local herd=world:WaitForChild("Creatures")
+	creatureView=CreatureView.new({folder=herd,camera=function() return workspace.CurrentCamera end,
+		reducedMotion=reduced,localUserId=player.UserId,guiParent=playerGui,
+		quality=function()
+			local ok,level=pcall(function() return UserSettings().GameSettings.SavedQualityLevel.Value end)
+			return if ok and type(level)=="number" and level>0 then level else 10
+		end})
+	-- Server snapshots (10 Hz, unreliable): each packet is a full arena snapshot.
+	HerdFeed.OnClientEvent:Connect(function(packet)
+		local decoded=HerdNet.unpack(packet)
+		if decoded and creatureView then
+			creatureView.ingest({arena=decoded.arena,origin=Vector3.new((decoded.arena-1)*300,0,0),clock=decoded.clock,
+				receivedAt=os.clock(),entries=decoded.entries})
+		end
+	end)
 	local watches={}
 	local function watch(model)
 		if model:IsA("Model") and not watches[model] then
 			watches[model]=watchStarter(model,player.UserId)
 			effects.trackCreature(model)
+			creatureView.track(model)
 		end
 	end
 	herd.ChildAdded:Connect(watch)
 	herd.ChildRemoved:Connect(function(model)
 		if watches[model] then watches[model](); watches[model]=nil end
 		effects.untrackCreature(model)
+		creatureView.untrack(model)
 	end)
 	for _,model in ipairs(herd:GetChildren()) do watch(model) end
 	local statics=world:WaitForChild("Statics",60)
@@ -469,9 +489,40 @@ local function aimPreview(now)
 end
 
 local cueKeys={Catch="catch",Bank="bank",Dash="dash",Upgrade="upgrade",Quest="upgrade",Results="round_reward",Zap="zap",Pop="pop",Assist="catch",Event="ui"}
+-- Catch flight (§6.2): the caught Spark arcs from where it was rendered into
+-- the player's parade. Bounded pool; skipped entirely in reduced motion.
+local flights={}
+local function startFlight(species,creatureId,position)
+	if reduced() or #flights>=8 or not defs[species] then return end
+	local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	local from=(creatureView and creatureId and creatureView.lastPose(creatureId)) or CFrame.new(position)
+	local mini=miniature(species,effectsFolder)
+	mini:ScaleTo(0.6)
+	mini:PivotTo(from)
+	table.insert(flights,{model=mini,from=from.Position,started=os.clock(),duration=0.38})
+end
+local function updateFlights(now)
+	local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	for index=#flights,1,-1 do
+		local flight=flights[index]
+		local alpha=math.clamp((now-flight.started)/flight.duration,0,1)
+		if alpha>=1 or not root or not flight.model.Parent then
+			flight.model:Destroy(); table.remove(flights,index)
+		else
+			local target=root.Position+Vector3.new(0,1.5,0)
+			local eased=1-(1-alpha)*(1-alpha)
+			local position=flight.from:Lerp(target,eased)+Vector3.new(0,math.sin(alpha*math.pi)*4,0)
+			-- Squash on launch, shrink into the parade near the end.
+			flight.model:PivotTo(CFrame.new(position)*CFrame.Angles(0,alpha*math.pi*2,0))
+			if alpha>0.75 then flight.model:ScaleTo(math.max(0.2,0.6*(1-(alpha-0.75)*3))) end
+		end
+	end
+end
 Feedback.OnClientEvent:Connect(function(data)
 	if type(data)~="table" then return end
 	local extra=if type(data.extra)=="table" then data.extra else {}
+	if data.kind=="Catch" and typeof(data.position)=="Vector3" then startFlight(extra.species or data.creature,extra.creatureId,data.position) end
 	if data.kind=="Dash" then cooldownUntil.Dash=os.clock()+(latest and latest.dashCooldown or Config.DashCooldown) end
 	local hasTags=type(extra.tags)=="table" and #extra.tags>0
 	-- Scored catches speak through floating tags; toasts stay for onboarding and events.
@@ -632,6 +683,8 @@ Players.PlayerRemoving:Connect(function(other)
 end)
 local guideAt=0
 RunService.RenderStepped:Connect(function(dt)
+	updateFlights(os.clock())
+	if creatureView then creatureView.render(os.clock()) end
 	local now=os.clock()
 	aimPreview(now)
 	local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
