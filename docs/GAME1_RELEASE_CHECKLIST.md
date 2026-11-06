@@ -1,6 +1,23 @@
 # SPARK STAMPEDE — release checklist
 
-Created 2026-10-25; updated 2026-11-04. **Release candidate: NO. Public publishing and monetization: NOT AUTHORIZED.**
+Created 2026-10-25; updated 2026-11-05. **Release candidate: offline build only. NOT release-ready until V1–V12 pass in Studio. Public publishing and monetization: NOT AUTHORIZED.**
+
+## Final production plan execution — 2026-11-05 (offline only)
+
+Plan: `FINAL_PRODUCTION_PLAN.md` Phases 1–8. Owner-facing summary: [final assessment](GAME1_FINAL_ASSESSMENT.md) · [RC package](GAME1_RC_PACKAGE.md) · [playtest guide v2](GAME1_PLAYTEST_GUIDE.md). "Offline" means the real scripts pass the Luau specs, the exact-production-function integration harness and the headless fake engine. It is **not** Studio evidence.
+
+- [x] Phase 1 round architecture and fairness (synced cycles, podium, Sit out/AFK, non-collision, assists, staged threats, Profile v3): offline.
+- [x] Phase 2 living herd (HerdNet + CreatureView): offline; herd ≈3.5 KB/s, state ≈1.6 KB/tick, total ≈9 KB/s per client in the 4-player × 20-cycle fake-engine soak.
+- [x] Phase 3 feel, UI, audio, first session, accessibility: offline; 15 cues + 3 music loops generated and verified (`--verify`, `--reproduce`), **not uploaded or heard**.
+- [x] Phase 4 Daily Stampede (seeded course, normalized rules, retry/leave, daily board): offline (ScenarioJ, ScenarioG trial path).
+- [x] Phase 5 progression density, goals, claim-on-results, economy model v2: offline (`GAME1_ECONOMY.md`).
+- [x] Phase 6 Species Signatures, Aurora Starfall, per-arena obstacle layouts: offline (ScenarioK).
+- [x] Phase 7 Weekly Remix: offline (`SparkRemix`).
+- [x] Phase 8 security additions, exploit telemetry, frozen analytics funnel, 20-cycle × 4-player soak with budgets, Studio-only perf overlay (F8), competitor comparison, store copy v3, trailer v3, shot list, playtest guide v2, RC package: offline/docs.
+- [ ] V1 install + readback in Studio · [ ] V2 dash-through reliability · [ ] V3 herd smoothness · [ ] V4 presentation bar · [ ] V5 synced cycles with 2/4 clients · [ ] V6 Daily Stampede parity · [ ] V7 audio uploaded and balanced · [ ] V8 real DataStores in a test universe · [ ] V9 mobile/gamepad devices · [ ] V10 performance budgets on devices · [ ] V11 supervised 4-client soak · [ ] V12 owner RC playtest (G4).
+- [ ] Media captured from the real game (icon, thumbnails, trailer).
+- [ ] Experience questionnaire / maturity label; optional badges; private friend beta (owner).
+- [ ] G5 publish decision (owner). Monetization remains a separate approval.
 
 ## Cloud production session — 2026-11-04 (offline only)
 

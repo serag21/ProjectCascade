@@ -228,6 +228,49 @@ function Profile.sanitize(raw)
 	return result, "ready"
 end
 
+-- "Next up" (competitor comparison 2026-11-05): the closest earned collection
+-- milestone, for the results screen. Considers undiscovered species in unlocked
+-- arenas, the next Glow/Prism/Radiant tier and the next signature star; returns the
+-- one needing the fewest catches (ties: list order). Pure; nil when all complete.
+function Profile.nextMilestone(profile)
+	if type(profile) ~= "table" or type(profile.album) ~= "table" then return nil end
+	local best
+	local function offer(remaining, text, kind, speciesId)
+		if remaining > 0 and (not best or remaining < best.remaining) then
+			best = {remaining = remaining, text = text, kind = kind, species = speciesId}
+		end
+	end
+	local banked = if type(profile.totalBanked) == "number" then profile.totalBanked else 0
+	for _, def in ipairs(Config.Creatures) do
+		local biome = Config.Biomes[def.biome]
+		local unlocked = biome ~= nil and banked >= biome.unlock
+		local count = if type(profile.album[def.id]) == "number" then profile.album[def.id] else 0
+		if count <= 0 then
+			if unlocked then offer(1, "Discover " .. def.name .. " in " .. biome.name, "discover", def.id) end
+		else
+			for _, tier in ipairs(Config.Mutations) do
+				if count < tier.threshold then
+					local n = tier.threshold - count
+					offer(n, string.format("Bank %d more %s for %s", n, def.name, string.upper(tier.name)), "tier", def.id)
+					break
+				end
+			end
+			local signature = def.signature and Config.Signatures and Config.Signatures[def.signature]
+			local signed = if type(profile.signatures) == "table" and type(profile.signatures[def.id]) == "number" then profile.signatures[def.id] else 0
+			if signature then
+				for star, threshold in ipairs(Config.SignatureStars or {}) do
+					if signed < threshold then
+						local n = threshold - signed
+						offer(n, string.format("%d more %s %s catch%s for ★%d", n, def.name, signature.label, if n == 1 then "" else "es", star), "signature", def.id)
+						break
+					end
+				end
+			end
+		end
+	end
+	return best
+end
+
 function Profile.speciesCount(profile)
 	local count = 0
 	for id in pairs(species) do if (profile.album[id] or 0) > 0 then count += 1 end end

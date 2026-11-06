@@ -4,7 +4,7 @@ Updated 2026-11-05 during plan execution (Phases 1–7 offline done). **Executio
 
 ## Next implementation priority
 
-**Phase 8: hardening and launch prep.** Covers the security review of new actions (SitOut, Play, Trial, Style table, Reroll, ClaimAll), trial score caps and exploit telemetry, the analytics funnel freeze, performance budgets, a headless soak of 20 cycles × 4 players, the final integrated audit, one focused competitor comparison, store copy v3, the playtest guide v2, the release checklist and the RC package. Phases 1–7 are implemented offline; see the table.
+**Owner Studio validation V1–V12** (`docs/GAME1_PLAYTEST_GUIDE.md`). All cloud-feasible plan work (Phases 1–8) is implemented offline. Next agent work is tuning from Studio findings.
 
 ## Phases (cloud-executable)
 
@@ -17,7 +17,7 @@ Updated 2026-11-05 during plan execution (Phases 1–7 offline done). **Executio
 | 5 Progression density & goals | `Cosmetics` (formations, bursts, tags, rank titles); rank reward table (no empty rank-up); Style categories; d_trial slot + reroll; ClaimAll on results; economy model v2 + bounds; trial medal calibration | **Offline done** (49401cb) · all-cosmetics sink 28.7 h regular |
 | 6 Collection × skill, arena identity | Species Signatures (Challenge verdict, album stars, 2 achievements, aim cue); Aurora Starfall (telegraph, daze, STARSTRUCK; personal starfall on aurora trial days); per-arena obstacle layouts (`Encounters.Obstacles`) | **Offline done** (this phase commit) · ScenarioK |
 | 7 Weekly Remix | `Remix.luau` six-week rotation; hooks in Encounters/Main (goldens, density, chain, runs, starfall, statics/pops); per-cycle lock; w_remix weekly slot; HUD + Play tab card | **Offline done** (this phase commit) · SparkRemix |
-| 8 Hardening & launch prep | Security additions; analytics funnel freeze; perf budget overlay; headless soak 20 cycles × 4; store copy v3; trailer/shot list; release checklist; playtest guide v2 | **Next** |
+| 8 Hardening & launch prep | Security additions + exploit telemetry; frozen 8-step funnel + custom/progression events; F8 perf overlay; headless soak 20 cycles × 4 with budgets; competitor comparison; store copy v3; trailer/shot list; release checklist; playtest guide v2; RC package | **Offline done** · ScenarioL, H, F |
 
 ## Engine validation (owner / supervised Studio only)
 

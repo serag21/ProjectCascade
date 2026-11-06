@@ -1,6 +1,6 @@
 # SPARK STAMPEDE production issues
 
-Updated 2026-11-04 (cloud session). **Offline only; scheduling paused; unattended Studio disabled.** This ledger distinguishes implemented fixes from engine-verified closure. G4 is not reached.
+Updated 2026-11-05 (final production plan execution). **Offline only; scheduling paused; unattended Studio disabled.** This ledger distinguishes implemented fixes from engine-verified closure. G4 is not reached.
 
 | ID | Priority | Issue and next acceptance evidence | State |
 | --- | --- | --- | --- |
@@ -8,7 +8,7 @@ Updated 2026-11-04 (cloud session). **Offline only; scheduling paused; unattende
 | SS-02 | P1 | Detached PlayerRemoving saves and pending loads could escape shutdown waiting. f1bc3f5 tracks both through finalization. Eleven production-helper tests pass; exercise departure during slow save/load and shutdown in engine. | Fixed offline; live verification pending |
 | SS-03 | P1 | A completed older save could show Saved for newer rewards. Revision-aware acknowledgments and pending feedback implemented; results no longer assert unconditional safety. Inject a concurrent bank during delayed persistence in engine. | Fixed offline; live verification pending |
 | SS-04 | P1 | Revised solo run recorded action/catch0.464s, bank0.514s from server join. Second run had focus-delayed action36.196s/catch36.197s/bank36.198s. Both retained; tool timing does not establish independent human comprehension or visible-spawn timing. | Improved scripted sample; usability gate pending |
-| SS-05 | P1 | Music/SFX asset IDs blank. Six original WAVs exist and pass file analysis. Bind through supported permitted workflow and verify actual playback, balance, settings and asset access. | Open |
+| SS-05 | P1 | Music/SFX asset IDs blank. 27 original WAVs (15 new cues, 3 music loops + finale layers) are generated, verified (`--verify`, `--reproduce`) and catalogued; `tools/set_audio_ids.py` writes owner-uploaded IDs. Upload, then verify playback and balance in Studio (V7). | Open (owner upload) |
 | SS-06 | P1 | Prior two clients independently banked, with starter isolation/mixed phases/replay observed; a third joined. No four-client or same-target contention proof, soak, or verified session shutdown. Complete matrix only after owner-approved supervision. | Partial evidence; live testing disabled |
 | SS-07 | P1 | Studio uses isolated memory profiles. Cross-session production persistence and failure behavior have no real platform evidence. Use a separate safe test store when supported; never enable production Studio writes casually. | Open |
 | SS-08 | P1 | Touch controls could overlap movement/jump; narrow menus clipped and gamepad lacked menu focus. 3e8b28a fixes layout/focus; 11 usable-canvas geometry cases pass. Render and operate portrait/landscape, safe areas, gamepad selection and menu refresh. | Fixed offline; device verification pending |
@@ -28,12 +28,18 @@ Updated 2026-11-04 (cloud session). **Offline only; scheduling paused; unattende
 | SS-21 | P1 | Late onboarding could enable an active sweep without warning. Eligibility now starts fresh grace/warning timeline; production helper regression passes. | Fixed offline; visual warning pending |
 | SS-22 | P0 operational | Scheduler read ACTIVE after previously reading PAUSED and receiving queued heartbeats; cause unknown. Restored PAUSED via supported tool, preserving restrictive prompt. No graphical work launched. | Restored paused; never infer owner resumption |
 
-| SS-23 | P0 operational | Cloud session cannot push: `git push` and the GitHub connector both return 403 (Claude GitHub App lacks write access to serag21/ProjectCascade). Session commits exist only in the container (plus a local git bundle in the session scratchpad). Owner must reconnect GitHub / grant the app write access. | OPEN — owner action |
+| SS-23 | P0 operational | Cloud session could not push (403) on 2026-11-04. Since 2026-11-05 every phase commit has been pushed and verified on GitHub (`claude/awesome-brown-27rwqo`). | Resolved |
 | SS-24 | P1 | Economy model (real modules) showed runaway inflation in the pre-session numbers (rank 50 in 3.5 h, upgrades maxed in 3 rounds, medians 4x medal thresholds). Rebalanced and guarded by `tests/SparkEconomy.spec.luau`; see `GAME1_ECONOMY.md`. | Fixed offline; live telemetry pending |
-| SS-25 | P2 | Glow surplus after ~14 h of play (no remaining sinks). Gameplay unaffected; plan seasonal earned cosmetics post-launch. | Accepted risk, documented |
+| SS-25 | P2 | Glow surplus once all sinks are bought: now ≈29 h for a regular player (was ≈14 h) after formations/bursts/tags (D20). Gameplay unaffected; plan earned seasonal sets post-launch. | Accepted risk, documented |
 | SS-26 | P1 | New mechanics (dash-through, statics, gate, stampede run, golden finale, buzzer, perks, heat) have no engine evidence: feel, latency tolerance of the dash path radius (4.5 studs), static readability and gate herding difficulty must be tuned in Studio. | Open — needs Studio |
 | SS-27 | P1 | Placeholder SFX use Roblox built-in `rbxasset://sounds/*` paths that are unverified in this environment. | Open — verify in Studio |
 | SS-28 | P2 | Analytics economy/funnel calls and OrderedDataStore leaderboards are pcall-wrapped and tested with doubles only; real platform acceptance (argument types, budgets) unverified. | Open — needs published test place |
 | SS-29 | P2 | Third-party Luau tooling (luau-lsp, selene, Rojo, Lune) could not be executed in the cloud session (permission policy). Replacement: official luau-analyze undefined-global gate, module-member check, API-dump name check. `default.project.json` is unverified. | Mitigated |
+| SS-30 | P1 | Plan Phases 1–8 systems (synced cycles, HerdNet/CreatureView, Daily Stampede, cosmetics, signatures, Starfall, layouts, Remix, telemetry) have offline evidence only. Close with V1–V12 (`BACKLOG.md`). | Open (Studio) |
+| SS-31 | P2 | On a server that outlives a UTC day, the Trial Grounds palette still shows the boot day's biome. The layout and course are always correct (D29). | Accepted (cosmetic) |
+| SS-32 | P2 | Daily Stampede plans depend on `Config.Creatures` order/biome/rarity and `Encounters` geometry. Ship changes to those only at a UTC day boundary so one day's board never mixes layouts. | Process rule |
+| SS-33 | P2 | Medal and Daily Stampede thresholds come from synthetic archetypes; headless bots are superhuman. Recalibrate from real score distributions after the friend beta. | Open (data) |
+| SS-34 | P2 | Network budgets were measured in the fake engine with approximate payload sizes (4-player soak, worst client: herd ≈3.5 KB/s, state ≈1.6 KB/tick without the periodic profile, total ≈9 KB/s; the soak caught a 2.9 KB/tick state overrun, fixed by sending rarely-changing blocks only on change and a lean in-round mastery). Verify with Studio network stats (V3/V10). | Open (Studio) |
+| SS-35 | P3 | Stampede Season runs previously spawned Fizz Canyon Zip Tails in other arenas, which could hand out a canyon species early. Fixed in Phase 8: each arena's runs use its own bolting species. | Fixed offline |
 
 Evidence: [production log](GAME1_PROGRESS.md), [incident audit](GAME1_WORKFLOW_CORRECTION.md), [supervisor limits](GAME1_TEST_SUPERVISOR.md), [offline report](qa/latest-checks.json). Model/process-fixture tests are not live Studio cleanup, rendering, audio, human usability or device-performance passes.

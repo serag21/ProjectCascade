@@ -140,6 +140,14 @@ local species = {}
 for _,def in ipairs(Config.Creatures) do species[def.id] = def end
 
 local function xyz(v) return {x=v.X,y=v.Y,z=v.Z} end
+-- Stampede Run species: the arena's own bolting ("flee") Spark, so a Remix run in
+-- Meadow or Aurora never hands out another arena's species early (canyon: Zip Tail).
+local runnerSpecies={}
+for index,biome in ipairs(Config.Biomes) do
+	for _,def in ipairs(Config.Creatures) do
+		if (def.biome==index or def.biome==biome.id) and def.behavior=="flee" and not runnerSpecies[index] then runnerSpecies[index]=def end
+	end
+end
 local function feedback(player,kind,text,def,position,extra)
 	if player.Parent~=Players then return end
 	Feedback:FireClient(player,{kind=kind,text=text,creature=def and def.id,position=position,extra=extra})
@@ -385,6 +393,26 @@ local function objective(s)
 	end
 	return "Dash THROUGH Sparks • Chain catches • Bank big hauls"
 end
+-- State budget (plan §6.14: <= 2 KB per tick). While a round runs, the client needs
+-- only these mastery fields; the full snapshot (splits, counters) goes at results.
+local LEAN_MASTERY={"score","pending","chain","multiplier","chainSeconds","chainWindow","medal","precision","dashCatches",
+	"multiCatches","herded","assists","pops","golden","bestChain","bestHaul","buzzerLost"}
+local function leanMastery(m)
+	local out={}
+	for _,key in ipairs(LEAN_MASTERY) do out[key]=m[key] end
+	local goal=m.challenge
+	if goal then out.challenge={id=goal.id,name=goal.name,target=goal.target,progress=goal.progress,complete=goal.complete} end
+	if m.personalBest and m.personalBest.delta then out.personalBest={delta=m.personalBest.delta,checkpoint=m.personalBest.checkpoint} end
+	return out
+end
+-- Rarely-changing blocks travel only when they change (or every 10 s to self-heal).
+local function changed(s,key,fingerprint,now)
+	s.sentKeys=s.sentKeys or {}
+	local entry=s.sentKeys[key]
+	if entry and entry.print==fingerprint and now-entry.at<10 then return false end
+	s.sentKeys[key]={print=fingerprint,at=now}
+	return true
+end
 local function send(player,s)
 	if not s.profile or player.Parent~=Players then return end
 	local now=os.clock()
@@ -437,33 +465,40 @@ local function send(player,s)
 	-- self-healing fallback). The client keeps the last copy it received.
 	local includeProfile=s.profileSent~=s.revision or now-(s.profileSentAt or -math.huge)>10
 	if includeProfile then s.profileSent=s.revision; s.profileSentAt=now end
+	local trialState=trialInfo(s,dailyChanged)
+	local trialPrint=table.concat({tostring(trialState.available),tostring(trialState.reason),trialState.day,trialState.best,
+		trialState.runsToday,tostring(trialState.rewardedToday),tostring(trialState.active),tostring(dailyChanged)},"|")
+	local remixPrint=currentRemix.id..":"..math.floor(Remix.endsIn(os.time())/3600)
+	local statsPrint=tostring(st)
 	local boardsChanged=s.boardsSent~=leaderboard.version
 	State:FireClient(player,{
 		phase=s.phase,remaining=if s.endsAt and roundPlaying(s,now) then math.max(0,math.ceil(s.endsAt-now)) else 0,
-		cycle=if trialMode then nil else Cycle.at(clockNow),fullRound=s.fullRound==true,sitOut=s.sitOut==true,
-		mode=if trialMode then "trial" else "cycle",trial=trialInfo(s,dailyChanged),
+		cycle=if trialMode then nil else (function() local c=Cycle.at(clockNow); return {index=c.index,t=c.t,phase=c.phase} end)(),
+		fullRound=s.fullRound==true,sitOut=s.sitOut==true,
+		mode=if trialMode then "trial" else "cycle",
+		trial=if changed(s,"trial",trialPrint,now) or trialState.board then trialState else nil,
 		nextRoundIn=if s.phase=="Results" and s.resultsUntil then math.max(0,math.ceil(s.resultsUntil-now)) else nil,
 		podium=if (s.phase=="Results" or s.phase=="SitOut") and podiums[s.biome] and podiums[s.biome].cycle==s.settledCycle then podiums[s.biome].awards else nil,
 		biome=s.biome,carry=#s.carry,capacity=capacity(s),score=s.score,
 		profile=if includeProfile then s.profile else nil,profileRevision=s.revision,
-		saveStatus=s.saveStatus,event=event.name,arenaEvent=event,objective=objective(s),
+		saveStatus=s.saveStatus,event=event.name,objective=objective(s),
 		encounter=if trialMode then trialDescribe(s,now) else Encounters.describe(clockNow,s.biome),gate=gate,stampede=run,goldens=goldens,
 		starfall=if not scoredRound(s,now) and s.phase~="Warmup" then nil
 			elseif trialMode then starfallDescriptor(s.trial and s.trial.starfall,now,TRIAL_ARENA)
 			else starfallDescriptor(starfalls[s.biome],now,s.biome),
-		stats={captureRadius=st.captureRadius,capacity=st.capacity,chainSeconds=st.chainSeconds,heat=st.heat,
+		stats=if changed(s,"stats",statsPrint,now) then {captureRadius=st.captureRadius,capacity=st.capacity,chainSeconds=st.chainSeconds,heat=st.heat,
 			scoreMultiplier=st.scoreMultiplier,perks=st.perks,goldenCompass=st.goldenCompass,maxMultiplier=st.maxMultiplier,
-			staticCap=st.staticCap},
+			staticCap=st.staticCap} else nil,
 		rank=Progression.rankProgress(s.profile.xp),heatUnlocked=Loadout.heatUnlocked(s.profile.records),
 		perkSlots=Loadout.slots(Progression.rank(s.profile.xp)),lastResult=s.lastResult,
 		finale=scoredRound(s,now) and s.endsAt-now<=Cycle.FinaleSeconds,
 		statics=s.statics and s.staticCount or 0,
 		boards=if boardsChanged then leaderboard.boards else nil,boardsVersion=leaderboard.version,
-		mastery=mastery,personalBest=s.newPersonalBest or false,arenaBest=s.newArenaBest or false,ranking=ranking,
+		mastery=if mastery and roundPlaying(s,now) then leanMastery(mastery) else mastery,personalBest=s.newPersonalBest or false,arenaBest=s.newArenaBest or false,ranking=ranking,
 		startersRemaining=s.starterRemaining or 0,
 		hazard=hazard,
 		rally=if trialMode then nil else ArenaRally.snapshot(rallies[s.biome],now,player.UserId),
-		remix=Remix.describe(currentRemix,os.time()),
+		remix=if changed(s,"remix",remixPrint,now) then Remix.describe(currentRemix,os.time()) else nil,
 		bankPosition=world.arenas[s.biome].bank,ready=s.ready,
 		captureCooldown=st.captureCooldown,dashCooldown=dashCooldown(s),
 		cooldowns={capture=math.max(0,st.captureCooldown-(now-(s.buckets.capture or -math.huge))),
@@ -474,6 +509,9 @@ local function send(player,s)
 end
 onRoundRecorded=function(player,s,summary,result)
 	analytics.custom(player,"round_heat_"..(result.heat or 0),summary.score)
+	analytics.custom(player,"remix_"..currentRemix.id,1)
+	if (summary.signatures or 0)>0 then analytics.custom(player,"signature_catch",summary.signatures) end
+	if result.rankAfter>result.rankBefore then analytics.progression(player,"Rank",result.rankAfter,"Rank "..result.rankAfter) end
 	if summary.golden and summary.golden>0 then analytics.custom(player,"golden_catch",summary.golden) end
 	for _,perk in ipairs(stats(s).perks) do analytics.custom(player,"perk_"..perk,1) end
 	-- D16: normal-round scores stay personal (records + podium); only the
@@ -519,6 +557,7 @@ local function validApproach(player,s)
 		minY=arena.origin.Y-4,maxY=arena.origin.Y+24,speed=speed(s)+2,burst=10})
 	s.suspiciousUntil=s.motion.blockedUntil or 0
 	if not valid and s.mode=="trial" and s.trial then s.trial.rejections+=1 end
+	if not valid and s.exploit then s.exploit.movement+=1 end
 	if not valid then
 		if s.challenge then Challenge.miss(s.challenge,now,"recovery") end
 		if reason=="Arena bounds" or (reason=="Height bounds" and root.Position.Y<arena.origin.Y-4) then
@@ -663,7 +702,7 @@ local function settleRound(player,s,now)
 			s.lastResult=result
 			onRoundRecorded(player,s,summary,result)
 		end
-		metric(player,s,"first_round")
+		metric(player,s,"first_round_complete")
 	else
 		s.newArenaBest=false; s.newPersonalBest=false
 		s.lastResult={incomplete=true,score=summary.score,medal=summary.medal,heat=s.roundHeat or 0,buzzer=forfeited,
@@ -681,8 +720,9 @@ end
 beginRound=function(player,s,plan)
 	if not s.ready then return end
 	local now=os.clock()
-	if s.started then metric(player,s,"replay") end
 	local warm=plan.mode=="warmup"
+	-- Frozen funnel step 6: the player's second scored round begins.
+	if not warm and s.profile.rounds>=1 then metric(player,s,"second_round_start") end
 	s.phase=if warm then "Warmup" else "Playing"
 	s.started=now; s.endsAt=arenaEpoch+plan.endsAt; s.fullRound=plan.full==true; s.cycleIndex=plan.cycle
 	s.carry={}; s.score=0; s.buckets={}; s.roundCatches=0; s.active=false
@@ -808,7 +848,9 @@ settleTrial=function(player,s,now)
 	s.newPersonalBest=improved; s.newArenaBest=false
 	Lifecycle.markDirty(s)
 	metric(player,s,"first_daily_stampede")
-	analytics.custom(player,"daily_stampede_run",score)
+	-- Score bucket (500s) keeps the event cheap and comparable across days.
+	analytics.custom(player,"trial_run",math.floor(score/500)*500)
+	if rankAfter>rankBefore then analytics.progression(player,"Rank",rankAfter,"Rank "..rankAfter) end
 	if rankAfter>rankBefore then feedback(player,"Quest","RANK UP! Rank "..rankAfter) end
 	feedback(player,"Results",if not completed then s.lastResult.reason
 		else string.format("DAILY STAMPEDE • %d • %s%s",score,Trial.medal(score),if improved then " • NEW BEST TODAY!" else ""),
@@ -844,7 +886,7 @@ local function updateTrial(player,s,now)
 			local speedRun=Encounters.runSpeed()
 			for n=1,Encounters.RunCount do
 				local lag=(n-1)*2.2
-				spawnTrialSpark(player,s,species.ziptail,nil,{position=from-direction*lag+side*((n%3)-1)*2.4,seed=n,
+				spawnTrialSpark(player,s,runnerSpecies[tr.plan.biome] or species.ziptail,nil,{position=from-direction*lag+side*((n%3)-1)*2.4,seed=n,
 					runner={direction=direction,speed=speedRun,untilT=now+(to-from).Magnitude/speedRun+lag/speedRun+0.2}})
 			end
 			feedback(player,"Event","STAMPEDE RUN! Dash through the lane")
@@ -962,6 +1004,7 @@ local function claim(player,s,creature,kind,aim,multiIndex)
 	parade(player,s)
 	creature.model:Destroy(); herd[creature.id]=nil
 	metric(player,s,"first_catch")
+	if kind=="dash" then metric(player,s,"first_dash_through") end
 	local scoredKind=if creature.golden then "golden" else kind
 	local _,skill=Challenge.capture(s.challenge,now,{
 		distance=if aim then aim.distance else 0,facing=if aim and aim.facing then aim.facing else 1,
@@ -1219,7 +1262,9 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 	-- catch press in the same instant can never swallow a Replay click.
 	local phaseAction=action=="Ready" or action=="Replay" or action=="Play" or action=="SitOut" or action=="Trial"
 	local bucket=if phaseAction then action else "request"
-	if not Rules.allow(s.transport,bucket,os.clock(),if bucket=="request" then 0.08 else 0.25) then return end
+	if not Rules.allow(s.transport,bucket,os.clock(),if bucket=="request" then 0.08 else 0.25) then
+		s.exploit.rateLimited+=1; return
+	end
 	if action=="Ready" then
 		s.clientReady=true
 		if s.ready and s.phase=="Loading" then startNow(player,s) else send(player,s) end
@@ -1239,6 +1284,7 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 	elseif action=="SitOut" and s.mode=="trial" then
 		send(player,s)
 	elseif action=="SitOut" then
+		if not s.sitOut then analytics.custom(player,"sit_out",1) end
 		s.sitOut=true
 		if s.phase=="Warmup" then
 			clearPersonal(player,s); if #s.carry>0 then bank(player,s,true) end
@@ -1294,7 +1340,12 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 	elseif action=="Settings" and type(payload)=="table" then
 		local changed=false
 		for _,key in ipairs({"reducedMotion","music","sfx","competition","showOnPodium","holdCatch","highContrast"}) do
-			if type(payload[key])=="boolean" and payload[key]~=s.profile.settings[key] then s.profile.settings[key]=payload[key]; changed=true end
+			if type(payload[key])=="boolean" and payload[key]~=s.profile.settings[key] then
+				s.profile.settings[key]=payload[key]; changed=true
+				if payload[key] and (key=="reducedMotion" or key=="holdCatch") then
+					analytics.custom(player,if key=="reducedMotion" then "reduced_motion_on" else "hold_catch_on",1)
+				end
+			end
 		end
 		for _,key in ipairs({"musicVolume","sfxVolume"}) do
 			local value=payload[key]
@@ -1371,6 +1422,7 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 		for index=1,math.min(#payload,3) do if type(payload[index])=="string" and #payload[index]<=16 then table.insert(requested,payload[index]) end end
 		s.profile.loadout=Loadout.sanitize(requested,Progression.rank(s.profile.xp))
 		if s.mode~="trial" then s.stats=statsFor(s) end; Lifecycle.markDirty(s)
+		if #s.profile.loadout>0 then metric(player,s,"first_perk_equipped") end
 		feedback(player,"Upgrade",#s.profile.loadout>0 and ("Perks set: "..#s.profile.loadout) or "Perks cleared"); send(player,s)
 	elseif action=="Heat" and type(payload)=="number" and payload==payload and payload%1==0 and payload>=0 and payload<=Loadout.MaxHeat then
 		if s.phase=="Playing" then feedback(player,"Hint","Change Heat after this round"); return end
@@ -1384,13 +1436,18 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 		if s.profile.totalBanked < Config.Biomes[payload].unlock then feedback(player,"Hint","Bank more Sparks to unlock this arena"); return end
 		clearPersonal(player,s)
 		s.biome=payload; s.challengeBiome=payload; teleport(player,s); send(player,s)
+	elseif action~="Capture" and action~="Dash" and action~="Bank" then
+		-- Unknown action or a known action with an invalid payload shape.
+		s.exploit.malformed+=1
 	end
 end)
 
 local finalize
 local function join(player)
 	local s={profile=nil,ready=false,clientReady=false,phase="Loading",carry={},biome=1,score=0,
-		buckets={},transport={},metrics={},joined=os.clock(),saveStatus="Loading",suspiciousUntil=0,dirty=false,revision=0,persistedRevision=0}
+		buckets={},transport={},metrics={},joined=os.clock(),saveStatus="Loading",suspiciousUntil=0,dirty=false,revision=0,persistedRevision=0,
+		-- Exploit telemetry (plan §6.12): counted per session, reported once at leave.
+		exploit={movement=0,rateLimited=0,malformed=0}}
 	if not Lifecycle.beginLoad(lifecycle,s) then
 		player:Kick("This server is closing. Please rejoin.")
 		return
@@ -1466,6 +1523,12 @@ Players.PlayerRemoving:Connect(function(player)
 		if c.assistBy==player.UserId then c.assistBy=nil; c.assistAt=nil end
 	end
 	local s=sessions[player]; sessions[player]=nil
+	if s and s.exploit then
+		-- One aggregated event per counter per session; never per violation.
+		for name,count in pairs(s.exploit) do
+			if count>0 then analytics.custom(player,"exploit_"..name,math.min(count,100000)) end
+		end
+	end
 	if s then s.detached=true; clearPersonal(player,s); finalize(player,s) end
 end)
 Players.PlayerAdded:Connect(join)
@@ -1611,7 +1674,7 @@ RunService.Heartbeat:Connect(function(dt)
 				for n=1,Encounters.RunCount do
 					local lag=(n-1)*2.2
 					local position=from-direction*lag+side*((n%3)-1)*2.4
-					spawnCreature(biome,nil,nil,{def=species.ziptail,extra=true,position=position,
+					spawnCreature(biome,nil,nil,{def=runnerSpecies[biome] or species.ziptail,extra=true,position=position,
 						runner={direction=direction,speed=speedRun,untilT=now+(to-from).Magnitude/speedRun+lag/speedRun+0.2}})
 				end
 				for player,s in pairs(sessions) do
@@ -1636,6 +1699,10 @@ RunService.Heartbeat:Connect(function(dt)
 				if #entries>0 then
 					podiumCycle[biome]=cycleNow.index
 					podiums[biome]={cycle=cycleNow.index,awards=Cycle.awards(entries)}
+					for _,award in ipairs(podiums[biome].awards) do
+						local winner=sessionFor(award.userId)
+						if winner then analytics.custom(winner,"podium_award",1) end
+					end
 					for player,s in pairs(sessions) do
 						if s.ready and s.biome==biome and (s.phase=="Results" or s.phase=="SitOut") then send(player,s) end
 					end

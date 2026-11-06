@@ -45,6 +45,8 @@ gui.Parent=playerGui
 -- latest = last server state with the cached profile/boards merged in.
 local latest=nil
 local cachedProfile,cachedBoards,cachedDailyBoard=nil,nil,nil
+-- Blocks the server sends only when they change (state budget): keep the last copy.
+local cachedBlocks={}
 local results
 local replayButton
 local menu
@@ -353,6 +355,15 @@ local function renderResults(d)
 		if r.newRecord and (r.previousRecord or 0)>0 then table.insert(callouts,string.format("Arena record +%d",(r.score or 0)-(r.previousRecord or 0))) end
 	end
 	if r and r.full==false and not r.incomplete then table.insert(callouts,"Joined mid-round • records count from full rounds") end
+	-- Return reasons where the round ends (competitor comparison 2026-11-05): the
+	-- nearest collection milestone, and today's Daily Stampede while it still pays.
+	local nextUp=Profile.nextMilestone(d.profile)
+	if nextUp then table.insert(callouts,"NEXT UP: "..nextUp.text) end
+	local trial=d.trial
+	if type(trial)=="table" and trial.available==true and trial.rewardedToday~=true then
+		table.insert(callouts,string.format("DAILY STAMPEDE ready • first finish +%d glow",tonumber(trial.firstGlow) or 40))
+	end
+	while #callouts>4 do table.remove(callouts,#callouts-1) end -- keep the panel readable; the Daily teaser stays last
 	resultCallouts.Text=table.concat(callouts,"  •  ")
 	local sitting=d.sitOut or d.phase=="SitOut"
 	replayButton.Text=if sitting then "PLAY • JOIN THE STAMPEDE" else "SIT OUT NEXT ROUND"
@@ -491,6 +502,35 @@ local catalogModule=Shared:FindFirstChild("AudioCatalog")
 local audioCatalog=if catalogModule then require(catalogModule) else nil
 local music=make("Sound",SoundService,{Name="SparkMusic",Volume=.16,Looped=true})
 local effectsFolder=make("Folder",workspace,{Name="SparkLocalEffects"})
+-- Studio-only performance overlay (plan §6.14): F8 toggles live counts against the
+-- budgets. Never built in live servers; counts refresh once per second.
+local perf={herdBytes=0,frames=0,frameTime=0,worst=0}
+if RunService:IsStudio() then
+	local overlay=label(gui,"",12,UDim2.new(1,-262,0,190),UDim2.fromOffset(250,128),palette.ink)
+	overlay.Name="PerfOverlay"; overlay.BackgroundTransparency=0.15; overlay.BackgroundColor3=palette.paper
+	overlay.TextXAlignment=Enum.TextXAlignment.Left; overlay.TextYAlignment=Enum.TextYAlignment.Top; overlay.Visible=false
+	ContextActionService:BindAction("SparkPerfOverlay",function(_,state)
+		if state~=Enum.UserInputState.Begin then return Enum.ContextActionResult.Pass end
+		overlay.Visible=not overlay.Visible; return Enum.ContextActionResult.Sink
+	end,false,Enum.KeyCode.F8)
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			if overlay.Visible then
+				local world=workspace:FindFirstChild("SparkWorld")
+				local creatures=world and world:FindFirstChild("Creatures")
+				local billboards=0
+				for _,item in ipairs(workspace:GetDescendants()) do if item:IsA("BillboardGui") and item.Enabled then billboards+=1 end end
+				for _,item in ipairs(playerGui:GetDescendants()) do if item:IsA("BillboardGui") and item.Enabled then billboards+=1 end end
+				local avg=if perf.frames>0 then perf.frameTime/perf.frames*1000 else 0
+				overlay.Text=string.format("PERF (F8) • budgets in brackets\nworkspace instances %d\nsparks %d [<=80/arena]\nlocal effect parts %d [<=80]\nbillboards %d [<=30]\nherd %.1f KB/s [<=6]\nframe %.1f ms avg, %.1f worst [<=16.7]",
+					#workspace:GetDescendants(),creatures and #creatures:GetChildren() or 0,#effectsFolder:GetDescendants(),billboards,
+					perf.herdBytes/1024,avg,perf.worst*1000)
+			end
+			perf.herdBytes=0; perf.frames=0; perf.frameTime=0; perf.worst=0
+		end
+	end)
+end
 local function reduced() return latest~=nil and latest.profile~=nil and latest.profile.settings.reducedMotion==true end
 local function settingValue(key,default)
 	local value=latest and latest.profile and latest.profile.settings and latest.profile.settings[key]
@@ -512,6 +552,7 @@ task.spawn(function()
 		end})
 	-- Server snapshots (10 Hz, unreliable): each packet is a full arena snapshot.
 	HerdFeed.OnClientEvent:Connect(function(packet)
+		if type(packet)=="buffer" then perf.herdBytes+=buffer.len(packet) end
 		local decoded=HerdNet.unpack(packet)
 		if decoded and creatureView then
 			creatureView.ingest({arena=decoded.arena,origin=Vector3.new((decoded.arena-1)*300,0,0),clock=decoded.clock,
@@ -832,6 +873,9 @@ State.OnClientEvent:Connect(function(data)
 	if type(data)~="table" then return end
 	if type(data.profile)=="table" then cachedProfile=data.profile end
 	if type(data.boards)=="table" then cachedBoards=data.boards end
+	for _,key in ipairs({"trial","stats","remix"}) do
+		if type(data[key])=="table" then cachedBlocks[key]=data[key] elseif data[key]==nil then data[key]=cachedBlocks[key] end
+	end
 	-- The daily board is sent only when it changes; keep the last copy between states.
 	if type(data.trial)=="table" then
 		if type(data.trial.board)=="table" then cachedDailyBoard=data.trial.board else data.trial.board=cachedDailyBoard end
@@ -950,6 +994,7 @@ end)
 local guideAt=0
 local lastBeat=nil
 RunService.RenderStepped:Connect(function(dt)
+	perf.frames+=1; perf.frameTime+=dt; perf.worst=math.max(perf.worst,dt)
 	updateFlights(os.clock())
 	if creatureView then creatureView.render(os.clock()) end
 	local now=os.clock()

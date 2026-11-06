@@ -183,6 +183,27 @@ for _,c in ipairs(Config.Creatures) do maxp.signatures[c.id]=Config.SignatureSta
 Progression.evaluateAchievements(maxp)
 for _,a in ipairs(Progression.Achievements) do check(maxp.achievements[a.id],"Achievement reachable "..a.id) end
 
+-- "Next up" milestone (results screen) -----------------------------------------
+do
+	local fresh=Profile.new()
+	local first=Profile.nextMilestone(fresh)
+	check(first and first.kind=="discover" and first.remaining==1 and Config.Creatures[1].biome==1,"New player: discover a meadow Spark first")
+	for _,c in ipairs(Config.Creatures) do if c.biome==1 then fresh.album[c.id]=4 end end
+	local tier=Profile.nextMilestone(fresh)
+	check(tier.remaining==1 and (tier.kind=="tier" or tier.kind=="signature"),"Closest milestone wins (1 bank to Glow)")
+	check(string.find(tier.text,"GLOW",1,true)~=nil or string.find(tier.text,"★",1,true)~=nil,"Readable milestone text")
+	local locked=Profile.new(); locked.totalBanked=0
+	for _,c in ipairs(Config.Creatures) do if c.biome==1 then locked.album[c.id]=1 end end
+	local m=Profile.nextMilestone(locked)
+	check(m.kind~="discover" or Config.Biomes[Config.Creatures[1].biome].unlock==0,"Locked arenas are never suggested")
+	for _,c in ipairs(Config.Creatures) do
+		if Config.Biomes[c.biome].unlock>0 then check(not (m.kind=="discover" and m.species==c.id),"No locked-arena discovery") end
+	end
+	local done=Profile.new(); done.totalBanked=1000
+	for _,c in ipairs(Config.Creatures) do done.album[c.id]=60; done.signatures[c.id]=60 end
+	check(Profile.nextMilestone(done)==nil and Profile.nextMilestone(nil)==nil,"Complete album: nothing left; guards")
+end
+
 -- Round-trip save of a progressed profile is lossless --------------------------
 local rt=Profile.sanitize(r)
 check(rt.xp==r.xp and rt.records.meadow[1]==520 and rt.stats.golden==1 and rt.daily.day==r.daily.day

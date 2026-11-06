@@ -84,10 +84,20 @@ function Harness.collect(h)
 				h.herdBytes = (h.herdBytes or 0) + buffer.len(packet)
 			end
 		elseif entry.remote == "State" then
-			local data = entry.args[1]
+			-- Copy, never mutate the logged payload: traffic measurements read the log.
+			local data = table.clone(entry.args[1])
 			local previous = h.states[userId]
 			-- The server omits the profile when unchanged; keep the client's cached copy.
 			if data.profile == nil and previous then data.profile = previous.profile end
+			-- Like the client: blocks sent only on change are merged from the last copy.
+			if previous then
+				for _, key in ipairs({"trial", "stats", "remix"}) do
+					if data[key] == nil then data[key] = previous[key] end
+				end
+				if type(data.trial) == "table" and data.trial.board == nil and type(previous.trial) == "table" and previous.trial.board then
+					data.trial = table.clone(data.trial); data.trial.board = previous.trial.board
+				end
+			end
 			h.states[userId] = data
 		elseif entry.remote == "Feedback" then
 			h.feedback[userId] = h.feedback[userId] or {}

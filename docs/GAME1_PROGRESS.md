@@ -2,6 +2,17 @@
 
 Updated 2026-11-04 (cloud production session, branch `claude/awesome-brown-27rwqo`). **OFFLINE ONLY (cloud container, no Studio). SCHEDULING PAUSED. UNATTENDED STUDIO TESTS DISABLED. Not a release candidate. Commits NOT pushed: GitHub returned 403 for both git and the connector (issue SS-23).**
 
+## Final production plan execution — 2026-11-05/06
+
+All eight phases of `FINAL_PRODUCTION_PLAN.md` implemented offline, each committed, pushed and verified on `claude/awesome-brown-27rwqo`:
+771a36b (P1 cycles/fairness), e42f7ab (P2 living herd), bb33ff7 + 7c829ab (P3 feel/audio/menu, P4 Daily Stampede), 49401cb (P5 trial settlement, claim-on-results, economy v2), 055eda4 (P6 signatures/Starfall/layouts, P7 Weekly Remix), then the Phase 8 commit (security/telemetry, frozen funnel, soak + budgets, perf overlay, competitor comparison, docs, RC package).
+
+- **Evidence:** `python3 tools/run_checks.py` → 60/60, sources unchanged, 13/13 headless scenarios (`qa/latest-checks.json`).
+- **Soak (fake engine, 4 players × 20 cycles):** instances ≤ 3,821, herd ≤ 43 per arena, non-herd flat; per client herd 3.5 KB/s, state 1.6 KB/tick, total 9 KB/s. It caught a real 2.9 KB/tick state overrun, which is now fixed.
+- **Audit fixes found during Phase 8:** Stampede Season runs handed out canyon Zip Tails in other arenas (SS-35); vacuous soak network checks (fixed and guarded).
+- **Owner-facing:** [final assessment](GAME1_FINAL_ASSESSMENT.md), [RC package](GAME1_RC_PACKAGE.md), [playtest guide v2](GAME1_PLAYTEST_GUIDE.md), [competitor comparison](research/competitor_comparison_2026-11-05.md).
+- **Not done (needs Studio or the owner):** V1–V12, audio upload, media capture, platform questionnaire, G4/G5. Not release-ready until then.
+
 ## Final direction review — 2026-11-05
 
 - Branch preserved: all 19 session commits pushed and verified on GitHub (`claude/awesome-brown-27rwqo`, tip `b5b78bc` before this review).

@@ -36,6 +36,46 @@ Monetization statement for the store page: none at launch. If the owner later ap
 
 Do not add unsupported superlatives, scarcity claims, free-Robux implications, competitor names, fake review quotes or unverified performance claims. Replace the numeric claims if the approved candidate differs. Category/tag selection must reflect Roblox's available current fields at release, not a guessed API enum.
 
+### Store description v3 (2026-11-05): reflects the final production plan build
+
+**Status: draft.** Every sentence names a mechanic that is implemented and covered by offline tests (`docs/qa/latest-checks.json`). None of it has been played in Studio since Phase 1, so publish only after the named features pass Checkpoint C (V1–V12 in `BACKLOG.md`); otherwise fall back to v2.
+
+> **A herd of sparks is on the loose, and everyone in the arena is chasing it.**
+>
+> Every two minutes a new stampede starts for the whole server. Dash *through* lines of sparks to catch three at once, keep your chain alive for x2, x3, x4 STAMPEDE, and bank your parade before the shared buzzer.
+>
+> Each of the 12 sparks has its own signature move: dash the bolters, get close to the zigzaggers, herd the huddlers, keep the rhythm for the wanderers. Earn signature stars, Prism and Radiant tiers, and golden versions of every spark.
+>
+> Three arenas, each with its own twist: herd sparks through the Spark Gate in Pop Meadow, dash the Stampede Runs in Fizz Canyon, and catch sparks dazed by the Aurora Starfall. Every round ends in a golden finale and a podium of fun awards.
+>
+> New every day: the **Daily Stampede**, one seeded course that is the same for everyone, with fair rules and a daily leaderboard. New every week: a **Remix** that shakes up every arena.
+>
+> Play solo or with up to three friends. No energy timers, no streaks, no pay-to-win. Move. Dash. Catch. Bank. Go again!
+
+**Claims deliberately left out:** no trading, no pets with stats, no paid boosts, no "limited time only" pressure, no claimed player counts, and nothing about monetization (not authorized).
+
+### Trailer storyboard v3 (30 s; capture in Studio with photo mode, `H`)
+
+| Time | Shot | Proof on screen |
+| --- | --- | --- |
+| 0–3 s | Wide aerial of Pop Meadow as the countdown beats "3-2-1 STAMPEDE!" | Shared round start |
+| 3–7 s | Third-person dash THROUGH a line of three sparks: "MULTI x3" tag, chain aura turns gold | Dash-through skill |
+| 7–10 s | The parade trails behind in a Comet Vee formation, then a bank fountain and Bank Burst confetti | Visible flex |
+| 10–14 s | Fizz Canyon Stampede Run: a dash timed into the lane | Arena identity |
+| 14–18 s | Aurora Starfall: the telegraph ring, impact, dazed sparks spinning, "STARSTRUCK" | Arena identity |
+| 18–22 s | Four players chase the shared golden finale; the buzzer hits "TIME!" | Social moment |
+| 22–26 s | Intermission podium: Top Parade, Longest Chain, Golden Catcher | Positive competition |
+| 26–30 s | Daily Stampede card and board ("Same course for everyone today"), then the logo | Return reason |
+
+### Thumbnail and icon shot list (photo mode hides the HUD)
+
+1. **Icon:** one Bunvolt mid-leap toward the camera on a soft meadow background, with a gold chain aura ring under it. Bright, a single subject, readable at 50 px.
+2. **Thumbnail A (action):** a player avatar mid-dash, three sparks in a line with motion trails, and a "MULTI x3" tag.
+3. **Thumbnail B (social):** four avatars around a golden spark at the finale, each with a different parade formation.
+4. **Thumbnail C (arena):** Aurora Arcade during Starfall, the crystal pentagon and violet telegraph ring framing dazed sparks.
+
+Use only original in-game captures, with no third-party characters or logos, and test legibility at 150 × 150 and 50 × 50 before upload (owner).
+
 ## Visual identity
 
 Use luminous toy-like forms and rounded geometry, with a consistent face/eye language. Favor saturated coral, warm yellow and cyan separated by dark navy outlines or backing surfaces. Bright bank gates, a clear creature silhouette and a readable avatar should remain distinguishable in a small tile. Reserve bloom for local accents; do not wash out targets. Character poses and trails should communicate motion without flashing or implied violence.

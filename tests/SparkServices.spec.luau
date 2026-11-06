@@ -9,13 +9,22 @@ local service={}
 function service:LogOnboardingFunnelStepEvent(player,step,name) table.insert(log,{"funnel",step,name}) end
 function service:LogEconomyEvent(player,flow,currency,amount,balance,kind,sku) table.insert(log,{"economy",flow,currency,amount,balance,kind,sku}) end
 function service:LogCustomEvent(player,name,value) table.insert(log,{"custom",name,value}) end
+function service:LogProgressionCompleteEvent(player,path,level,levelName) table.insert(log,{"progression",path,level,levelName}) end
 local a=Services.analytics(service,enum,true)
-check(a.funnel({}, "first_catch") and log[1][2]==3,"Funnel step numbering")
+-- Frozen launch funnel order (plan §6.13).
+local frozen={"join","first_catch","first_bank","first_dash_through","first_round_complete","second_round_start","first_perk_equipped","first_daily_stampede"}
+local steps=0; for _ in pairs(Services.FunnelSteps) do steps+=1 end
+check(steps==#frozen,"Exactly eight funnel steps")
+for index,name in ipairs(frozen) do check(Services.FunnelSteps[name]==index,"Funnel step "..index.." is "..name) end
+check(a.funnel({}, "first_catch") and log[1][2]==2 and log[1][3]=="first_catch","Funnel step numbering")
 check(not a.funnel({}, "bogus") and #log==1,"Unknown step ignored")
 check(a.economy({}, "sink",20,17,"upgrade_boots") and log[2][2]=="Sink" and log[2][6]=="Shop" and log[2][4]==20,"Economy sink")
 check(a.economy({}, "source",5.7,40,"bank") and log[3][4]==5 and log[3][6]=="Gameplay","Economy source floors")
 check(not a.economy({}, "source",0,40,"bank") and not a.economy({}, "source",0/0,40,"x"),"Zero/NaN skipped")
 check(a.custom({}, "golden_catch",2) and log[#log][2]=="golden_catch","Custom")
+check(a.custom({}, "trial_run",0/0) and log[#log][3]==1 and not a.custom({}, "",1) and not a.custom({},nil,1),"Custom guards")
+check(a.progression({}, "Rank",5,"Rank 5") and log[#log][1]=="progression" and log[#log][3]==5 and log[#log][4]=="Rank 5","Rank-up progression event")
+check(not a.progression({}, "Rank",0,"x") and not a.progression({}, "Rank",2.5,"x") and not a.progression({}, nil,2,"x"),"Progression guards")
 local broken=setmetatable({},{__index=function() return function() error("platform down") end end})
 local b=Services.analytics(broken,enum,true)
 check(not b.funnel({}, "join") and not b.economy({}, "sink",1,1,"x") and b.errors==2,"Failures are contained")

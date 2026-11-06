@@ -34,6 +34,21 @@ Prerequisites: `.tools/luau/luau` (official Luau 0.744 CLI) and `tests/engine/Ro
 | G ClientBoot | Real LocalScript boots beside the server, Ready handshake, renders timer from State, bound actions drive catches/banks, every button Activated once, full round with client attached | 8 checks pass (structure-tolerant) |
 | H RemoteAbuse | 275 malformed + 500 flooding Action requests: no server errors, no progression change, legitimate catch afterwards | 5 checks pass |
 
+### Added during final production plan execution (2026-11-05/06)
+
+Current counts and timings are in `docs/qa/latest-checks.json`; descriptions below.
+
+| Scenario | What it proves |
+| --- | --- |
+| A Boot (updated) | 3 shared arenas + Trial Grounds (arena 4); per-arena obstacle sets |
+| F ProductionPath (updated) | Frozen 8-step funnel numbering; normal rounds never write public boards (D16); daily board read; exploit counters reported once at leave |
+| G ClientBoot (extended) | Real client attached through round 2, a full Daily Stampede run and LEAVE via the client's own button |
+| H RemoteAbuse (extended) | New actions (Trial, Reroll, ClaimAll, SitOut, Play, Style tables): no unearned cosmetics/titles, trial stays locked, fixed goal slots intact |
+| I SyncedCycles | Four joiners at different cycle offsets: warm-up / partial / full rounds, one buzzer, positive podium, Sit out / Play |
+| J DailyStampede | Two players unlock the trial, get identical seeded courses per slot, normalized stats, once-per-day reward, retry, leave mid-run, ClaimAll, daily OrderedDataStore board order, records boards |
+| K ArenaIdentity | Distinct obstacle layouts; signature catches and album counts in real play; Aurora Starfall telegraph → six impacts → dazed Sparks hold still → STARSTRUCK catch; no instance growth |
+| L Soak4x20 | 4 players × 20 cycles: instances ≤ 4,500, herd ≤ 80/arena, no non-herd growth, threads flat, measured per-client traffic (herd ≤ 6 KB/s, state ≤ 2 KB/tick without the periodic profile, total ≤ 25 KB/s), non-vacuous window |
+
 Wall time for the full suite ≈ 2 minutes (soak ≈ 60 s).
 
 ## Findings reported to the main session (not fixed here)

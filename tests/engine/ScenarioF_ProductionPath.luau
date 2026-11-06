@@ -34,9 +34,12 @@ for _, event in ipairs(e.analytics) do
 	elseif event.method == "LogEconomyEvent" then economy += 1
 	elseif event.method == "LogCustomEvent" then custom += 1 end
 end
-for _, step in ipairs({"join", "first_action", "first_catch", "first_bank", "first_round"}) do
-	check(funnel[step] ~= nil, "Funnel step " .. step)
+-- Frozen launch funnel (plan §6.13): steps carry their fixed numbers.
+local expected = {join = 1, first_catch = 2, first_bank = 3, first_round_complete = 5}
+for step, number in pairs(expected) do
+	check(funnel[step] == number, "Funnel step " .. step .. " = " .. number .. " (" .. tostring(funnel[step]) .. ")")
 end
+check(funnel.first_action == nil and funnel.replay == nil, "Retired funnel names are no longer sent")
 check(economy > 0 and custom > 0, "Economy/custom analytics logged (" .. economy .. "/" .. custom .. ")")
 -- D16: normal-round scores never reach a public board; only the Daily Stampede
 -- board is read (production OrderedDataStore path) and shown on records boards.
@@ -52,10 +55,21 @@ check(not wroteNormal, "Normal-round score stays off public boards (D16)")
 check(dailyOpened, "Daily Stampede board refreshed from the production ordered store")
 local latest = h:state(p)
 check(type(latest.trial) == "table" and (latest.trial.board == nil or type(latest.trial.board) == "table"), "Daily board payload shape")
+-- Exploit telemetry (plan §6.12): junk requests are counted, then reported once at leave.
+for _ = 1, 3 do h:send(p, "GiveGlow", 9999); e.advance(0.1) end
+local analyticsBefore = #e.analytics
 -- Leave: final release clears the lease so another server may load at once.
 e.removePlayer(p)
 e.advance(3)
 h:assertClean("release")
+local exploitEvents = {}
+for index = analyticsBefore + 1, #e.analytics do
+	local event = e.analytics[index]
+	if event.method == "LogCustomEvent" and type(event.args[1]) == "string" and string.sub(event.args[1], 1, 8) == "exploit_" then
+		exploitEvents[event.args[1]] = event.args[2]
+	end
+end
+check(exploitEvents.exploit_malformed ~= nil and exploitEvents.exploit_malformed >= 3, "Malformed requests reported once at leave (" .. tostring(exploitEvents.exploit_malformed) .. ")")
 record = e.recOf(profiles).internal.values["player:6001"]
 check(record.lease == nil or record.lease.expiresAt <= e.os.time(), "Lease released on leave")
 check(record.data.lastSeen > 0, "lastSeen stamped")

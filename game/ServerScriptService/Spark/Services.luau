@@ -4,8 +4,10 @@
 local Services = {}
 
 -- Roblox AnalyticsService funnels/economy. No personal data or chat is sent.
--- Onboarding steps are ordered and must stay stable once live data exists.
-Services.FunnelSteps = {join=1, first_action=2, first_catch=3, first_bank=4, first_round=5, first_upgrade=6, replay=7}
+-- Onboarding steps are ordered and FROZEN for launch (plan §6.13): never renumber
+-- once live data exists; add new steps only at the end.
+Services.FunnelSteps = {join=1, first_catch=2, first_bank=3, first_dash_through=4, first_round_complete=5,
+	second_round_start=6, first_perk_equipped=7, first_daily_stampede=8}
 function Services.analytics(analyticsService, enum, enabled)
 	local self = {enabled = enabled ~= false and analyticsService ~= nil, errors = 0}
 	local function call(fn)
@@ -31,7 +33,16 @@ function Services.analytics(analyticsService, enum, enabled)
 		end)
 	end
 	function self.custom(player, name, value)
-		return call(function() analyticsService:LogCustomEvent(player, string.sub(name, 1, 40), value or 1) end)
+		if type(name) ~= "string" or name == "" then return false end
+		local amount = if type(value) == "number" and value == value and math.abs(value) < math.huge then value else 1
+		return call(function() analyticsService:LogCustomEvent(player, string.sub(name, 1, 40), amount) end)
+	end
+	-- Rank-ups as progression completions on one path ("Rank").
+	function self.progression(player, path, level, levelName)
+		if type(path) ~= "string" or type(level) ~= "number" or level ~= level or level < 1 or level % 1 ~= 0 then return false end
+		return call(function()
+			analyticsService:LogProgressionCompleteEvent(player, string.sub(path, 1, 40), level, string.sub(tostring(levelName or level), 1, 40))
+		end)
 	end
 	return self
 end

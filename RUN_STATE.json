@@ -1,8 +1,8 @@
 {
-  "updated_utc": "2026-11-05",
+  "updated_utc": "2026-11-06",
   "session": "cloud production session (claude/awesome-brown-27rwqo)",
   "branch": "claude/awesome-brown-27rwqo",
-  "push_status": "OK through Phase 5 (49401cb verified on GitHub); Phases 6-7 commit pending this run",
+  "push_status": "see git log; Phase 8 commit pushed and verified (this file is committed with it)",
   "mode": "offline-only; no Studio; scheduling paused by owner; unattended tests disabled",
   "protected": {
     "archive_branch": "archive/cascade-pre-game1-pivot-20261024",
@@ -12,7 +12,7 @@
   "gates": {
     "G0": "verified earlier (Oct 27)",
     "G1": "partial (live Oct 27, pre-mastery build)",
-    "G2": "offline implementation of plan Phases 1-7 complete; engine (Studio) validation pending V1-V12",
+    "G2": "offline implementation of plan Phases 1-8 complete; Studio validation V1-V12 pending",
     "G3": "offline only",
     "G4": "not ready",
     "G5": "not authorized"
@@ -30,9 +30,9 @@
     "P3_feel_ui_audio": "done offline (bb33ff7, 7c829ab); generated audio not yet uploaded/heard",
     "P4_daily_stampede": "done offline (7c829ab, 49401cb)",
     "P5_progression_density": "done offline (49401cb)",
-    "P6_signatures_starfall_layouts": "done offline (phase commit)",
-    "P7_weekly_remix": "done offline (phase commit)",
-    "P8_hardening_launch_prep": "in progress"
+    "P6_signatures_starfall_layouts": "done offline (055eda4)",
+    "P7_weekly_remix": "done offline (055eda4)",
+    "P8_hardening_launch_prep": "done offline (Phase 8 commit): telemetry, frozen funnel, soak 4x20 with budgets, perf overlay, competitor pass, docs, RC package"
   },
   "commands": {
     "all_checks": "python3 tools/run_checks.py",
@@ -44,17 +44,15 @@
     "api_names": "python3 tools/check_api_names.py (needs .tools/api/Full-API-Dump.json)"
   },
   "next_actions": [
-    "Phase 8: security review of new actions + exploit telemetry (per-session counters -> one analytics event)",
-    "Phase 8: analytics funnel freeze (join, first_catch, first_bank, first_dash_through, first_round_complete, second_round_start, first_perk_equipped, first_daily_stampede) + custom events + LogProgressionEvent",
-    "Phase 8: headless soak 20 cycles x 4 players with instance/herd/network budget assertions; Studio-only debug overlay",
-    "Phase 8: one focused competitor comparison + small improvements; final integrated audit; store copy v3, playtest guide v2, release checklist, RC package",
-    "Owner (non-blocking): upload 21 generated WAVs + tools/set_audio_ids.py; Checkpoint B/C in Studio (V1-V12)"
+    "Owner: follow docs/GAME1_PLAYTEST_GUIDE.md (V1-V12) on this branch; upload 21 WAVs + tools/set_audio_ids.py",
+    "Owner: capture media per docs/GAME1_PACKAGING.md shot list; questionnaire/maturity; private friend beta; G4 then G5 decision",
+    "Agent (after Studio feedback): tune dash path radius, Starfall/gate difficulty, medal thresholds, audio levels; fix any Studio findings"
   ],
   "last_check_run": {
     "command": "python3 tools/run_checks.py",
-    "result": "44/44 passed",
+    "result": "60/60 passed, 13/13 headless, sources unchanged",
     "report": "docs/qa/latest-checks.json"
   },
   "plan": "FINAL_PRODUCTION_PLAN.md (v1, 2026-11-05)",
-  "continuation_point": "If interrupted: run `python3 tools/run_checks.py`; then continue Phase 8 from BACKLOG.md 'Next implementation priority'."
+  "continuation_point": "All cloud-feasible plan work is complete. Next work requires Studio results (V1-V12). Re-verify with `python3 tools/run_checks.py`."
 }
