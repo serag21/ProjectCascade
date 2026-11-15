@@ -1,0 +1,86 @@
+{
+  "_note": "Build-ready part lists for the four Meadow species. Origin = ground point under the creature; +y up; the creature FACES -z (Roblox front). Units: studs and degrees. CreatureKit builds these 1:1; tools/render_refs.js renders the reference images from this same file.",
+  "conventions": {
+    "shapes": {
+      "ellipsoid": "Part (Block, any size >= 0.05, CanCollide false) with a child SpecialMesh{MeshType=Sphere}; set Mesh.Scale so the visible ellipsoid measures `size`. Do NOT rely on Shape=Ball with a non-uniform Size: verify in Studio how b1b62fd's non-uniform Ball parts actually render before reusing that approach.",
+      "block": "Part, Shape=Block, Size=size",
+      "cylinder": "Part, Shape=Cylinder. In this file a cylinder's axis is local Y and size = [diameter, height, diameter]; Roblox cylinders run along X, so the builder sets Size=(height, diameter, diameter) and pre-rotates 90 degrees about Z"
+    },
+    "colors": {"body": "species palette.body", "accent": "species palette.accent", "bodyDark": "body lerped 30% toward ink", "ink": [27, 36, 64], "white": [255, 249, 231], "gold": [255, 217, 90], "blush": [255, 150, 170]},
+    "material": "SmoothPlastic for every part; CastShadow true only on the part named body",
+    "root": "one extra invisible anchored Root part at the origin (not counted in `parts`); every listed part is unanchored, Massless, CanCollide/CanTouch/CanQuery false, and welded to Root",
+    "animation": "squash and stretch = SpecialMesh.Scale and Mesh.Offset on ellipsoids (no Size writes, no physics); whole-creature motion = one Root:PivotTo per frame; ears and wings = Weld.C0 rotation",
+    "lod": "`parts` are always present. `nearDetail` parts exist only for the 8 creatures nearest the camera within 35 studs (pooled: 32 parts total)."
+  },
+  "species": {
+    "pip": {
+      "role": "signature creature: first Spark met, game icon, results-sheet mascot",
+      "height": 2.9, "width": 2.3,
+      "parts": [
+        {"name": "body", "shape": "ellipsoid", "size": [2.3, 2.1, 2.2], "pos": [0, 1.15, 0], "rot": [0, 0, 0], "color": "body"},
+        {"name": "feet", "shape": "ellipsoid", "size": [1.7, 0.4, 1.5], "pos": [0, 0.2, 0.05], "rot": [0, 0, 0], "color": "bodyDark"},
+        {"name": "ear_l", "shape": "ellipsoid", "size": [0.5, 1.05, 0.75], "pos": [-0.5, 2.4, 0.05], "rot": [0, 0, 28], "color": "accent"},
+        {"name": "ear_r", "shape": "ellipsoid", "size": [0.5, 1.05, 0.75], "pos": [0.5, 2.4, 0.05], "rot": [0, 0, -28], "color": "accent"},
+        {"name": "eye_l", "shape": "ellipsoid", "size": [0.36, 0.52, 0.2], "pos": [-0.46, 1.32, -1.0], "rot": [0, 0, 0], "color": "ink"},
+        {"name": "eye_r", "shape": "ellipsoid", "size": [0.36, 0.52, 0.2], "pos": [0.46, 1.32, -1.0], "rot": [0, 0, 0], "color": "ink"}
+      ],
+      "nearDetail": [
+        {"name": "glint_l", "shape": "ellipsoid", "size": [0.13, 0.13, 0.08], "pos": [-0.52, 1.46, -1.09], "rot": [0, 0, 0], "color": "white"},
+        {"name": "glint_r", "shape": "ellipsoid", "size": [0.13, 0.13, 0.08], "pos": [0.40, 1.46, -1.09], "rot": [0, 0, 0], "color": "white"},
+        {"name": "cheek_l", "shape": "ellipsoid", "size": [0.34, 0.2, 0.1], "pos": [-0.82, 0.98, -0.86], "rot": [0, 25, 0], "color": "blush"},
+        {"name": "cheek_r", "shape": "ellipsoid", "size": [0.34, 0.2, 0.1], "pos": [0.82, 0.98, -0.86], "rot": [0, -25, 0], "color": "blush"}
+      ],
+      "poses": {
+        "idle": {"desc": "breathing bob", "bodyScale": [1, 1, 1], "bob": {"amp": 0.08, "hz": 1.2}, "earRot": 28},
+        "alert": {"desc": "telegraph before scooting, 0.3 s", "bodyScale": [0.94, 1.1, 0.94], "earRot": 70, "note": "ears flatten outward; eyes scale 1.15"},
+        "flee": {"desc": "hop cycle 3 Hz", "bodyScale": [[1.12, 0.85, 1.12], [0.92, 1.14, 0.92]], "hopHeight": 0.7, "earRot": 55, "lean": 12},
+        "cinched": {"desc": "caught breath while the ring tightens", "bodyScale": [0.9, 1.12, 0.9], "earRot": 5, "wobbleDeg": 5, "note": "eyes scale 1.3"},
+        "pop": {"desc": "0.12 s squash to [1.25,0.7,1.25], then 0.2 s overshoot to scale 1.25 and a 0.35 s arc into the parade", "particles": 12},
+        "parade": {"desc": "follows in file 2.4 studs apart, hop synced to the music beat", "bodyScale": [1, 1, 1], "hopHeight": 0.35, "earRot": 20}
+      }
+    },
+    "bunvolt": {
+      "height": 3.7, "width": 1.9,
+      "parts": [
+        {"name": "body", "shape": "ellipsoid", "size": [1.85, 1.75, 1.8], "pos": [0, 0.92, 0], "rot": [0, 0, 0], "color": "body"},
+        {"name": "ear_l_low", "shape": "block", "size": [0.42, 1.05, 0.26], "pos": [-0.42, 2.15, 0.1], "rot": [0, 0, 16], "color": "accent"},
+        {"name": "ear_l_high", "shape": "block", "size": [0.36, 1.15, 0.26], "pos": [-0.74, 3.05, 0.1], "rot": [0, 0, -12], "color": "accent"},
+        {"name": "ear_r_low", "shape": "block", "size": [0.42, 1.05, 0.26], "pos": [0.42, 2.15, 0.1], "rot": [0, 0, -16], "color": "accent"},
+        {"name": "ear_r_high", "shape": "block", "size": [0.36, 1.15, 0.26], "pos": [0.74, 3.05, 0.1], "rot": [0, 0, 12], "color": "accent"},
+        {"name": "eye_l", "shape": "ellipsoid", "size": [0.32, 0.46, 0.2], "pos": [-0.4, 1.05, -0.82], "rot": [0, 0, 0], "color": "ink"},
+        {"name": "eye_r", "shape": "ellipsoid", "size": [0.32, 0.46, 0.2], "pos": [0.4, 1.05, -0.82], "rot": [0, 0, 0], "color": "ink"}
+      ],
+      "nearDetail": [],
+      "poses": {
+        "crouch": {"desc": "hop telegraph, 0.5 s", "bodyScale": [1.2, 0.7, 1.2], "earRot": -35, "note": "ears swing back; a ground ring shrinks from r=3 to r=1"},
+        "airborne": {"desc": "0.7 s arc, uncatchable", "bodyScale": [0.85, 1.25, 0.85], "arcHeight": 5.0, "earRot": 10}
+      }
+    },
+    "cubloom": {
+      "height": 2.6, "width": 2.5,
+      "parts": [
+        {"name": "body", "shape": "block", "size": [2.5, 2.0, 2.4], "pos": [0, 1.0, 0], "rot": [0, 0, 0], "color": "body"},
+        {"name": "flower", "shape": "ellipsoid", "size": [1.5, 0.4, 1.5], "pos": [0, 2.15, 0], "rot": [0, 0, 0], "color": "accent"},
+        {"name": "flower_core", "shape": "ellipsoid", "size": [0.6, 0.45, 0.6], "pos": [0, 2.35, 0], "rot": [0, 0, 0], "color": "gold"},
+        {"name": "eye_l", "shape": "ellipsoid", "size": [0.36, 0.5, 0.2], "pos": [-0.55, 1.15, -1.2], "rot": [0, 0, 0], "color": "ink"},
+        {"name": "eye_r", "shape": "ellipsoid", "size": [0.36, 0.5, 0.2], "pos": [0.55, 1.15, -1.2], "rot": [0, 0, 0], "color": "ink"}
+      ],
+      "nearDetail": [],
+      "poses": {"lean": {"desc": "flock turn telegraph, 0.4 s: all four tilt 10 degrees toward the new heading", "tiltDeg": 10}}
+    },
+    "flutter": {
+      "height": 2.4, "width": 5.6,
+      "parts": [
+        {"name": "body", "shape": "ellipsoid", "size": [1.3, 1.6, 1.3], "pos": [0, 1.0, 0], "rot": [0, 0, 0], "color": "body"},
+        {"name": "wing_l", "shape": "ellipsoid", "size": [2.5, 1.8, 0.3], "pos": [-1.65, 1.35, 0.3], "rot": [0, 18, 20], "color": "body"},
+        {"name": "wing_r", "shape": "ellipsoid", "size": [2.5, 1.8, 0.3], "pos": [1.65, 1.35, 0.3], "rot": [0, -18, -20], "color": "body"},
+        {"name": "spot_l", "shape": "ellipsoid", "size": [0.75, 0.75, 0.36], "pos": [-1.85, 1.4, 0.3], "rot": [0, 18, 20], "color": "accent"},
+        {"name": "spot_r", "shape": "ellipsoid", "size": [0.75, 0.75, 0.36], "pos": [1.85, 1.4, 0.3], "rot": [0, -18, -20], "color": "accent"},
+        {"name": "eye_l", "shape": "ellipsoid", "size": [0.26, 0.38, 0.16], "pos": [-0.27, 1.15, -0.6], "rot": [0, 0, 0], "color": "ink"},
+        {"name": "eye_r", "shape": "ellipsoid", "size": [0.26, 0.38, 0.16], "pos": [0.27, 1.15, -0.6], "rot": [0, 0, 0], "color": "ink"}
+      ],
+      "nearDetail": [],
+      "poses": {"perched": {"desc": "wings fold from 20 to 80 degrees over the 4.0 s perch; fully folded = about to leave", "wingRot": [20, 80]}, "flying": {"desc": "flap 3 Hz, wingRot +-35, 9 studs up"}}
+    }
+  }
+}

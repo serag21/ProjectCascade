@@ -8,10 +8,10 @@ C = json.loads((ROOT / "data/creatures.json").read_text())
 INK = "#1b2440"; rgb = lambda c: "rgb(%d,%d,%d)" % tuple(c)
 
 def face(cx, cy, s, look=0):
-    e = s * .16
-    return (f'<ellipse cx="{cx-s*.2+look}" cy="{cy}" rx="{e*.7}" ry="{e}" fill="#fff" stroke="{INK}" stroke-width="1"/><ellipse cx="{cx+s*.2+look}" cy="{cy}" rx="{e*.7}" ry="{e}" fill="#fff" stroke="{INK}" stroke-width="1"/>'
-            f'<circle cx="{cx-s*.2+look*1.4}" cy="{cy+1}" r="{e*.42}" fill="{INK}"/><circle cx="{cx+s*.2+look*1.4}" cy="{cy+1}" r="{e*.42}" fill="{INK}"/>'
-            f'<path d="M{cx-s*.08+look} {cy+s*.22} q{s*.08} {s*.07} {s*.16} 0" fill="none" stroke="{INK}" stroke-width="1.4" stroke-linecap="round"/>')
+    """Shared face kit: two glossy ink eyes with a glint (no whites), matching data/models."""
+    e = s * .17
+    return (f'<ellipse cx="{cx-s*.2+look}" cy="{cy}" rx="{e*.72}" ry="{e}" fill="{INK}"/><ellipse cx="{cx+s*.2+look}" cy="{cy}" rx="{e*.72}" ry="{e}" fill="{INK}"/>'
+            f'<circle cx="{cx-s*.2+look-e*.2}" cy="{cy-e*.35}" r="{e*.26}" fill="#fff"/><circle cx="{cx+s*.2+look-e*.2}" cy="{cy-e*.35}" r="{e*.26}" fill="#fff"/>')
 
 def draw(sid, x, g, u, b, a):
     """x = centre, g = ground y, u = px per stud, b/a = body/accent colours."""
@@ -76,7 +76,8 @@ def draw(sid, x, g, u, b, a):
     return "".join(o)
 
 def silhouettes():
-    u, cw, ch = 24, 250, 240
+    u, cw, ch = 19, 250, 240
+    cu = u * 1.3   # creatures are drawn at tuning.creatures.globalScale
     W, H = cw * 4 + 40, ch * 3 + 110
     o = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" font-family="Verdana,sans-serif">', f'<rect width="{W}" height="{H}" fill="#fbf7ea"/>',
          f'<text x="20" y="34" font-size="22" font-weight="bold" fill="{INK}">SPARK SILHOUETTE SHEET — one scale, one face kit, twelve unmistakable outlines</text>',
@@ -89,7 +90,7 @@ def silhouettes():
         o.append(f'<line x1="{x0+14}" y1="{g}" x2="{x0+cw-14}" y2="{g}" stroke="{INK}" stroke-opacity=".3"/>')
         px = x0 + cw - 34
         o.append(f'<g fill="{INK}" fill-opacity=".16"><circle cx="{px}" cy="{g-4.4*u}" r="{.6*u}"/><rect x="{px-.7*u}" y="{g-3.8*u}" width="{1.4*u}" height="{2.0*u}" rx="4"/><rect x="{px-.6*u}" y="{g-1.8*u}" width="{.5*u}" height="{1.8*u}"/><rect x="{px+.1*u}" y="{g-1.8*u}" width="{.5*u}" height="{1.8*u}"/></g>')
-        o.append(draw(s["id"], cx, g, u, rgb(s["palette"]["body"]), rgb(s["palette"]["accent"])))
+        o.append(draw(s["id"], cx, g, cu, rgb(s["palette"]["body"]), rgb(s["palette"]["accent"])))
         mini = draw(s["id"], 0, 0, 7, INK, INK).replace('fill="#fff"', f'fill="{INK}"').replace('stroke="#fff"', f'stroke="{INK}"').replace('fill="#ffd95a"', f'fill="{INK}"')
         o.append(f'<g transform="translate({x0+34},{y0+62})">{mini}</g>')
         o.append(f'<text x="{x0+16}" y="{g+20}" font-size="14" font-weight="bold" fill="{INK}">{s["name"]}</text><text x="{x0+cw-16}" y="{g+20}" font-size="10" text-anchor="end" fill="{INK}">{s["rarity"]} · {s["value"]} pts</text>')

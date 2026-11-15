@@ -1,100 +1,598 @@
 {
   "_note": "All numbers are HYPOTHESES until confirmed in Studio play unless status=='fixed'. Units: studs, seconds, studs/s. 'status': fixed = contract constant; hyp = tune in playtest within 'range'.",
   "features": {
-    "trialEnabled": {"value": false, "status": "fixed", "note": "Daily Stampede hidden from WP-04 until WP-15 re-plans it for loops"},
-    "worldPartsOnly": {"value": false, "status": "hyp", "note": "true = no runtime Terrain; part-slab fallback"},
-    "worldLegacy": {"value": ["canyon", "aurora"], "status": "fixed", "note": "arenas still built by the old buildArena during stage 1"}
+    "trialEnabled": {
+      "value": false,
+      "status": "fixed",
+      "note": "Daily Stampede hidden from WP-04 until WP-15 re-plans it for loops"
+    },
+    "worldPartsOnly": {
+      "value": false,
+      "status": "hyp",
+      "note": "true = no runtime Terrain; part-slab fallback"
+    },
+    "worldLegacy": {
+      "value": [
+        "canyon",
+        "aurora"
+      ],
+      "status": "fixed",
+      "note": "arenas still built by the old buildArena during stage 1"
+    }
   },
   "movement": {
-    "walkSpeed": {"value": 24, "range": [22, 27], "status": "hyp", "was": 22},
-    "jumpHeight": {"value": 7.2, "status": "fixed", "note": "Roblox default; arena walls <=5 are player-jumpable, creatures never jump walls"},
-    "waterSpeedScale": {"value": 0.7, "range": [0.6, 0.85], "status": "hyp"},
-    "windLaneSpeedScale": {"value": 1.45, "range": [1.3, 1.6], "status": "hyp"},
-    "ice": {"walkSpeed": 29, "steerTimeConstant": 0.45, "range": [0.3, 0.6], "status": "hyp", "note": "client smooths the control vector; no physics friction dependency"}
+    "walkSpeed": {
+      "value": 24,
+      "range": [
+        22,
+        27
+      ],
+      "status": "hyp",
+      "was": 22
+    },
+    "jumpHeight": {
+      "value": 7.2,
+      "status": "fixed",
+      "note": "Roblox default; arena walls <=5 are player-jumpable, creatures never jump walls"
+    },
+    "waterSpeedScale": {
+      "value": 0.7,
+      "range": [
+        0.6,
+        0.85
+      ],
+      "status": "hyp"
+    },
+    "windLaneSpeedScale": {
+      "value": 1.45,
+      "range": [
+        1.3,
+        1.6
+      ],
+      "status": "hyp"
+    },
+    "ice": {
+      "walkSpeed": 29,
+      "steerTimeConstant": 0.45,
+      "range": [
+        0.3,
+        0.6
+      ],
+      "status": "hyp",
+      "note": "client smooths the control vector; no physics friction dependency"
+    }
   },
   "dash": {
-    "authority": {"value": "client-predicted, server-budgeted", "status": "fixed"},
-    "charges": {"value": 2, "status": "hyp"},
-    "rechargeSeconds": {"value": 2.4, "range": [1.8, 3.0], "status": "hyp", "bootsPerLevel": -0.3},
-    "duration": {"value": 0.26, "range": [0.2, 0.32], "status": "hyp"},
-    "distance": {"value": 15, "range": [12, 18], "status": "hyp"},
-    "speedCurve": {"value": [[0.0, 24], [0.04, 70], [0.14, 58], [0.26, 30]], "status": "hyp", "note": "[t, planar speed]; linear interp; exit blends to walkSpeed over 0.10s"},
-    "steerFraction": {"value": 0.4, "range": [0.25, 0.6], "status": "hyp", "note": "how much of live input bends the dash direction; lets players draw arcs"},
-    "inputBuffer": {"value": 0.12, "status": "hyp"},
-    "airDash": {"value": true, "status": "fixed"},
-    "fovKickDegrees": {"value": 5, "status": "hyp", "reducedMotion": 0},
-    "boopRadius": {"value": 5, "range": [4, 6.5], "status": "hyp"},
-    "boopShove": {"value": 6, "status": "hyp", "note": "creatures within boopRadius of the dash segment are shoved this far sideways from the dash line and flagged startled 0.8s"},
-    "serverBudgetPeakSpeed": {"value": 70, "status": "fixed", "note": "replaces literal 65 in Rules.movement"}
+    "authority": {
+      "value": "client-predicted, server-budgeted",
+      "status": "fixed"
+    },
+    "charges": {
+      "value": 2,
+      "status": "hyp"
+    },
+    "rechargeSeconds": {
+      "value": 2.4,
+      "range": [
+        1.8,
+        3.0
+      ],
+      "status": "hyp",
+      "bootsPerLevel": -0.3
+    },
+    "duration": {
+      "value": 0.26,
+      "range": [
+        0.2,
+        0.32
+      ],
+      "status": "hyp"
+    },
+    "distance": {
+      "value": 15,
+      "range": [
+        12,
+        18
+      ],
+      "status": "hyp"
+    },
+    "speedCurve": {
+      "value": [
+        [
+          0.0,
+          24
+        ],
+        [
+          0.04,
+          70
+        ],
+        [
+          0.14,
+          58
+        ],
+        [
+          0.26,
+          30
+        ]
+      ],
+      "status": "hyp",
+      "note": "[t, planar speed]; linear interp; exit blends to walkSpeed over 0.10s"
+    },
+    "steerFraction": {
+      "value": 0.4,
+      "range": [
+        0.25,
+        0.6
+      ],
+      "status": "hyp",
+      "note": "how much of live input bends the dash direction; lets players draw arcs"
+    },
+    "inputBuffer": {
+      "value": 0.12,
+      "status": "hyp"
+    },
+    "airDash": {
+      "value": true,
+      "status": "fixed"
+    },
+    "fovKickDegrees": {
+      "value": 5,
+      "status": "hyp",
+      "reducedMotion": 0
+    },
+    "boopRadius": {
+      "value": 5,
+      "range": [
+        4,
+        6.5
+      ],
+      "status": "hyp"
+    },
+    "boopShove": {
+      "value": 6,
+      "status": "hyp",
+      "note": "creatures within boopRadius of the dash segment are shoved this far sideways from the dash line and flagged startled 0.8s"
+    },
+    "serverBudgetPeakSpeed": {
+      "value": 70,
+      "status": "fixed",
+      "note": "replaces literal 65 in Rules.movement"
+    }
   },
   "ribbon": {
-    "lifetime": {"value": 4.2, "range": [3.4, 5.0], "status": "hyp"},
-    "maxLength": {"value": 100, "range": [80, 120], "status": "hyp"},
-    "sampleSpacing": {"value": 2.0, "status": "fixed"},
-    "width": {"value": 1.2, "status": "hyp"},
-    "snapRadius": {"value": 4.5, "range": [3.5, 6], "status": "hyp", "haloPerLevel": 1.0, "note": "head auto-closes onto own ribbon inside this distance"},
-    "snapMinPathDistance": {"value": 16, "status": "hyp", "note": "ribbon points nearer than this along the path cannot be snapped to"},
-    "minPerimeter": {"value": 16, "status": "fixed"},
-    "minArea": {"value": 18, "status": "fixed"},
-    "maxVertices": {"value": 56, "status": "fixed"},
-    "serverPathTolerance": {"value": 5.0, "range": [3.5, 6], "status": "hyp", "note": "each claimed vertex must lie within this of the server-observed path"},
-    "captureInflate": {"value": 0.75, "status": "hyp", "note": "polygon grown by this for the containment test; errs in the player's favour"},
-    "cinchSeconds": {"value": 0.30, "status": "hyp", "note": "masks server round trip"},
-    "popStagger": {"value": 0.06, "status": "hyp"},
-    "claimRateLimitPerSecond": {"value": 3, "status": "fixed"},
-    "pinchAttachRadius": {"value": 3.0, "status": "hyp", "note": "ribbon point this close to a pinch wall is attached to it"}
+    "lifetime": {
+      "value": 4.2,
+      "range": [
+        3.4,
+        5.0
+      ],
+      "status": "hyp"
+    },
+    "maxLength": {
+      "value": 100,
+      "range": [
+        80,
+        120
+      ],
+      "status": "hyp"
+    },
+    "sampleSpacing": {
+      "value": 2.0,
+      "status": "fixed"
+    },
+    "width": {
+      "value": 1.2,
+      "status": "hyp"
+    },
+    "snapRadius": {
+      "value": 4.5,
+      "range": [
+        3.5,
+        6
+      ],
+      "status": "hyp",
+      "haloPerLevel": 1.0,
+      "note": "head auto-closes onto own ribbon inside this distance"
+    },
+    "snapMinPathDistance": {
+      "value": 16,
+      "status": "hyp",
+      "note": "ribbon points nearer than this along the path cannot be snapped to"
+    },
+    "minPerimeter": {
+      "value": 16,
+      "status": "fixed"
+    },
+    "minArea": {
+      "value": 18,
+      "status": "fixed"
+    },
+    "maxVertices": {
+      "value": 56,
+      "status": "fixed"
+    },
+    "serverPathTolerance": {
+      "value": 4.0,
+      "range": [
+        3.0,
+        6.0
+      ],
+      "status": "hyp",
+      "note": "each claimed vertex must lie within this of the server-observed path, and the server path must stay within this of the polygon. Tune from the claimDeviation telemetry (p99 of accepted claims + 1)"
+    },
+    "captureInflate": {
+      "value": 0.75,
+      "status": "hyp",
+      "note": "polygon grown by this for the containment test; errs in the player's favour"
+    },
+    "cinchSeconds": {
+      "value": 0.3,
+      "status": "hyp",
+      "note": "masks server round trip"
+    },
+    "popStagger": {
+      "value": 0.06,
+      "status": "hyp"
+    },
+    "claimRateLimitPerSecond": {
+      "value": 3,
+      "status": "fixed"
+    },
+    "pinchAttachRadius": {
+      "value": 3.0,
+      "status": "hyp",
+      "note": "ribbon point this close to a pinch wall is attached to it"
+    },
+    "layerTolerance": {
+      "value": 6.0,
+      "status": "fixed",
+      "note": "a creature is catchable only if its ground height is within this of the ground height at the nearest polygon vertex (shelf vs floor, arch deck vs the Run)"
+    },
+    "viewClockMaxAge": {
+      "value": 0.35,
+      "range": [
+        0.25,
+        0.45
+      ],
+      "status": "hyp",
+      "note": "lag compensation: creatures are tested where they were at the herd clock the client was rendering, never older than this"
+    },
+    "pathGapMax": {
+      "value": 1.0,
+      "status": "fixed",
+      "note": "a server path with a longer hole than this cannot prove a loop"
+    },
+    "claimDeferSeconds": {
+      "value": 0.25,
+      "status": "hyp",
+      "note": "the server holds a claim this long for its observed path to reach the claim's last vertex"
+    },
+    "resultTimeout": {
+      "value": 0.8,
+      "status": "fixed",
+      "note": "client shows a harmless 'slip' if no result arrives in this time after closing"
+    },
+    "cutRadiusServerMargin": {
+      "value": 0.5,
+      "status": "hyp",
+      "note": "server cut radii are this much smaller than the radius drawn on the client, so latency never cuts a ribbon that looked clear"
+    }
   },
   "scoring": {
-    "sizeMultiplier": {"value": {"1": 1.0, "2": 1.2, "3": 1.5, "4": 1.8, "5": 2.2, "6": 2.2, "7": 2.2, "8": 3.0}, "status": "hyp", "note": "8 means 8 or more"},
-    "techBonusEach": {"value": 0.25, "status": "hyp"},
+    "sizeMultiplier": {
+      "value": {
+        "1": 1.0,
+        "2": 1.3,
+        "3": 1.6,
+        "4": 1.9,
+        "5": 2.3,
+        "6": 2.3,
+        "7": 2.3,
+        "8": 3.0
+      },
+      "status": "hyp",
+      "note": "8 means 8 or more. Strictly increasing per creature so gathering always beats splitting"
+    },
+    "techBonusEach": {
+      "value": 0.25,
+      "status": "hyp"
+    },
     "techs": {
-      "SNAP": "loop closed within 0.35s of a dash start",
-      "TIGHT": "polygon area <= 60 + 45*n studs^2 (n = creatures caught)",
+      "SNAP": "loop closed within scoring.snapWindow of a dash start (server times, +0.15s slack)",
+      "TIGHT": "n >= 2 and polygon area <= tightAreaBase + tightAreaPerCreature*n; a lone creature is TIGHT only if its species has soloTightArea (creatures.json)",
       "PINCH": "loop closed against an arena pinch wall",
       "MEDLEY": "3 or more species in one loop",
       "ROUNDUP": "5-7 creatures in one loop (label only; size multiplier carries the value)",
       "STAMPEDE": "8+ creatures in one loop (label only)"
     },
-    "chainWindow": {"value": 7.0, "range": [5.5, 8.5], "status": "hyp", "note": "seconds between successful loops; replaces per-catch 6s chain"},
-    "chainTiers": {"value": [[1, 1], [2, 2], [4, 3], [6, 4]], "status": "hyp", "note": "[consecutive loops, multiplier]"},
-    "emptyLoopPenalty": {"value": "none; chain timer keeps running", "status": "fixed"},
-    "ribbonCutPenalty": {"value": "ribbon lost only; chain unaffected", "status": "fixed"}
+    "chainWindow": {
+      "value": 7.0,
+      "range": [
+        5.5,
+        8.5
+      ],
+      "status": "hyp",
+      "note": "base seconds the chain survives after a chain-keeping action (a loop that caught something, a landed wrap, or a bank)"
+    },
+    "chainTiers": {
+      "value": [
+        [
+          0,
+          1
+        ],
+        [
+          4,
+          2
+        ],
+        [
+          10,
+          3
+        ],
+        [
+          18,
+          4
+        ]
+      ],
+      "status": "hyp",
+      "note": "[links, multiplier]. The loop that reaches a tier is scored at that tier"
+    },
+    "emptyLoopPenalty": {
+      "value": "none; chain timer keeps running",
+      "status": "fixed"
+    },
+    "ribbonCutPenalty": {
+      "value": "ribbon lost only; chain unaffected",
+      "status": "fixed"
+    },
+    "tightAreaBase": {
+      "value": 40,
+      "status": "hyp"
+    },
+    "tightAreaPerCreature": {
+      "value": 36,
+      "status": "hyp"
+    },
+    "snapWindow": {
+      "value": 0.35,
+      "status": "hyp"
+    },
+    "finaleMultiplier": {
+      "value": 1.5,
+      "status": "hyp"
+    },
+    "chainLinks": {
+      "value": [
+        [
+          1,
+          0
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          5,
+          2
+        ]
+      ],
+      "status": "hyp",
+      "note": "[minimum creatures in the loop, bonus links]. A loop adds n + bonus links: 1->1, 2->2, 3->4, 4->5, 5->7, 8->10. Replaces 'one link per loop', which rewarded farming singles"
+    },
+    "chainWindowPerCreature": {
+      "value": 0.75,
+      "range": [
+        0.5,
+        1.0
+      ],
+      "status": "hyp",
+      "note": "a loop of n refills the timer to chainWindow + this*(n-1), capped at chainWindowMax. Without it the model shows big herded loops lose the chain while singles keep it"
+    },
+    "chainWindowMax": {
+      "value": 12.0,
+      "status": "fixed",
+      "note": "equals Remix.MaxChainSeconds"
+    },
+    "medalsProvisional": {
+      "value": {
+        "Bronze": 80,
+        "Silver": 600,
+        "Gold": 1800,
+        "Radiant": 3000
+      },
+      "status": "hyp",
+      "note": "from tools/play_model.py (Meadow slice, no Golden): beginner mean 124, competent p10 795, herding optimizer p10 2546 / p90 3194. Replaces Config.Medals 300/1000/2500/5000 for the slice; recalibrate from real rounds in WP-14"
+    }
   },
   "parade": {
-    "capacity": {"value": 12, "status": "hyp", "was": 8, "basketPerLevel": 3},
-    "bankMultiplier": {"value": [[1, 1.0], [4, 1.25], [8, 1.5], [12, 2.0]], "status": "hyp", "note": "[parade size at bank, multiplier]; top tier = FULL PARADE (at capacity)"},
-    "overflow": {"value": "creatures beyond capacity are scored at 50% and released (they hop out, not lost to others unfairly: respawn normally)", "status": "hyp"},
-    "zapScatter": {"value": 2, "status": "hyp", "note": "unchanged from Loadout.zapScatter"}
+    "capacity": {
+      "value": 12,
+      "status": "hyp",
+      "was": 8,
+      "basketPerLevel": 3
+    },
+    "bankMultiplier": {
+      "value": [
+        [
+          1,
+          1.0
+        ],
+        [
+          4,
+          1.25
+        ],
+        [
+          8,
+          1.5
+        ],
+        [
+          12,
+          2.0
+        ]
+      ],
+      "status": "hyp",
+      "note": "[parade size at bank, multiplier]. Bank points = sum of carried base values x multiplier, added to round score and paid as glow. Banking also refreshes the chain window"
+    },
+    "overflow": {
+      "value": "creatures beyond capacity are scored at overflowScoreScale and released (they hop out and respawn normally)",
+      "status": "hyp"
+    },
+    "zapScatter": {
+      "value": 2,
+      "status": "hyp",
+      "note": "unchanged from Loadout.zapScatter"
+    },
+    "overflowScoreScale": {
+      "value": 0.5,
+      "status": "hyp"
+    }
   },
   "density": {
-    "baseLiveCapPerArena": {"value": 14, "status": "hyp", "was": 18},
-    "eventLiveCapPerArena": {"value": 30, "status": "fixed"},
-    "podRespawnSeconds": {"value": [6, 10], "status": "hyp"},
-    "podRespawnPlayerScale": {"value": "respawnSeconds x 1/(0.6 + 0.4*playersInArena)", "status": "hyp", "note": "more players refill pods faster; the live cap never rises"},
-    "podRespawnMinPlayerDistance": {"value": 22, "status": "hyp"},
-    "minPodSeparation": {"value": 24, "status": "fixed"}
+    "baseLiveCapPerArena": {
+      "value": 14,
+      "status": "hyp",
+      "was": 18
+    },
+    "eventLiveCapPerArena": {
+      "value": 30,
+      "status": "fixed"
+    },
+    "podRespawnSeconds": {
+      "value": [
+        6,
+        10
+      ],
+      "status": "hyp"
+    },
+    "podRespawnPlayerScale": {
+      "value": "respawnSeconds x 1/(0.6 + 0.4*playersInArena)",
+      "status": "hyp",
+      "note": "more players refill pods faster; the live cap never rises"
+    },
+    "podRespawnMinPlayerDistance": {
+      "value": 22,
+      "status": "hyp"
+    },
+    "minPodSeparation": {
+      "value": 24,
+      "status": "fixed"
+    }
   },
   "round": {
-    "playSeconds": {"value": 110, "status": "fixed"},
-    "intermission": {"value": 10, "status": "fixed"},
-    "phaseStarts": {"value": [0, 25, 55, 85], "status": "fixed", "note": "unchanged: Encounters/ArenaEvents/Cycle clocks stay valid"}
+    "playSeconds": {
+      "value": 110,
+      "status": "fixed"
+    },
+    "intermission": {
+      "value": 10,
+      "status": "fixed"
+    },
+    "phaseStarts": {
+      "value": [
+        0,
+        25,
+        55,
+        85
+      ],
+      "status": "fixed",
+      "note": "unchanged: Encounters/ArenaEvents/Cycle clocks stay valid"
+    }
   },
   "camera": {
-    "pitchDegrees": {"value": 52, "range": [45, 60], "status": "hyp"},
-    "distance": {"value": 44, "range": [36, 52], "status": "hyp"},
-    "fov": {"value": 68, "status": "hyp"},
-    "lookAhead": {"value": 5, "status": "hyp", "note": "studs toward movement direction, smoothed 0.35s"},
-    "loopZoomOut": {"value": 6, "status": "hyp", "note": "extra distance while ribbon length > 55"},
-    "yawControl": {"value": "player (RMB drag / touch drag / right stick); pitch clamped 42..62", "status": "hyp"}
+    "pitchDegrees": {
+      "value": 46,
+      "range": [
+        38,
+        54
+      ],
+      "status": "hyp",
+      "was": 52,
+      "note": "lowered after the reference render: at 52 no landmark or horizon is on screen; at 46 the Clover Tree trunk and far field are, and a ring still reads as a clear ellipse (height/width 0.72)"
+    },
+    "distance": {
+      "value": 38,
+      "range": [
+        32,
+        46
+      ],
+      "status": "hyp",
+      "was": 44,
+      "note": "at 44 a Spark was about 20 px wide on a 1280 px screen; 38 with creature scale 1.3 gives about 34 px"
+    },
+    "fov": {
+      "value": 68,
+      "status": "hyp"
+    },
+    "lookAhead": {
+      "value": 5,
+      "status": "hyp",
+      "note": "studs toward movement direction, smoothed 0.35s"
+    },
+    "loopZoomOut": {
+      "value": 6,
+      "status": "hyp",
+      "note": "extra distance while ribbon length > 55"
+    },
+    "yawControl": {
+      "value": "player (RMB drag / touch drag / right stick); pitch clamped 38..54",
+      "status": "hyp"
+    },
+    "pitchPresets": {
+      "value": [
+        54,
+        46,
+        38
+      ],
+      "status": "hyp",
+      "note": "slice debug keys [ and ] step through these so the owner can compare in one session"
+    }
   },
   "performance": {
-    "frameMsDesktopP50": {"value": 12.5, "status": "fixed", "baseline": 32.8},
-    "frameMsMobileP50": {"value": 25, "status": "fixed"},
-    "localEffectParts": {"value": 80, "status": "fixed", "baseline": 124},
-    "herdBytesPerSecondAvg": {"value": 1200, "status": "fixed", "baseline": 1700},
-    "herdBytesPerSecondPeak": {"value": 3600, "status": "fixed"},
-    "creaturePartsMax": {"value": 9, "status": "fixed", "baseline": "~20"},
-    "arenaPartsVisibleMax": {"value": 2600, "status": "fixed"},
-    "hudCoverageMaxFraction": {"value": 0.09, "status": "fixed"}
+    "frameMsDesktopP50": {
+      "value": 12.5,
+      "status": "fixed",
+      "baseline": 32.8
+    },
+    "frameMsMobileP50": {
+      "value": 25,
+      "status": "fixed"
+    },
+    "localEffectParts": {
+      "value": 80,
+      "status": "fixed",
+      "baseline": 124
+    },
+    "herdBytesPerSecondAvg": {
+      "value": 1200,
+      "status": "fixed",
+      "baseline": 1700
+    },
+    "herdBytesPerSecondPeak": {
+      "value": 3600,
+      "status": "fixed"
+    },
+    "creaturePartsMax": {
+      "value": 9,
+      "status": "fixed",
+      "baseline": "~20"
+    },
+    "arenaPartsVisibleMax": {
+      "value": 2600,
+      "status": "fixed"
+    },
+    "hudCoverageMaxFraction": {
+      "value": 0.09,
+      "status": "fixed"
+    }
+  },
+  "creatures": {
+    "globalScale": {
+      "value": 1.3,
+      "range": [
+        1.15,
+        1.45
+      ],
+      "status": "hyp",
+      "note": "CreatureKit multiplies every part size and offset in data/models by this. creatures.json silhouette height/width already include it. Behaviour radii are unaffected"
+    }
   }
 }

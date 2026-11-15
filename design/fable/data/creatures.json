@@ -1,10 +1,22 @@
 {
-  "_note": "Species ids, names, colors, biome, rarity, value and signature keys are UNCHANGED from Config.Creatures (save/album/Trial compatibility). Everything else is new. Speeds in studs/s (player walks 24). 'uncatchableStates' = states in which a creature inside a closed loop is NOT caught. All timing numbers are hypotheses.",
+  "_note": "Species ids, names, colors, biome, rarity, value and signature keys are UNCHANGED from Config.Creatures (save/album/Trial compatibility). Everything else is new. Speeds in studs/s (player walks 24). 'uncatchableStates' = states in which a creature inside a closed loop is NOT caught. All timing numbers are hypotheses. Silhouette height/width are final in-game studs (model data x tuning.creatures.globalScale).",
   "signatureRemap": {
-    "DASH": {"label": "SNAP!", "rule": "caught in a loop with the SNAP tech"},
-    "PRECISE": {"label": "TIGHT!", "rule": "caught in a loop with the TIGHT tech"},
-    "TOGETHER": {"label": "ROUNDUP!", "rule": "caught in a loop of 3 or more creatures"},
-    "RHYTHM": {"label": "ON RHYTHM!", "rule": "caught while chain multiplier is x2 or higher"}
+    "DASH": {
+      "label": "SNAP!",
+      "rule": "caught in a loop with the SNAP tech"
+    },
+    "PRECISE": {
+      "label": "TIGHT!",
+      "rule": "caught in a loop with the TIGHT tech"
+    },
+    "TOGETHER": {
+      "label": "ROUNDUP!",
+      "rule": "caught in a loop of 3 or more creatures"
+    },
+    "RHYTHM": {
+      "label": "ON RHYTHM!",
+      "rule": "caught while chain multiplier is x2 or higher"
+    }
   },
   "commonRules": {
     "awareness": "creatures react to the nearest eligible player inside 'awareness' studs",
@@ -15,164 +27,658 @@
   },
   "species": [
     {
-      "id": "pip", "name": "Pip Pop", "biome": 1, "rarity": "Common", "value": 3, "signature": "RHYTHM",
-      "behavior": "clump", "speed": {"idle": 3, "flee": 7}, "awareness": 12,
+      "id": "pip",
+      "name": "Pip Pop",
+      "biome": 1,
+      "rarity": "Common",
+      "value": 3,
+      "signature": "RHYTHM",
+      "behavior": "clump",
+      "speed": {
+        "idle": 3,
+        "flee": 7
+      },
+      "awareness": 12,
       "pattern": "Grazes in a loose trio. When a player is inside awareness it scoots away AND toward its podmates, so orbiting a pod squeezes it together.",
       "telegraph": "ears flatten and it squeaks once before scooting (0.3s)",
       "uncatchableStates": [],
       "counterplay": "Any closed loop. The teaching creature: walk a circle.",
-      "pod": {"size": [3, 3], "habitats": ["meadow_lawn", "tall_grass"]},
-      "silhouette": {"height": 2.2, "width": 2.2, "parts": 6, "read": "round bean body, two leaf-sprout ears, huge eyes", "gait": "bouncy hop, squash 15%"},
-      "palette": {"body": [255, 210, 65], "accent": [255, 244, 190]}
+      "pod": {
+        "size": [
+          3,
+          3
+        ],
+        "habitats": [
+          "meadow_lawn",
+          "tall_grass"
+        ]
+      },
+      "silhouette": {
+        "height": 3.8,
+        "width": 3.0,
+        "parts": 6,
+        "read": "round bean body, two leaf-sprout ears, huge eyes",
+        "gait": "bouncy hop, squash 15%"
+      },
+      "palette": {
+        "body": [
+          255,
+          210,
+          65
+        ],
+        "accent": [
+          255,
+          244,
+          190
+        ]
+      }
     },
     {
-      "id": "bunvolt", "name": "Bunvolt", "biome": 1, "rarity": "Common", "value": 4, "signature": "DASH",
-      "behavior": "hopper", "speed": {"idle": 4, "flee": 13, "hop": 22}, "awareness": 16,
+      "id": "bunvolt",
+      "name": "Bunvolt",
+      "biome": 1,
+      "rarity": "Common",
+      "value": 4,
+      "signature": "DASH",
+      "behavior": "hopper",
+      "speed": {
+        "idle": 4,
+        "flee": 13,
+        "hop": 22
+      },
+      "awareness": 16,
       "pattern": "Flees in bounds. Every 2.6s while a player is inside awareness it winds up (0.5s crouch, ears back, ground ring) then makes one 12-stud arcing HOP directly away from the player, airborne 0.7s.",
       "telegraph": "crouch + shrinking ground ring 0.5s; hop arc is always directly away from the nearest player",
-      "uncatchableStates": [{"state": "airborne", "seconds": 0.7}],
+      "uncatchableStates": [
+        {
+          "state": "airborne",
+          "seconds": 0.7
+        }
+      ],
       "counterplay": "Close the loop between hops (2.6s window) or SNAP it shut with a dash during the crouch. A hop over your ribbon escapes; stand opposite the gap to aim its hop back inside.",
-      "pod": {"size": [2, 2], "habitats": ["mushroom_ring", "meadow_lawn"]},
-      "silhouette": {"height": 3.6, "width": 1.9, "parts": 7, "read": "small body, very tall lightning-bolt ears (half its height)", "gait": "two-beat bound, ears lag"},
-      "palette": {"body": [255, 132, 177], "accent": [255, 236, 92]}
+      "pod": {
+        "size": [
+          2,
+          2
+        ],
+        "habitats": [
+          "mushroom_ring",
+          "meadow_lawn"
+        ]
+      },
+      "silhouette": {
+        "height": 4.8,
+        "width": 2.5,
+        "parts": 7,
+        "read": "small body, very tall lightning-bolt ears (half its height)",
+        "gait": "two-beat bound, ears lag"
+      },
+      "palette": {
+        "body": [
+          255,
+          132,
+          177
+        ],
+        "accent": [
+          255,
+          236,
+          92
+        ]
+      }
     },
     {
-      "id": "cubloom", "name": "Cubloom", "biome": 1, "rarity": "Uncommon", "value": 5, "signature": "TOGETHER",
-      "behavior": "flock", "speed": {"idle": 3, "flee": 8}, "awareness": 14,
+      "id": "cubloom",
+      "name": "Cubloom",
+      "biome": 1,
+      "rarity": "Uncommon",
+      "value": 5,
+      "signature": "TOGETHER",
+      "behavior": "flock",
+      "speed": {
+        "idle": 3,
+        "flee": 8
+      },
+      "awareness": 14,
       "pattern": "Moves as a tight block of four (cohesion radius 5). The whole flock turns together away from the player, with a 0.4s turn delay, so it can be driven like a single heavy object toward walls and pens.",
       "telegraph": "all four lean the same way before turning",
       "uncatchableStates": [],
       "counterplay": "Drive the block against a pinch wall or into a stone pen, or loop all four at once for ROUNDUP. Splitting the flock (dashing through it) scatters it for 3s: usually a mistake.",
-      "pod": {"size": [4, 4], "habitats": ["stone_pens_field"]},
-      "silhouette": {"height": 2.4, "width": 2.6, "parts": 5, "read": "soft rounded cube with a flower blooming on top", "gait": "waddle shuffle, stays shoulder to shoulder"},
-      "palette": {"body": [114, 232, 164], "accent": [255, 249, 231]}
+      "pod": {
+        "size": [
+          4,
+          4
+        ],
+        "habitats": [
+          "stone_pens_field"
+        ]
+      },
+      "silhouette": {
+        "height": 3.4,
+        "width": 3.2,
+        "parts": 5,
+        "read": "soft rounded cube with a flower blooming on top",
+        "gait": "waddle shuffle, stays shoulder to shoulder"
+      },
+      "palette": {
+        "body": [
+          114,
+          232,
+          164
+        ],
+        "accent": [
+          255,
+          249,
+          231
+        ]
+      }
     },
     {
-      "id": "flutter", "name": "Flutterwink", "biome": 1, "rarity": "Rare", "value": 7, "signature": "PRECISE",
-      "behavior": "percher", "speed": {"fly": 16}, "awareness": 9,
+      "id": "flutter",
+      "name": "Flutterwink",
+      "biome": 1,
+      "rarity": "Rare",
+      "value": 7,
+      "signature": "PRECISE",
+      "behavior": "percher",
+      "speed": {
+        "fly": 16
+      },
+      "awareness": 9,
       "pattern": "Flies a lazy figure-eight 9 studs up between flower perches (uncatchable in flight). Lands on a perch for 4.0s, wings slowly closing. If a player enters awareness while perched it takes off after 0.6s.",
       "telegraph": "target perch glows 1.5s before landing; wings fold over the 4s perch (fully folded = about to leave)",
-      "uncatchableStates": [{"state": "flying", "seconds": "between perches, 5-7s"}],
+      "uncatchableStates": [
+        {
+          "state": "flying",
+          "seconds": "between perches, 5-7s"
+        }
+      ],
       "counterplay": "Read the glowing perch, lay a WIDE loop (stay outside 9 studs) around it and close while it is perched. Rewards TIGHT only if the ring hugs the awareness edge.",
-      "pod": {"size": [1, 1], "habitats": ["flower_field"], "respawnSeconds": 28},
-      "silhouette": {"height": 2.4, "width": 5.6, "parts": 7, "read": "small body, wide moth wings with eye spots, curled antennae", "gait": "wing flap 3Hz in flight, slow fold when perched"},
-      "palette": {"body": [179, 146, 255], "accent": [255, 217, 90]}
+      "pod": {
+        "size": [
+          1,
+          1
+        ],
+        "habitats": [
+          "flower_field"
+        ],
+        "respawnSeconds": 28
+      },
+      "silhouette": {
+        "height": 3.1,
+        "width": 7.3,
+        "parts": 7,
+        "read": "small body, wide moth wings with eye spots, curled antennae",
+        "gait": "wing flap 3Hz in flight, slow fold when perched"
+      },
+      "palette": {
+        "body": [
+          179,
+          146,
+          255
+        ],
+        "accent": [
+          255,
+          217,
+          90
+        ]
+      }
     },
     {
-      "id": "sunshell", "name": "Sunshell", "biome": 2, "rarity": "Common", "value": 6, "signature": "TOGETHER",
-      "behavior": "anchor", "speed": {"idle": 2.5, "flee": 5}, "awareness": 10,
+      "id": "sunshell",
+      "name": "Sunshell",
+      "biome": 2,
+      "rarity": "Common",
+      "value": 6,
+      "signature": "TOGETHER",
+      "behavior": "anchor",
+      "speed": {
+        "idle": 2.5,
+        "flee": 5
+      },
+      "awareness": 10,
       "pattern": "Ambles in pairs. When a player is inside 8 studs it tucks into its shell (immovable, still catchable). A dash boop sends a tucked shell SLIDING 14 studs in the dash direction, bowling other creatures along with it.",
       "telegraph": "head pulls in over 0.3s; a tucked shell rocks gently",
       "uncatchableStates": [],
       "counterplay": "Easy alone, but worth little: use it as a fixed anchor for a big mixed loop, or bowl it into a group to bunch them (MEDLEY/ROUNDUP).",
-      "pod": {"size": [2, 2], "habitats": ["north_shelf"]},
-      "silhouette": {"height": 2.6, "width": 3.4, "parts": 6, "read": "big spiral shell on a small body, low and wide", "gait": "slow rock side to side; spins when sliding"},
-      "palette": {"body": [255, 185, 88], "accent": [160, 96, 80]}
+      "pod": {
+        "size": [
+          2,
+          2
+        ],
+        "habitats": [
+          "north_shelf"
+        ]
+      },
+      "silhouette": {
+        "height": 3.4,
+        "width": 4.4,
+        "parts": 6,
+        "read": "big spiral shell on a small body, low and wide",
+        "gait": "slow rock side to side; spins when sliding"
+      },
+      "palette": {
+        "body": [
+          255,
+          185,
+          88
+        ],
+        "accent": [
+          160,
+          96,
+          80
+        ]
+      }
     },
     {
-      "id": "ziptail", "name": "Zip Tail", "biome": 2, "rarity": "Uncommon", "value": 8, "signature": "DASH",
-      "behavior": "runner", "speed": {"run": 32}, "awareness": 0,
+      "id": "ziptail",
+      "name": "Zip Tail",
+      "biome": 2,
+      "rarity": "Uncommon",
+      "value": 8,
+      "signature": "DASH",
+      "behavior": "runner",
+      "speed": {
+        "run": 32
+      },
+      "awareness": 0,
       "pattern": "Never flees: it laps THE RUN (authored closed circuit) faster than the player can chase, pausing 1.5s at each of three rest stones. Ignores players except that a dash boop from the front makes it skid and reverse direction.",
       "telegraph": "dust line 20 studs ahead of it on the lane; rest stones glow while occupied",
       "uncatchableStates": [],
       "counterplay": "Intercept, do not chase: pre-lay an open loop across the lane and SNAP it shut as it enters, pinch it at a canyon choke, or loop it during a rest stop.",
-      "pod": {"size": [2, 2], "habitats": ["the_run"], "respawnSeconds": 14},
-      "silhouette": {"height": 1.8, "width": 1.6, "parts": 6, "read": "teardrop body leaning forward, long three-segment comet tail", "gait": "low sprint, tail streams; skid pose on reverse"},
-      "palette": {"body": [255, 110, 93], "accent": [255, 217, 90]}
+      "pod": {
+        "size": [
+          2,
+          2
+        ],
+        "habitats": [
+          "the_run"
+        ],
+        "respawnSeconds": 14
+      },
+      "silhouette": {
+        "height": 2.3,
+        "width": 2.1,
+        "parts": 6,
+        "read": "teardrop body leaning forward, long three-segment comet tail",
+        "gait": "low sprint, tail streams; skid pose on reverse"
+      },
+      "palette": {
+        "body": [
+          255,
+          110,
+          93
+        ],
+        "accent": [
+          255,
+          217,
+          90
+        ]
+      }
     },
     {
-      "id": "prickle", "name": "Prism Prickle", "biome": 2, "rarity": "Uncommon", "value": 9, "signature": "PRECISE",
-      "behavior": "cutter", "speed": {"idle": 3, "flee": 10}, "awareness": 13,
+      "id": "prickle",
+      "name": "Prism Prickle",
+      "biome": 2,
+      "rarity": "Uncommon",
+      "value": 9,
+      "signature": "PRECISE",
+      "behavior": "cutter",
+      "speed": {
+        "idle": 3,
+        "flee": 10
+      },
+      "awareness": 13,
       "pattern": "Skitters in sharp 90-degree turns. Its spines CUT any ribbon segment that passes within 2.5 studs of it while its spines are out. Spines retract for 2.0s after every third turn (it visibly rounds off and dims).",
       "telegraph": "spines glow when out; a three-turn count is readable from its tick-tick-TOCK sound and a dimming pulse",
       "uncatchableStates": [],
       "counterplay": "Give it a wide berth (ribbon > 2.5 studs away) or close TIGHT during the 2.0s retracted window.",
-      "pod": {"size": [2, 2], "habitats": ["cactus_garden"]},
-      "silhouette": {"height": 2.8, "width": 2.8, "parts": 8, "read": "diamond body with four crystal spines that extend and retract", "gait": "tick-turn skitter, spines flare on turns"},
-      "palette": {"body": [98, 223, 224], "accent": [255, 249, 231]}
+      "pod": {
+        "size": [
+          2,
+          2
+        ],
+        "habitats": [
+          "cactus_garden"
+        ]
+      },
+      "silhouette": {
+        "height": 3.6,
+        "width": 3.6,
+        "parts": 8,
+        "read": "diamond body with four crystal spines that extend and retract",
+        "gait": "tick-turn skitter, spines flare on turns"
+      },
+      "palette": {
+        "body": [
+          98,
+          223,
+          224
+        ],
+        "accent": [
+          255,
+          249,
+          231
+        ]
+      }
     },
     {
-      "id": "dunefin", "name": "Dune Fin", "biome": 2, "rarity": "Rare", "value": 12, "signature": "RHYTHM",
-      "behavior": "burrower", "speed": {"burrowed": 18}, "awareness": 0,
+      "id": "dunefin",
+      "name": "Dune Fin",
+      "biome": 2,
+      "rarity": "Rare",
+      "value": 12,
+      "signature": "RHYTHM",
+      "behavior": "burrower",
+      "speed": {
+        "burrowed": 18
+      },
+      "awareness": 0,
       "pattern": "Swims under the Sand Flats (only the dorsal fin shows; uncatchable). Follows a looping route between 4 surfacing mounds; at a mound it breaches and basks for 3.0s, then dives. Surfacing order is fixed per round.",
       "telegraph": "target mound bubbles and bulges for 1.5s; the fin visibly heads for it",
-      "uncatchableStates": [{"state": "burrowed", "seconds": "5-6 between mounds"}],
+      "uncatchableStates": [
+        {
+          "state": "burrowed",
+          "seconds": "5-6 between mounds"
+        }
+      ],
       "counterplay": "Predict the next mound from the fin heading and have the loop nearly drawn before it breaches.",
-      "pod": {"size": [1, 1], "habitats": ["sand_flats"], "respawnSeconds": 30},
-      "silhouette": {"height": 3.0, "width": 4.2, "parts": 6, "read": "sleek ray body with wide fins and a tall dorsal sail", "gait": "fin-only wake when burrowed; arching breach"},
-      "palette": {"body": [126, 172, 255], "accent": [255, 224, 131]}
+      "pod": {
+        "size": [
+          1,
+          1
+        ],
+        "habitats": [
+          "sand_flats"
+        ],
+        "respawnSeconds": 30
+      },
+      "silhouette": {
+        "height": 3.9,
+        "width": 5.5,
+        "parts": 6,
+        "read": "sleek ray body with wide fins and a tall dorsal sail",
+        "gait": "fin-only wake when burrowed; arching breach"
+      },
+      "palette": {
+        "body": [
+          126,
+          172,
+          255
+        ],
+        "accent": [
+          255,
+          224,
+          131
+        ]
+      }
     },
     {
-      "id": "crownlet", "name": "Crownlet", "biome": 3, "rarity": "Common", "value": 9, "signature": "TOGETHER",
-      "behavior": "leader", "speed": {"idle": 5, "flee": 11}, "awareness": 15,
+      "id": "crownlet",
+      "name": "Crownlet",
+      "biome": 3,
+      "rarity": "Common",
+      "value": 9,
+      "signature": "TOGETHER",
+      "behavior": "leader",
+      "speed": {
+        "idle": 5,
+        "flee": 11
+      },
+      "awareness": 15,
       "pattern": "A leader with two followers in single file (a court of three). Followers copy the leader's path 0.5s and 1.0s behind. If only followers are caught the leader bolts at 18 for 4s; if the leader is caught alone the followers freeze, confused, for 3s.",
       "telegraph": "leader's crown is twice as tall; followers' crowns tilt toward the leader",
       "uncatchableStates": [],
       "counterplay": "Loop the whole court in one ring for ROUNDUP (+ ROYAL COURT label), or take the leader first and mop up the frozen followers to extend a chain.",
-      "pod": {"size": [3, 3], "habitats": ["rim_path"]},
-      "silhouette": {"height": 3.0, "width": 2.2, "parts": 7, "read": "pear body, five-point crown, fluffy ruff collar", "gait": "proud strut, bobbing in file"},
-      "palette": {"body": [255, 224, 131], "accent": [255, 249, 231]}
+      "pod": {
+        "size": [
+          3,
+          3
+        ],
+        "habitats": [
+          "rim_path"
+        ]
+      },
+      "silhouette": {
+        "height": 3.9,
+        "width": 2.9,
+        "parts": 7,
+        "read": "pear body, five-point crown, fluffy ruff collar",
+        "gait": "proud strut, bobbing in file"
+      },
+      "palette": {
+        "body": [
+          255,
+          224,
+          131
+        ],
+        "accent": [
+          255,
+          249,
+          231
+        ]
+      }
     },
     {
-      "id": "ribbubble", "name": "Ribbubble", "biome": 3, "rarity": "Uncommon", "value": 11, "signature": "PRECISE",
-      "behavior": "floater", "speed": {"idle": 4, "flee": 9, "drift": 6}, "awareness": 14,
+      "id": "ribbubble",
+      "name": "Ribbubble",
+      "biome": 3,
+      "rarity": "Uncommon",
+      "value": 11,
+      "signature": "PRECISE",
+      "behavior": "floater",
+      "speed": {
+        "idle": 4,
+        "flee": 9,
+        "drift": 6
+      },
+      "awareness": 14,
       "pattern": "Startles UPWARD: if a player is DASHING or moving faster than 26 inside awareness it inflates and floats 10 studs up for 2.5s (uncatchable), drifting downwind. A walking player does not startle it.",
       "telegraph": "cheeks puff for 0.35s before lift-off; a shadow disc shows where it will land",
-      "uncatchableStates": [{"state": "floating", "seconds": 2.5}],
+      "uncatchableStates": [
+        {
+          "state": "floating",
+          "seconds": 2.5
+        }
+      ],
       "counterplay": "Restraint: walk the loop (no dash, stay off wind lanes and ice glides above 26) or bait a float and ring the landing shadow.",
-      "pod": {"size": [2, 2], "habitats": ["frost_lake_shore"]},
-      "silhouette": {"height": 3.2, "width": 2.4, "parts": 6, "read": "translucent bubble body with a bow of two long trailing ribbons", "gait": "bobbing float 1 stud up; ribbons trail and swirl"},
-      "palette": {"body": [242, 137, 238], "accent": [200, 240, 255]}
+      "pod": {
+        "size": [
+          2,
+          2
+        ],
+        "habitats": [
+          "frost_lake_shore"
+        ]
+      },
+      "silhouette": {
+        "height": 4.2,
+        "width": 3.1,
+        "parts": 6,
+        "read": "translucent bubble body with a bow of two long trailing ribbons",
+        "gait": "bobbing float 1 stud up; ribbons trail and swirl"
+      },
+      "palette": {
+        "body": [
+          242,
+          137,
+          238
+        ],
+        "accent": [
+          200,
+          240,
+          255
+        ]
+      }
     },
     {
-      "id": "starwhirl", "name": "Starwhirl", "biome": 3, "rarity": "Rare", "value": 14, "signature": "DASH",
-      "behavior": "blinker", "speed": {"orbit": 20}, "awareness": 18,
+      "id": "starwhirl",
+      "name": "Starwhirl",
+      "biome": 3,
+      "rarity": "Rare",
+      "value": 14,
+      "signature": "DASH",
+      "behavior": "blinker",
+      "speed": {
+        "orbit": 20
+      },
+      "awareness": 18,
       "pattern": "Orbits a crystal spire at radius 10. When a live ribbon encloses more than 70% of the angle around it, it winds up 0.5s then BLINKS 9 studs toward the widest gap. Blink cooldown 4.0s.",
       "telegraph": "points spin up and brighten for 0.5s; a faint line shows the blink direction",
-      "uncatchableStates": [{"state": "blinking", "seconds": 0.2}],
+      "uncatchableStates": [
+        {
+          "state": "blinking",
+          "seconds": 0.2
+        }
+      ],
       "counterplay": "Close the last 30% faster than 0.5s with a SNAP, or bait the blink then loop it during the 4s cooldown.",
-      "pod": {"size": [1, 1], "habitats": ["crystal_spires"], "respawnSeconds": 26},
-      "silhouette": {"height": 3.0, "width": 3.0, "parts": 7, "read": "five-point star that spins like a pinwheel around a round face", "gait": "continuous roll-spin; faster = about to blink"},
-      "palette": {"body": [155, 243, 255], "accent": [255, 249, 231]}
+      "pod": {
+        "size": [
+          1,
+          1
+        ],
+        "habitats": [
+          "crystal_spires"
+        ],
+        "respawnSeconds": 26
+      },
+      "silhouette": {
+        "height": 3.9,
+        "width": 3.9,
+        "parts": 7,
+        "read": "five-point star that spins like a pinwheel around a round face",
+        "gait": "continuous roll-spin; faster = about to blink"
+      },
+      "palette": {
+        "body": [
+          155,
+          243,
+          255
+        ],
+        "accent": [
+          255,
+          249,
+          231
+        ]
+      }
     },
     {
-      "id": "antlume", "name": "Antlume", "biome": 3, "rarity": "Rare", "value": 16, "signature": "RHYTHM",
-      "behavior": "charger", "speed": {"idle": 5, "charge": 34}, "awareness": 16, "wraps": 2,
+      "id": "antlume",
+      "name": "Antlume",
+      "biome": 3,
+      "rarity": "Rare",
+      "value": 16,
+      "signature": "RHYTHM",
+      "behavior": "charger",
+      "speed": {
+        "idle": 5,
+        "charge": 34
+      },
+      "awareness": 16,
+      "wraps": 2,
       "pattern": "Patrols the terraces between lantern posts. Needs TWO wraps. After the first loop it rears (0.8s) and CHARGES 40 studs in a straight line, cutting any ribbon it crosses, then stands winded for 3.0s. Wrap 1 expires after 8s.",
       "telegraph": "antlers light up through the rear; charge line drawn on the ground for 0.8s",
-      "uncatchableStates": [{"state": "charging", "seconds": 1.2}],
+      "uncatchableStates": [
+        {
+          "state": "charging",
+          "seconds": 1.2
+        }
+      ],
       "counterplay": "Wrap, sidestep the charge line, then wrap again while it is winded. In co-op a second player's loop counts as the second wrap.",
-      "pod": {"size": [1, 1], "habitats": ["north_terrace"], "respawnSeconds": 34},
-      "silhouette": {"height": 5.2, "width": 3.0, "parts": 9, "read": "tall deer-like body, branching glowing antlers twice its head height", "gait": "stately walk; rears on hind legs; head-down charge"},
-      "palette": {"body": [193, 176, 255], "accent": [255, 217, 90]}
+      "pod": {
+        "size": [
+          1,
+          1
+        ],
+        "habitats": [
+          "north_terrace"
+        ],
+        "respawnSeconds": 34
+      },
+      "silhouette": {
+        "height": 6.8,
+        "width": 3.9,
+        "parts": 9,
+        "read": "tall deer-like body, branching glowing antlers twice its head height",
+        "gait": "stately walk; rears on hind legs; head-down charge"
+      },
+      "palette": {
+        "body": [
+          193,
+          176,
+          255
+        ],
+        "accent": [
+          255,
+          217,
+          90
+        ]
+      }
     }
   ],
   "variants": [
-    {"id": "golden", "name": "Golden Runaway", "appliesTo": "any species of the arena", "rule": "wraps +1 (min 2), flee speed x1.35, leaves a gold dust trail; every player who wrapped it gets full Gilded album credit and value x3", "frequency": "exactly one per round at t=85 (existing golden finale)"}
+    {
+      "id": "golden",
+      "name": "Golden Runaway",
+      "appliesTo": "any species of the arena",
+      "rule": "wraps +1 (min 2), flee speed x1.35, leaves a gold dust trail; every player who wrapped it gets full Gilded album credit and value x3",
+      "frequency": "exactly one per round at t=85 (existing golden finale)"
+    }
   ],
   "legends": [
     {
-      "id": "grandbloom", "name": "Grandbloom", "biome": 1, "wraps": 4, "value": 60, "scale": 4.0,
+      "id": "grandbloom",
+      "name": "Grandbloom",
+      "biome": 1,
+      "wraps": 4,
+      "value": 60,
+      "scale": 4.0,
       "pattern": "A hill-sized, slow (4) flower-backed grazer that walks the Meadow legend route. After each wrap it shakes, releasing 3 Pips, and speeds up by 2.",
       "counterplay": "Four loops of at least 60 perimeter (it is 9 studs wide). Solo: possible in the 40s window with clean loops. Co-op: every player's loop is a wrap.",
-      "silhouette": {"height": 9, "width": 9, "parts": 9, "read": "mossy dome with a giant clover flower on its back, tiny legs, sleepy eyes"}
+      "silhouette": {
+        "height": 9,
+        "width": 9,
+        "parts": 9,
+        "read": "mossy dome with a giant clover flower on its back, tiny legs, sleepy eyes"
+      }
     },
     {
-      "id": "thunderhoof", "name": "Thunderhoof", "biome": 2, "wraps": 3, "value": 60, "scale": 2.6,
+      "id": "thunderhoof",
+      "name": "Thunderhoof",
+      "biome": 2,
+      "wraps": 3,
+      "value": 60,
+      "scale": 2.6,
       "pattern": "Leads its own stampede of 8 Zip Tails around THE RUN at 28. Each wrap must be an intercept loop; each wrap also catches the Zip Tails inside it.",
       "counterplay": "Trap loops at the three chokes; it slows to 22 for 2s after each wrap.",
-      "silhouette": {"height": 7, "width": 4, "parts": 9, "read": "barrel-chested runner with a storm-cloud mane and lightning tail"}
+      "silhouette": {
+        "height": 7,
+        "width": 4,
+        "parts": 9,
+        "read": "barrel-chested runner with a storm-cloud mane and lightning tail"
+      }
     },
     {
-      "id": "borealynx", "name": "Borealynx", "biome": 3, "wraps": 3, "value": 60, "scale": 2.4,
+      "id": "borealynx",
+      "name": "Borealynx",
+      "biome": 3,
+      "wraps": 3,
+      "value": 60,
+      "scale": 2.4,
       "pattern": "Glides across the Frost Lake on aurora ribbons, pausing 3s on each of 3 lake markers. Blinks to the next marker when wrapped.",
       "counterplay": "Ice-glide loops timed to each pause; predicting the next marker is rewarded.",
-      "silhouette": {"height": 5.5, "width": 6, "parts": 9, "read": "long cat with aurora-curtain tail and ear tufts"}
+      "silhouette": {
+        "height": 5.5,
+        "width": 6,
+        "parts": 9,
+        "read": "long cat with aurora-curtain tail and ear tufts"
+      }
     }
   ],
   "hazards": [
     {
-      "id": "static_puff", "name": "Static Puff", "existing": true,
+      "id": "static_puff",
+      "name": "Static Puff",
+      "existing": true,
       "rule": "Unchanged ownership model (per-player, from the player's 3rd round). New behaviour: drifts at 8 toward the nearest point of its owner's live ribbon; touching the ribbon CUTS it (ribbon dissolves from the cut to the tail; no score or chain penalty). Touching the owner scatters tuning.parade.zapScatter parade members (recatchable by anyone).",
       "counterplay": "Dash through it to POP it (+40 style, existing popPoints). Keep loops short when one is near."
     }

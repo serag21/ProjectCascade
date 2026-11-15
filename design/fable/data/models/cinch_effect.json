@@ -1,0 +1,29 @@
+{
+  "_note": "The capture celebration as a data timeline. Times in seconds from the client closing the loop (t=0). 'await' steps start when the server Loop result arrives; if it has not arrived by ring.holdUntil the ring holds its tightened shape, and at tuning.ribbon.resultTimeout the ring releases as a slip (no penalty).",
+  "ring": {
+    "segments": 24, "impl": "24 pooled Beams between 24 pooled Attachments (one Part host). At t=0 attachments are placed on the loop polygon resampled to 24 points by arc length.",
+    "width": [{"t": 0.0, "v": 1.2}, {"t": 0.04, "v": 2.2}, {"t": 0.30, "v": 0.9}],
+    "color": [{"t": 0.0, "v": [255, 255, 255]}, {"t": 0.06, "v": "ribbonColor"}, {"t": 0.30, "v": "ribbonColor"}],
+    "lightEmission": 1.0, "texture": "assets/textures/cinch_ring.png", "textureSpeed": 1.5,
+    "shrink": {"from": 1.0, "to": 0.22, "ease": "quadIn", "start": 0.0, "end": 0.30, "about": "polygon centroid", "note": "never shrink a point past the outermost caught creature's body radius + 0.6"},
+    "holdUntil": 0.30, "releaseOnResult": {"expandTo": 0.0, "seconds": 0.12, "note": "ring collapses to the centroid and vanishes as the last creature pops"},
+    "y": 0.25
+  },
+  "ribbon": {"t": 0.0, "action": "the Trail segment that formed the loop is cleared (Trail:Clear on a dedicated loop Trail) so only the ring remains; the travel Trail restarts from the feet"},
+  "ground": {"flashDisc": {"t": 0.0, "seconds": 0.18, "impl": "one flat pooled disc scaled to the loop bounds, colour ribbonColor, transparency 0.75 -> 1", "reducedMotion": "omit"}},
+  "creatures": [
+    {"t": 0.0, "who": "predicted inside", "pose": "cinched"},
+    {"await": "result", "who": "caught[i]", "delay": "0.06 * i", "pose": "pop", "sound": {"id": "catch_pop", "pitchStep": "pentatonic[i]"}, "particles": {"count": 12, "texture": "assets/textures/pop_spark.png", "color": "species body", "speed": [6, 12], "lifetime": [0.25, 0.45], "size": [0.9, 0]}},
+    {"await": "result", "who": "escaped[i]", "pose": "nope hop: 4-stud hop out of the ring toward the nearest gap, 0.35 s", "sound": "species voice"}
+  ],
+  "payoutTag": {"await": "result", "delay": "0.06 * caught + 0.05", "at": "centroid, y = 3", "rise": 4.0, "seconds": 1.2,
+    "lines": [{"text": "+{points}", "size": 36, "color": [255, 249, 231], "stroke": [27, 36, 64]}, {"text": "{techs joined by ' · '} · x{multiplier}", "size": 15, "color": [255, 227, 107], "stroke": [27, 36, 64]}],
+    "scalePunch": {"from": 0.6, "to": 1.0, "seconds": 0.12, "ease": "backOut"}},
+  "bySize": {
+    "1-4": {"extra": "none"},
+    "5-7": {"extra": "ground shockwave ring (pooled, r 0 -> loop radius + 6 in 0.3 s) + 30 confetti", "sound": "roundup_stinger"},
+    "8+": {"extra": "shockwave + 60 confetti in a 12-stud column + arena toast; effects-only time dip 0.85 for 0.15 s", "sound": "stampede_stinger", "reducedMotion": "no time dip, 20 confetti"}
+  },
+  "empty": {"t": 0.30, "action": "ring fades over 0.2 s, 6 grey-white fizz particles at the centroid", "sound": "loop_whiff"},
+  "partBudget": {"ringHost": 1, "flashDisc": 1, "shockwave": 1, "payoutTagHost": 1, "note": "beams, attachments, emitters and billboards are not parts; see 11 section 6 for how to count"}
+}
