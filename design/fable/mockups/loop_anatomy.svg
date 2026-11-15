@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 560" width="1180" height="560" font-family="Verdana,sans-serif">
+<rect width="1180" height="560" fill="#fbf7ea"/>
+<text x="20" y="34" font-size="22" font-weight="bold" fill="#1b2440">LOOP ANATOMY — the one verb: run a ring around them</text>
+<rect x="20" y="56" width="270" height="420" rx="16" fill="#6cd68e"/><rect x="20" y="476" width="270" height="64" rx="0" fill="#fbf7ea"/>
+<text x="28" y="500" font-size="15" font-weight="bold" fill="#1b2440">1. DRAW</text>
+<text x="28" y="518" font-size="10.5" fill="#1b2440">Your ribbon is always on: 4.2 s / 100 studs.</text>
+<text x="28" y="532" font-size="10.5" fill="#1b2440">Sparks shy away from you and bunch up.</text>
+<path d="M80 400 C40 330 50 220 130 180" fill="none" stroke="#fff36b" stroke-width="9" stroke-linecap="round"/><path d="M80 400 l-6 26" stroke="#fff36b" stroke-width="9" stroke-opacity=".35" stroke-linecap="round"/>
+<ellipse cx="170" cy="270" rx="11" ry="12.100000000000001" fill="#ffd241" stroke="#1b2440" stroke-width="1.6"/><circle cx="166.5" cy="269" r="2" fill="#1b2440"/><circle cx="173.5" cy="269" r="2" fill="#1b2440"/>
+<path d="M184 274 l14 6" stroke="#1b2440" stroke-width="1.5" stroke-dasharray="3 3"/>
+<ellipse cx="196" cy="300" rx="11" ry="12.100000000000001" fill="#ffd241" stroke="#1b2440" stroke-width="1.6"/><circle cx="192.5" cy="299" r="2" fill="#1b2440"/><circle cx="199.5" cy="299" r="2" fill="#1b2440"/>
+<path d="M210 304 l14 6" stroke="#1b2440" stroke-width="1.5" stroke-dasharray="3 3"/>
+<ellipse cx="160" cy="310" rx="11" ry="12.100000000000001" fill="#ffd241" stroke="#1b2440" stroke-width="1.6"/><circle cx="156.5" cy="309" r="2" fill="#1b2440"/><circle cx="163.5" cy="309" r="2" fill="#1b2440"/>
+<path d="M174 314 l14 6" stroke="#1b2440" stroke-width="1.5" stroke-dasharray="3 3"/>
+<circle cx="130" cy="180" r="10" fill="#fff" stroke="#1b2440" stroke-width="2.5"/><circle cx="130" cy="180" r="4" fill="#3d74d9"/>
+<rect x="310" y="56" width="270" height="420" rx="16" fill="#6cd68e"/><rect x="310" y="476" width="270" height="64" rx="0" fill="#fbf7ea"/>
+<text x="318" y="500" font-size="15" font-weight="bold" fill="#1b2440">2. CLOSE (or SNAP)</text>
+<text x="318" y="518" font-size="10.5" fill="#1b2440">Cross your own ribbon, or get within 4.5 studs</text>
+<text x="318" y="532" font-size="10.5" fill="#1b2440">and it snaps shut. Dash to close = SNAP bonus.</text>
+<path d="M370 400 C320 300 360 150 460 160 C560 170 560 330 500 380 C470 405 430 410 402 404" fill="none" stroke="#fff36b" stroke-width="9" stroke-linecap="round"/>
+<path d="M402 404 L370 400" stroke="#fff" stroke-width="4" stroke-dasharray="6 5"/><circle cx="370" cy="400" r="36" fill="none" stroke="#fff" stroke-dasharray="4 5" stroke-opacity=".8"/><text x="330" y="452" font-size="10" fill="#1b2440">snap radius</text>
+<ellipse cx="450" cy="270" rx="11" ry="12.100000000000001" fill="#ffd241" stroke="#1b2440" stroke-width="1.6"/><circle cx="446.5" cy="269" r="2" fill="#1b2440"/><circle cx="453.5" cy="269" r="2" fill="#1b2440"/>
+<ellipse cx="472" cy="292" rx="11" ry="12.100000000000001" fill="#ffd241" stroke="#1b2440" stroke-width="1.6"/><circle cx="468.5" cy="291" r="2" fill="#1b2440"/><circle cx="475.5" cy="291" r="2" fill="#1b2440"/>
+<ellipse cx="446" cy="300" rx="11" ry="12.100000000000001" fill="#ffd241" stroke="#1b2440" stroke-width="1.6"/><circle cx="442.5" cy="299" r="2" fill="#1b2440"/><circle cx="449.5" cy="299" r="2" fill="#1b2440"/>
+<ellipse cx="480" cy="250" rx="11" ry="12.100000000000001" fill="#ff84b1" stroke="#1b2440" stroke-width="1.6"/><circle cx="476.5" cy="249" r="2" fill="#1b2440"/><circle cx="483.5" cy="249" r="2" fill="#1b2440"/>
+<circle cx="402" cy="404" r="10" fill="#fff" stroke="#1b2440" stroke-width="2.5"/><circle cx="402" cy="404" r="4" fill="#3d74d9"/>
+<rect x="600" y="56" width="270" height="420" rx="16" fill="#6cd68e"/><rect x="600" y="476" width="270" height="64" rx="0" fill="#fbf7ea"/>
+<text x="608" y="500" font-size="15" font-weight="bold" fill="#1b2440">3. CINCH</text>
+<text x="608" y="518" font-size="10.5" fill="#1b2440">0.30 s: the ring tightens, Sparks pop one by one</text>
+<text x="608" y="532" font-size="10.5" fill="#1b2440">on a rising scale. (Hides the server round trip.)</text>
+<ellipse cx="746" cy="282" rx="52" ry="46" fill="#fff36b" fill-opacity=".25" stroke="#fff36b" stroke-width="9"/><ellipse cx="746" cy="282" rx="98" ry="110" fill="none" stroke="#fff36b" stroke-width="3" stroke-opacity=".5" stroke-dasharray="3 9"/>
+<ellipse cx="732" cy="276" rx="9" ry="9.9" fill="#ffd241" stroke="#1b2440" stroke-width="1.6"/><circle cx="728.5" cy="275" r="2" fill="#1b2440"/><circle cx="735.5" cy="275" r="2" fill="#1b2440"/>
+<ellipse cx="756" cy="286" rx="9" ry="9.9" fill="#ffd241" stroke="#1b2440" stroke-width="1.6"/><circle cx="752.5" cy="285" r="2" fill="#1b2440"/><circle cx="759.5" cy="285" r="2" fill="#1b2440"/>
+<ellipse cx="740" cy="296" rx="9" ry="9.9" fill="#ffd241" stroke="#1b2440" stroke-width="1.6"/><circle cx="736.5" cy="295" r="2" fill="#1b2440"/><circle cx="743.5" cy="295" r="2" fill="#1b2440"/>
+<ellipse cx="760" cy="266" rx="9" ry="9.9" fill="#ff84b1" stroke="#1b2440" stroke-width="1.6"/><circle cx="756.5" cy="265" r="2" fill="#1b2440"/><circle cx="763.5" cy="265" r="2" fill="#1b2440"/>
+<line x1="858.0" y1="282.0" x2="820.0" y2="282.0" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+<line x1="825.1959594928933" y1="369.6812408671319" x2="798.3259018078045" y2="334.3259018078045" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+<line x1="746.0" y1="406.0" x2="746.0" y2="356.0" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+<line x1="666.8040405071067" y1="369.6812408671319" x2="693.6740981921955" y2="334.32590180780454" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+<line x1="634.0" y1="282.0" x2="672.0" y2="282.0" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+<line x1="666.8040405071067" y1="194.3187591328681" x2="693.6740981921955" y2="229.6740981921955" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+<line x1="746.0" y1="158.0" x2="746.0" y2="208.0" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+<line x1="825.1959594928933" y1="194.31875913286808" x2="798.3259018078045" y2="229.67409819219546" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+<rect x="890" y="56" width="270" height="420" rx="16" fill="#6cd68e"/><rect x="890" y="476" width="270" height="64" rx="0" fill="#fbf7ea"/>
+<text x="898" y="500" font-size="15" font-weight="bold" fill="#1b2440">4. PAYOUT + PARADE</text>
+<text x="898" y="518" font-size="10.5" fill="#1b2440">Score and technique tags appear in the world.</text>
+<text x="898" y="532" font-size="10.5" fill="#1b2440">Caught Sparks follow you until you run a bank ring.</text>
+<text x="1030" y="200" font-size="40" font-weight="bold" text-anchor="middle" fill="#fff" stroke="#1b2440" stroke-width="5" paint-order="stroke">+86</text><text x="1030" y="228" font-size="15" font-weight="bold" text-anchor="middle" fill="#fff36b" stroke="#1b2440" stroke-width="3.5" paint-order="stroke">SNAP · MEDLEY · x2</text>
+<circle cx="1080" cy="300" r="10" fill="#fff" stroke="#1b2440" stroke-width="2.5"/><circle cx="1080" cy="300" r="4" fill="#3d74d9"/>
+<ellipse cx="1050" cy="318" rx="9" ry="9.9" fill="#ffd241" stroke="#1b2440" stroke-width="1.6"/><circle cx="1046.5" cy="317" r="2" fill="#1b2440"/><circle cx="1053.5" cy="317" r="2" fill="#1b2440"/>
+<ellipse cx="1022" cy="334" rx="9" ry="9.9" fill="#ff84b1" stroke="#1b2440" stroke-width="1.6"/><circle cx="1018.5" cy="333" r="2" fill="#1b2440"/><circle cx="1025.5" cy="333" r="2" fill="#1b2440"/>
+<ellipse cx="994" cy="350" rx="9" ry="9.9" fill="#ffd241" stroke="#1b2440" stroke-width="1.6"/><circle cx="990.5" cy="349" r="2" fill="#1b2440"/><circle cx="997.5" cy="349" r="2" fill="#1b2440"/>
+<ellipse cx="966" cy="366" rx="9" ry="9.9" fill="#ffd241" stroke="#1b2440" stroke-width="1.6"/><circle cx="962.5" cy="365" r="2" fill="#1b2440"/><circle cx="969.5" cy="365" r="2" fill="#1b2440"/>
+<ellipse cx="1105" cy="390" rx="14" ry="40" fill="none" stroke="#ffcf2e" stroke-width="8"/><text x="1105" y="448" font-size="11" font-weight="bold" text-anchor="middle" fill="#1b2440">BANK RING</text><path d="M1082 312 Q1095 350 1102 380" fill="none" stroke="#1b2440" stroke-width="1.5" stroke-dasharray="4 4"/>
+</svg>

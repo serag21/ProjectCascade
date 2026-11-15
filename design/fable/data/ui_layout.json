@@ -1,0 +1,50 @@
+{
+  "_note": "HUD v2. Rects are [x, y, w, h] in pixels inside the Roblox safe area (ScreenGui.IgnoreGuiInset=false, ScreenInsets=CoreUISafeInsets). Three reference viewports; interpolate by anchoring (anchor field). 'reserved' rects are Roblox/other controls that HUD must not overlap. tools/validate.py checks overlap and coverage.",
+  "rules": {
+    "maxCoverage": 0.09, "maxTransientCoverage": 0.06, "coverageNote": "maxCoverage counts persistent elements; transient elements (phase, toast, hint) may add at most maxTransientCoverage",
+    "font": {"display": "FredokaOne", "body": "GothamMedium", "numbers": "GothamBold"},
+    "minTextPx": {"desktop": 13, "phone": 11},
+    "panels": "ink (27,36,64) at 35% transparency, 10px corner, NO strokes; text paper (255,249,231)",
+    "worldFirst": "loop payouts, tech tags, wrap counts and NEW SPECIES appear in the 3D world at the loop centroid, never as HUD panels",
+    "oneToast": "at most one toast line visible; queue max 3, 1.6s each; never centre-screen",
+    "removedFromHud": ["brand logo", "objective paragraph", "rank chip + XP bar (results/menu only)", "glow balance (results/menu only)", "save status (menu only; a small cloud icon appears only on save FAILURE)", "CATCH button", "album card panel (replaced by world-space NEW! tag + results recap)", "event name label (replaced by phase text on change only)"]
+  },
+  "elements": [
+    {"id": "timer", "anchor": "top-center", "desc": "m:ss, turns gold at 0:25, pulses 1/s in last 10s (no pulse in reduced motion)", "input": "all"},
+    {"id": "phase", "anchor": "top-center", "desc": "phase name; visible 3s on change then fades to 0", "input": "all", "transient": true},
+    {"id": "parade", "anchor": "top-left", "desc": "capacity pips (filled = carried, species-coloured) + bank multiplier chip", "input": "all"},
+    {"id": "score", "anchor": "top-right", "desc": "round score (count-up 0.3s)", "input": "all"},
+    {"id": "chain", "anchor": "top-right", "desc": "multiplier label + draining bar; hidden at x1 with no active chain", "input": "all"},
+    {"id": "menu", "anchor": "top-right", "desc": "icon button; badge dot when something is claimable", "input": "all"},
+    {"id": "toast", "anchor": "top-center", "desc": "single-line event/assist text", "input": "all", "transient": true},
+    {"id": "dash", "anchor": "bottom-center", "desc": "two charge diamonds with radial refill; key glyph shown for the first 3 rounds only", "input": "keyboard,gamepad"},
+    {"id": "hint", "anchor": "bottom-center", "desc": "first-session coaching line (see 07); max 40 chars; never shown after round 3", "input": "all", "transient": true},
+    {"id": "dashButton", "anchor": "bottom-right", "desc": "84px round touch button; charge pips on its rim", "input": "touch"}
+  ],
+  "viewports": {
+    "desktop_1280x684": {
+      "size": [1280, 684],
+      "rects": {"timer": [592,8,96,32], "phase": [560,42,160,16], "parade": [16,10,236,28], "score": [1068,10,150,28], "chain": [1068,42,150,18], "menu": [1228,8,36,36], "toast": [460,66,360,28], "dash": [592,624,96,44], "hint": [440,584,400,28]},
+      "reserved": {}
+    },
+    "tablet_1024x732": {
+      "size": [1024, 732],
+      "rects": {"timer": [464,8,96,32], "phase": [432,42,160,16], "parade": [16,10,236,28], "score": [812,10,150,28], "chain": [812,42,150,18], "menu": [972,8,36,36], "toast": [332,66,360,28], "hint": [312,640,400,28], "dashButton": [800,560,84,84]},
+      "reserved": {"thumbstick": [20,552,160,160], "jump": [900,580,100,100]}
+    },
+    "phone_756x354": {
+      "size": [756, 354],
+      "rects": {"timer": [338,4,80,26], "phase": [308,32,140,14], "parade": [8,6,190,24], "score": [582,6,120,24], "chain": [582,32,120,16], "menu": [712,4,32,32], "toast": [248,50,260,20], "hint": [228,320,300,22], "dashButton": [556,228,84,84]},
+      "reserved": {"thumbstick": [10,204,140,140], "jump": [652,244,90,90]}
+    }
+  },
+  "results": {
+    "_note": "Results is a bottom sheet, not a centred wall: the arena (and your parade lap) stays visible above it.",
+    "desktop": {"rect": [240,404,800,270], "columns": ["SCORE + medal + PB delta (w 240)", "BEST LOOP replay card: top-down mini drawing of your best loop with its tags (w 280)", "NEXT GOAL + one CLAIM button + auto-next countdown (w 240)"]},
+    "phone": {"rect": [78,150,600,200], "columns": ["score/medal", "best loop card", "next goal + claim"]}
+  },
+  "menu": {
+    "_note": "Existing Menu.luau tabs are kept (Play, Album, Upgrades, Goals, Style, Settings). Restyle only: full-height right drawer, desktop width 420, phone width 100%; never opens automatically during a round.",
+    "albumCard": "species card shows: silhouette, behaviour one-liner, the counterplay TIP (unlocked after first catch), signature stars, Gilded mark"
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "_note": "Everything is built procedurally from primitives, Terrain, Beams, Trails, ParticleEmitters and UI instances: no marketplace assets, no uploads except the generated audio (existing pipeline). Names are the Instance names / module keys the implementer must use.",
+  "naming": {
+    "arenaModel": "SparkWorld/<arenaId>",
+    "feature": "SparkWorld/<arenaId>/Features/<featureId>",
+    "collision": "SparkWorld/<arenaId>/Collision/<featureId>_Col (server-built, invisible or simple)",
+    "decor": "client-only: workspace.SparkDecor/<arenaId>/... (built on arena entry, destroyed on exit)",
+    "creature": "client-only: workspace.SparkCreatures/C_<creatureId> (attribute Species)",
+    "vfxPool": "workspace.SparkFx/<poolName>_<n>",
+    "remotes": "ReplicatedStorage/Spark/Remotes/<Name>",
+    "audio": "AudioCatalog key == audio_events.json sfx id"
+  },
+  "materials": {
+    "ground": "Terrain (Grass / Sand / Sandstone / Snow / Glacier / Water) generated at server start from arena JSON; fallback (flag WORLD_PARTS_ONLY): SmoothPlastic slabs + WedgeParts",
+    "props": "SmoothPlastic default; Neon only for <= 40 emissive accents per arena; Glass for crystals/lantern; Foil for golden variant; NO Sandstone/Slate/Grass part materials on props (noisy at arcade scale)",
+    "castShadow": "true only on landmarks, creatures' body part and players; false on everything smaller than 3 studs"
+  },
+  "featureBuilders": [
+    {"type": "landmark_tree", "parts": 34, "recipe": "tapered 3-segment trunk (cylinders, slight lean), 4 heart-shaped leaf lobes (2 spheres + wedge each) per canopy tier x2 tiers, 12 hanging glow buds, falling-leaf ParticleEmitter (rate 2)"},
+    {"type": "landmark_windmill", "parts": 30, "recipe": "tapered tower of 4 stacked cylinders, conical cap, door, 4 sails (frame + pastel cloth) on a HingeConstraint-free CFrame spin (client-animated)"},
+    {"type": "landmark_falls", "parts": 22, "recipe": "cliff notch, 3 stacked translucent Neon-teal sheets with scrolling Texture, splash ParticleEmitter, mist"},
+    {"type": "landmark_lantern", "parts": 18, "recipe": "brass base, 6-pane Glass column, inner Neon flame mesh of 3 twisting spheres, PointLight range 40; colour driven by round phase"},
+    {"type": "landmark_dome", "parts": 28, "recipe": "cylinder drum, hemisphere of 8 wedge-gores, roof slit, brass rings, telescope"},
+    {"type": "water", "parts": 0, "recipe": "Terrain Water in a 2-stud basin, ringed by 10-14 pebbles and 6 lily pads"},
+    {"type": "water_band", "parts": 0, "recipe": "Terrain Water channel 6 wide, 1.5 deep along the polyline, reeds every ~12 studs (client decor)"},
+    {"type": "ice", "parts": 1, "recipe": "one Glacier-coloured SmoothPlastic disc/ellipse approximated by a MeshPart-free 24-gon of wedges OR Terrain Glacier; Reflectance 0.25"},
+    {"type": "bounce_ring", "parts": 20, "recipe": "5 mushrooms: stem cylinder + squashed sphere cap (alternating accent colours) with white dots; cap squashes 30% on bounce"},
+    {"type": "wall_u", "parts": 24, "recipe": "dry-stone wall: rounded blocks 2-3 studs with jitter, 5 high, mossy cap strip"},
+    {"type": "cover", "parts": 0, "recipe": "client decor: 60 grass blade clumps (2-part) at seeded positions; LOD: none beyond 90 studs"},
+    {"type": "bloom_bud", "parts": 12, "recipe": "bulb of 6 petal wedges closed around a Neon core; open state rotates petals 70 degrees outward"},
+    {"type": "perch_flower", "parts": 6, "recipe": "tall stem, 5-petal disc, Neon centre that glows as the landing telegraph"},
+    {"type": "rock", "parts": 5, "recipe": "3-4 intersecting rounded blocks, banded colour, flat-ish top"},
+    {"type": "cliff_circle", "parts": 14, "recipe": "12-gon of banded blocks with a flat grass/sand top disc"},
+    {"type": "cliff_line", "parts": "1 per 8 studs", "recipe": "banded sandstone/ice blocks with 0-1 stud depth jitter; teal or pink seam strip at mid height"},
+    {"type": "geyser", "parts": 6, "recipe": "bottle-cap ring (crimped cylinder), dark vent, bubble ParticleEmitter; eruption = 30-stud Beam column + spray emitter for 1.2s"},
+    {"type": "sand", "parts": 0, "recipe": "Terrain Sand patch with 8 ripple decals (client)"},
+    {"type": "mound", "parts": 3, "recipe": "low sand dome; bulge animation = scale 1.0 -> 1.5 over the telegraph"},
+    {"type": "candy_cactus", "parts": 9, "recipe": "striped rounded column with 2 arms and a gumdrop flower"},
+    {"type": "rest_stone", "parts": 3, "recipe": "flat round stone with a Neon ring that lights while occupied"},
+    {"type": "crystal_spire", "parts": 7, "recipe": "3 leaning Glass prisms (wedge pairs) + Neon core, base snow mound"},
+    {"type": "lake_marker", "parts": 2, "recipe": "inlaid Neon star in the ice"},
+    {"type": "prop_bridge", "parts": 6, "recipe": "half-log with bark ends, moss patches"},
+    {"type": "prop_stones", "parts": 5, "recipe": "5 flat stones across the creek"},
+    {"type": "records_board", "parts": 4, "recipe": "existing RecordsBoard, restyled; adds the line 'Legend in N rounds'"},
+    {"type": "bank_ring", "parts": 14, "recipe": "upright torus-like ring of 12 segments, 10 studs inner diameter, standing on two short posts; slow rotating inner sparkle; flares on bank"}
+  ],
+  "creatureModels": {
+    "rule": "client-built from creatures.json silhouette; <= silhouette.parts parts; one Root (anchored, transparent) + welded visual parts; shared face kit (2 eyes, 2 pupils as ONE decal-free part each, optional mouth) counts inside the budget; animated by CFrame offsets in CreatureView, never by Humanoid or Motor6D",
+    "ids": ["pip", "bunvolt", "cubloom", "flutter", "sunshell", "ziptail", "prickle", "dunefin", "crownlet", "ribbubble", "starwhirl", "antlume", "grandbloom", "thunderhoof", "borealynx", "static_puff"]
+  },
+  "vfx": [
+    {"id": "ribbon", "impl": "1 Trail per player (two Attachments 1.2 apart at foot level, FaceCamera=false, Lifetime=tuning.ribbon.lifetime, LightEmission 0.6); colour = player cosmetic trail colour; local player's ribbon is 100% opaque at the head fading to 30% at the tail; other players' ribbons 50%", "budgetParts": 0},
+    {"id": "ribbon_snap_preview", "impl": "1 Beam from head to the snappable ribbon point, dashed texture, shown inside 2x snapRadius", "budgetParts": 0},
+    {"id": "loop_cinch", "impl": "pooled ring of 24 Beam segments that tween from the loop polygon to its centroid over cinchSeconds", "budgetParts": 24, "pool": 2},
+    {"id": "catch_pop", "impl": "per creature: 1 ParticleEmitter burst (12 particles, species colour) + the creature model itself flies an arc into the parade (no extra parts)", "budgetParts": 0},
+    {"id": "payout_tag", "impl": "pooled BillboardGui at the loop centroid: big score, tech tags beneath; rises 4 studs over 1.2s", "pool": 4, "budgetParts": 4},
+    {"id": "dash_streak", "impl": "character Trail (existing cosmetic) + 6-particle dust puff at start + 2 speed-line Beams for the dash duration", "budgetParts": 2},
+    {"id": "boop_ring", "impl": "one expanding flat ring (pooled part), 0.25s", "pool": 3, "budgetParts": 3},
+    {"id": "bank_fountain", "impl": "parade creatures arc through the ring one by one (0.05s stagger) + ring flare + 20-particle burst", "budgetParts": 0},
+    {"id": "wrap_rings", "impl": "1-4 flat Neon rings stacked over a multi-wrap creature; fill = wraps landed", "pool": 4, "budgetParts": 4},
+    {"id": "telegraph_ring", "impl": "pooled flat ring/chevron parts for geyser, starfall, hop, charge line, stampede route chevrons", "pool": 20, "budgetParts": 20},
+    {"id": "golden_trail", "impl": "Trail on the golden creature", "budgetParts": 0},
+    {"id": "aurora_curtains", "impl": "8 Beams with CurveSize, width 40, TextureSpeed 0.05", "budgetParts": 8},
+    {"id": "wind_lane", "impl": "Beam strip along the lane polyline with scrolling chevron texture + sparse particles", "budgetParts": 10}
+  ],
+  "vfxBudgetCheck": {"maxLocalEffectParts": 80, "note": "sum of budgetParts above must be <= 80 (validator enforces)"},
+  "ui": {"components": ["TimerPill", "PhaseLabel", "ParadePips", "ScoreLabel", "ChainBar", "MenuButton", "ToastLine", "DashCharges", "HintLine", "DashTouchButton", "ResultsSheet", "BestLoopCard", "PayoutTag", "EdgeCompass"]},
+  "mockups": ["mockups/hud_desktop.svg", "mockups/hud_phone.svg", "mockups/creature_silhouettes.svg", "mockups/loop_anatomy.svg", "maps/meadow.svg", "maps/canyon.svg", "maps/aurora.svg"]
+}

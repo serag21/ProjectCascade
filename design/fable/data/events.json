@@ -1,0 +1,70 @@
+{
+  "_note": "Times are seconds on the shared 110s arena clock (Cycle/Encounters), so every player sees each beat once per round. 'reuses' names the existing system to adapt. All numbers are hypotheses.",
+  "roundBeats": [
+    {"phase": 1, "start": 0, "name": "GRAZE", "intent": "calm pods at habitats; warm up loops and chain", "speedScale": 0.8},
+    {"phase": 2, "start": 25, "name": "GATHER", "intent": "arena signature event at t=30 creates the first big-loop opportunity", "speedScale": 1.0},
+    {"phase": 3, "start": 55, "name": "STAMPEDE", "intent": "the title moment: net a charging herd", "speedScale": 1.1},
+    {"phase": 4, "start": 85, "name": "GOLDEN FINALE", "intent": "one Golden Runaway, all loops x1.5, bank before the buzzer", "speedScale": 1.2}
+  ],
+  "events": [
+    {
+      "id": "stampede", "arenas": [1, 2, 3], "start": 55, "telegraphAt": 49, "duration": 14, "reuses": "Encounters.stampede + runner flag",
+      "rule": "A herd of N arena-native creatures (N = 12 + 2 per player, max 18) enters at the first point of one of the arena's two stampede routes (alternating each cycle) and charges along it at 26 in a column 3 wide, 2.5 studs apart. They ignore players but swerve up to 4 studs around a body in their path. Any closed loop catches those inside as normal. Survivors exit at the route end and despawn.",
+      "telegraph": "t=49: ground rumble + dust plume at the entry + the whole route drawn as marching chevrons; a horn at t=53; lead animal appears at t=55",
+      "fairness": "route never crosses a bank ring or spawn; column cannot be body-blocked; each player's catches are their own, so there is nothing to steal",
+      "multiplayer": "two players looping opposite ends both score; a loop that contains 8+ shows STAMPEDE! to the whole arena",
+      "reward": "normal loop scoring (size multiplier makes this the highest-value 14 seconds of the round)",
+      "skill": "pre-lay an open horseshoe across the route and SNAP it closed as the column fills it; late loops only catch stragglers"
+    },
+    {
+      "id": "bloom_burst", "arenas": [1], "start": 30, "telegraphAt": 25, "duration": 12, "replaces": "Encounters.gate (Spark Gate)",
+      "rule": "One of the three bloom buds (rotating a,b,c by cycle index) swells for 5s then opens: 5 Pips and 3 Cublooms tumble out and feed in a 7-stud cluster at its base for 6s (they ignore players while feeding unless a player comes inside 5 studs), then scatter outward at flee speed.",
+      "telegraph": "bud pulses and a rising three-note chime repeats; petals crack open at t=29",
+      "fairness": "event creatures are extra (above base cap) and visible to all; scatter direction is away from the nearest player, so arriving late still gives a herding chance",
+      "multiplayer": "8 creatures is one ROUNDUP for a solo player or a race/assist for several; pushing them (spook credit) earns ASSIST",
+      "reward": "normal loop scoring; a loop of all 8 awards the FULL BLOOM style bonus +40",
+      "skill": "approach wide (outside 5 studs) and ring the whole cluster; rushing in scatters it"
+    },
+    {
+      "id": "fizz_geysers", "arenas": [2], "start": 30, "telegraphAt": 26, "duration": 14, "reuses": "HerdNet dazed flag",
+      "rule": "Three of the five geysers (seeded by cycle index) erupt 4s apart. Each eruption launches every creature within 9 studs; they land together in a 5-stud cluster 10 studs downhill and are DAZED 3s (still, spinning, catchable). A player on an erupting geyser is launched 34 studs up and can steer the fall (no damage).",
+      "telegraph": "geyser cap rattles and bubbles 3s before; a ring on the ground shows the 9-stud launch radius",
+      "fairness": "dazed creatures are catchable by anyone; launch has no downside for players",
+      "multiplayer": "one player herds toward a geyser while another waits at the landing spot",
+      "reward": "normal loop scoring; catching dazed creatures adds the existing STARSTRUCK tag renamed FIZZED (+10 each)",
+      "skill": "herd a pod (or bowl a Sunshell) into the ring before it blows, then loop the landing cluster"
+    },
+    {
+      "id": "starfall", "arenas": [3], "start": 30, "telegraphAt": 27, "duration": 16, "reuses": "Encounters.starfall + Main.stepStarfall (keep choreography, swap impact points to arena eventAnchors)",
+      "rule": "Six stars land one every 2.5s at the eventAnchors in seeded order. Creatures within 8 studs of an impact are DAZED 3s. An impact leaves a glowing crater rim (r=6) for 10s that acts as a temporary pinch wall. Players are never hit (impact pushes a player 6 studs outward, no penalty).",
+      "telegraph": "2.0s shrinking ring + a light shaft from the sky; the observatory roof slit points at the next impact",
+      "fairness": "identical for everyone in the arena",
+      "multiplayer": "shared spectacle; assists for herding creatures into a ring",
+      "reward": "STARSTRUCK tag (+10 each) on dazed catches (existing)",
+      "skill": "herd creatures into the telegraph ring, or pinch against the crater rim"
+    },
+    {
+      "id": "golden_runaway", "arenas": [1, 2, 3], "start": 85, "telegraphAt": 82, "duration": 25, "reuses": "golden finale (Main spawn at 85s, World.gild, creditAssist)",
+      "rule": "One golden variant of a seeded arena species spawns at the habitat farthest from all players. It needs wraps = species wraps + 1 (minimum 2); wrap progress is shared and lasts 8s. EVERY player who contributed a wrap receives the catch: full value x3, Gilded album credit, GOLDEN tag. All loops score x1.5 during the finale.",
+      "telegraph": "t=82 golden light beam at the spawn habitat + compass chevron on the HUD edge",
+      "fairness": "no last-hit stealing: contribution = reward. Solo needs 2 loops.",
+      "multiplayer": "arena-wide toast names everyone who wrapped it",
+      "reward": "value x3, Gilded album mark (existing), podium Golden Catcher (existing)",
+      "skill": "it flees at x1.35; use pinch walls and SNAP"
+    },
+    {
+      "id": "legend", "arenas": [1, 2, 3], "start": 68, "telegraphAt": 58, "duration": 40, "replaces": "ArenaRally",
+      "rule": "On every 4th arena cycle (cycleIndex % 4 == 3), and additionally on any cycle in which a present player is in their 3rd-ever round and has never met a Legend, the arena's Legend (creatures.json legends) walks its legend route for 40s. Wraps are shared across players. On the final wrap every contributor gets: Legend album stamp (new profile field), +60 x their wrap share (minimum 50% of full value) and a cosmetic Legend Token (1 per catch; 3 tokens buy that Legend's trail).",
+      "telegraph": "t=58: sky dims slightly in the arena palette, a deep horn, the route glows; the Legend rises at t=68",
+      "fairness": "contribution based, minimum share floor, failure costs nothing; Legends are never purchasable or randomly withheld (deterministic schedule shown on the arena records board as 'Legend in N rounds')",
+      "multiplayer": "the designed co-op spectacle: four players can finish it in one pass each",
+      "reward": "see rule",
+      "skill": "large clean loops under time pressure; each Legend tests its arena's twist"
+    }
+  ],
+  "cut": [
+    {"id": "sweeps", "was": "ArenaEvents.hazard (MEADOW SWEEP etc.)", "why": "a dodge hazard unrelated to the loop verb; adds clutter and UI"},
+    {"id": "spark_gate", "was": "Encounters.gate", "why": "replaced by Bloom Burst; herding is now core, not an event"},
+    {"id": "arena_rally", "was": "ArenaRally", "why": "replaced by shared Legend wraps (Profile.rewardRally reused for the reward path)"}
+  ]
+}

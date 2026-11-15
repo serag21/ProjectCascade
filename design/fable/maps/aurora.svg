@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 774" width="768" height="774" font-family="Verdana,sans-serif">
+<rect width="768" height="774" fill="#191a3a"/>
+<polygon points="288,648 480,648 624,584 712,456 728,296 664,144 528,40 240,40 104,144 40,296 56,456 144,584" fill="rgb(206,214,250)" stroke="rgb(126,118,220)" stroke-width="6" stroke-linejoin="round"/>
+<line x1="-16" y1="0" x2="-16" y2="704" stroke="#f4f1ff" stroke-opacity=".08"/><text x="-14" y="701" font-size="9" fill="#f4f1ff" fill-opacity=".5">-100</text>
+<line x1="64" y1="0" x2="64" y2="704" stroke="#f4f1ff" stroke-opacity=".08"/><text x="66" y="701" font-size="9" fill="#f4f1ff" fill-opacity=".5">-80</text>
+<line x1="144" y1="0" x2="144" y2="704" stroke="#f4f1ff" stroke-opacity=".08"/><text x="146" y="701" font-size="9" fill="#f4f1ff" fill-opacity=".5">-60</text>
+<line x1="224" y1="0" x2="224" y2="704" stroke="#f4f1ff" stroke-opacity=".08"/><text x="226" y="701" font-size="9" fill="#f4f1ff" fill-opacity=".5">-40</text>
+<line x1="304" y1="0" x2="304" y2="704" stroke="#f4f1ff" stroke-opacity=".08"/><text x="306" y="701" font-size="9" fill="#f4f1ff" fill-opacity=".5">-20</text>
+<line x1="384" y1="0" x2="384" y2="704" stroke="#f4f1ff" stroke-opacity=".08"/><text x="386" y="701" font-size="9" fill="#f4f1ff" fill-opacity=".5">0</text>
+<line x1="464" y1="0" x2="464" y2="704" stroke="#f4f1ff" stroke-opacity=".08"/><text x="466" y="701" font-size="9" fill="#f4f1ff" fill-opacity=".5">20</text>
+<line x1="544" y1="0" x2="544" y2="704" stroke="#f4f1ff" stroke-opacity=".08"/><text x="546" y="701" font-size="9" fill="#f4f1ff" fill-opacity=".5">40</text>
+<line x1="624" y1="0" x2="624" y2="704" stroke="#f4f1ff" stroke-opacity=".08"/><text x="626" y="701" font-size="9" fill="#f4f1ff" fill-opacity=".5">60</text>
+<line x1="704" y1="0" x2="704" y2="704" stroke="#f4f1ff" stroke-opacity=".08"/><text x="706" y="701" font-size="9" fill="#f4f1ff" fill-opacity=".5">80</text>
+<line x1="0" y1="-64" x2="768" y2="-64" stroke="#f4f1ff" stroke-opacity=".08"/><text x="2" y="-66" font-size="9" fill="#f4f1ff" fill-opacity=".5">-100</text>
+<line x1="0" y1="16" x2="768" y2="16" stroke="#f4f1ff" stroke-opacity=".08"/><text x="2" y="14" font-size="9" fill="#f4f1ff" fill-opacity=".5">-80</text>
+<line x1="0" y1="96" x2="768" y2="96" stroke="#f4f1ff" stroke-opacity=".08"/><text x="2" y="94" font-size="9" fill="#f4f1ff" fill-opacity=".5">-60</text>
+<line x1="0" y1="176" x2="768" y2="176" stroke="#f4f1ff" stroke-opacity=".08"/><text x="2" y="174" font-size="9" fill="#f4f1ff" fill-opacity=".5">-40</text>
+<line x1="0" y1="256" x2="768" y2="256" stroke="#f4f1ff" stroke-opacity=".08"/><text x="2" y="254" font-size="9" fill="#f4f1ff" fill-opacity=".5">-20</text>
+<line x1="0" y1="336" x2="768" y2="336" stroke="#f4f1ff" stroke-opacity=".08"/><text x="2" y="334" font-size="9" fill="#f4f1ff" fill-opacity=".5">0</text>
+<line x1="0" y1="416" x2="768" y2="416" stroke="#f4f1ff" stroke-opacity=".08"/><text x="2" y="414" font-size="9" fill="#f4f1ff" fill-opacity=".5">20</text>
+<line x1="0" y1="496" x2="768" y2="496" stroke="#f4f1ff" stroke-opacity=".08"/><text x="2" y="494" font-size="9" fill="#f4f1ff" fill-opacity=".5">40</text>
+<line x1="0" y1="576" x2="768" y2="576" stroke="#f4f1ff" stroke-opacity=".08"/><text x="2" y="574" font-size="9" fill="#f4f1ff" fill-opacity=".5">60</text>
+<line x1="0" y1="656" x2="768" y2="656" stroke="#f4f1ff" stroke-opacity=".08"/><text x="2" y="654" font-size="9" fill="#f4f1ff" fill-opacity=".5">80</text>
+<polygon points="144,160 264,72 504,72 624,160 544,176 224,176" fill="rgb(170,180,240)" fill-opacity=".75" stroke="rgb(168,183,243)" stroke-width="3"/>
+<line x1="200" y1="208" x2="200" y2="168" stroke="rgb(170,180,240)" stroke-width="40"/>
+<text x="200" y="224" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">ramp</text>
+<line x1="568" y1="208" x2="568" y2="168" stroke="rgb(170,180,240)" stroke-width="40"/>
+<text x="568" y="224" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">ramp</text>
+<circle cx="384" cy="344" r="28" fill="rgb(170,180,240)" fill-opacity="0.75" stroke="rgb(126,118,220)" stroke-dasharray="0" stroke-width="2"/>
+<ellipse cx="384" cy="344" rx="184" ry="128" fill="rgb(150,236,255)" fill-opacity=".8" stroke="#fff" stroke-opacity=".6" stroke-width="2"/>
+<text x="384" y="456" font-size="10" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">frost_lake</text>
+<circle cx="384" cy="344" r="10.0" fill="rgb(120,255,220)" fill-opacity="0.95" stroke="#f4f1ff" stroke-width="3"/>
+<text x="384" y="326" font-size="10" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">aurora_lantern</text>
+<circle cx="384" cy="104" r="32" fill="rgb(120,255,220)" fill-opacity="0.95" stroke="#f4f1ff" stroke-width="3"/>
+<text x="384" y="64" font-size="10" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">observatory</text>
+<circle cx="152" cy="280" r="12" fill="rgb(168,183,243)" fill-opacity="0.95" stroke="#f4f1ff" stroke-width="1"/>
+<text x="152" y="262" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">spire_nw</text>
+<circle cx="616" cy="280" r="12" fill="rgb(168,183,243)" fill-opacity="0.95" stroke="#f4f1ff" stroke-width="1"/>
+<text x="616" y="262" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">spire_ne</text>
+<circle cx="200" cy="456" r="12" fill="rgb(168,183,243)" fill-opacity="0.95" stroke="#f4f1ff" stroke-width="1"/>
+<text x="200" y="438" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">spire_sw</text>
+<circle cx="568" cy="456" r="12" fill="rgb(168,183,243)" fill-opacity="0.95" stroke="#f4f1ff" stroke-width="1"/>
+<text x="568" y="438" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">spire_se</text>
+<circle cx="456" cy="520" r="12" fill="rgb(168,183,243)" fill-opacity="0.95" stroke="#f4f1ff" stroke-width="1"/>
+<text x="456" y="502" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">spire_s</text>
+<circle cx="272" cy="336" r="8" fill="rgb(244,146,226)" fill-opacity="0.45" stroke="#f4f1ff" stroke-width="1" stroke-dasharray="4 3"/>
+<circle cx="496" cy="336" r="8" fill="rgb(244,146,226)" fill-opacity="0.45" stroke="#f4f1ff" stroke-width="1" stroke-dasharray="4 3"/>
+<circle cx="384" cy="264" r="8" fill="rgb(244,146,226)" fill-opacity="0.45" stroke="#f4f1ff" stroke-width="1" stroke-dasharray="4 3"/>
+<polyline points="144,160 224,176 544,176 624,160" fill="none" stroke="rgb(168,183,243)" stroke-width="8" stroke-linejoin="round" stroke-linecap="round" stroke-opacity=".9"/>
+<text x="544" y="160" font-size="9" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">terrace_cliff</text>
+<circle cx="328" cy="624" r="12" fill="rgb(168,183,243)" fill-opacity="0.45" stroke="#f4f1ff" stroke-width="1" stroke-dasharray="4 3"/>
+<text x="328" y="606" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">records_board</text>
+<polyline points="272,568 160,520 104,424 96,304 136,216" fill="none" stroke="#19b8a6" stroke-width="3" stroke-dasharray="10 6" stroke-linejoin="round"/>
+<circle cx="272" cy="568" r="5" fill="#19b8a6"/>
+<text x="216" y="536" font-size="9" font-weight="bold" text-anchor="middle" fill="#19b8a6" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">wind_west</text>
+<polyline points="632,216 672,304 664,424 608,520 496,568" fill="none" stroke="#19b8a6" stroke-width="3" stroke-dasharray="10 6" stroke-linejoin="round"/>
+<circle cx="632" cy="216" r="5" fill="#19b8a6"/>
+<text x="652" y="252" font-size="9" font-weight="bold" text-anchor="middle" fill="#19b8a6" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">wind_east</text>
+<polyline points="120,232 264,264 384,272 504,264 648,232" fill="none" stroke="#e2452f" stroke-width="3" stroke-dasharray="10 6" stroke-linejoin="round"/>
+<circle cx="120" cy="232" r="5" fill="#e2452f"/>
+<text x="192" y="240" font-size="9" font-weight="bold" text-anchor="middle" fill="#e2452f" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">stampede_ice</text>
+<polyline points="640,448 544,512 456,552 336,552 224,520 128,448" fill="none" stroke="#e2452f" stroke-width="3" stroke-dasharray="10 6" stroke-linejoin="round"/>
+<circle cx="640" cy="448" r="5" fill="#e2452f"/>
+<text x="592" y="472" font-size="9" font-weight="bold" text-anchor="middle" fill="#e2452f" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">stampede_rim</text>
+<polyline points="272,336 384,264 496,336" fill="none" stroke="#8a4fd6" stroke-width="3" stroke-dasharray="10 6" stroke-linejoin="round"/>
+<circle cx="272" cy="336" r="5" fill="#8a4fd6"/>
+<text x="328" y="292" font-size="9" font-weight="bold" text-anchor="middle" fill="#8a4fd6" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">legend_glide</text>
+<circle cx="344" cy="528" r="36" fill="#fff" fill-opacity=".18" stroke="#f4f1ff" stroke-width="2" stroke-dasharray="2 5"/>
+<text x="344" y="532" font-size="10" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">crownlet x3</text>
+<text x="344" y="548" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">rim_s</text>
+<circle cx="264" cy="128" r="36" fill="#fff" fill-opacity=".18" stroke="#f4f1ff" stroke-width="2" stroke-dasharray="2 5"/>
+<text x="264" y="132" font-size="10" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">crownlet x3</text>
+<text x="264" y="148" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">terrace_w</text>
+<circle cx="504" cy="128" r="36" fill="#fff" fill-opacity=".18" stroke="#f4f1ff" stroke-width="2" stroke-dasharray="2 5"/>
+<text x="504" y="132" font-size="10" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">antlume x1</text>
+<text x="504" y="148" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">terrace_e</text>
+<circle cx="624" cy="384" r="24" fill="#fff" fill-opacity=".18" stroke="#f4f1ff" stroke-width="2" stroke-dasharray="2 5"/>
+<text x="624" y="388" font-size="10" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">ribbubble x2</text>
+<text x="624" y="404" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">shore_e</text>
+<circle cx="144" cy="384" r="24" fill="#fff" fill-opacity=".18" stroke="#f4f1ff" stroke-width="2" stroke-dasharray="2 5"/>
+<text x="144" y="388" font-size="10" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">ribbubble x2</text>
+<text x="144" y="404" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">shore_w</text>
+<circle cx="616" cy="280" r="40" fill="#fff" fill-opacity=".18" stroke="#f4f1ff" stroke-width="2" stroke-dasharray="2 5"/>
+<text x="616" y="284" font-size="10" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">starwhirl x1</text>
+<text x="616" y="300" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">orbit_ne</text>
+<circle cx="152" cy="280" r="40" fill="#fff" fill-opacity=".18" stroke="#f4f1ff" stroke-width="2" stroke-dasharray="2 5"/>
+<text x="152" y="284" font-size="10" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">(spare)</text>
+<text x="152" y="300" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">orbit_nw</text>
+<circle cx="384" cy="592" r="20" fill="none" stroke="#ffcf2e" stroke-width="5"/><circle cx="384" cy="592" r="20" fill="none" stroke="#f4f1ff" stroke-width="1"/>
+<text x="384" y="598" font-size="9" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">BANK</text>
+<circle cx="384" cy="408" r="20" fill="none" stroke="#ffcf2e" stroke-width="5"/><circle cx="384" cy="408" r="20" fill="none" stroke="#f4f1ff" stroke-width="1"/>
+<text x="384" y="414" font-size="9" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">BANK</text>
+<path d="M288 296 l3 6 6 1 -5 4 2 6 -6 -4 -6 4 2 -6 -5 -4 6 -1z" fill="#ffe36b" stroke="#f4f1ff" stroke-width=".8"/>
+<path d="M472 376 l3 6 6 1 -5 4 2 6 -6 -4 -6 4 2 -6 -5 -4 6 -1z" fill="#ffe36b" stroke="#f4f1ff" stroke-width=".8"/>
+<path d="M584 208 l3 6 6 1 -5 4 2 6 -6 -4 -6 4 2 -6 -5 -4 6 -1z" fill="#ffe36b" stroke="#f4f1ff" stroke-width=".8"/>
+<path d="M224 504 l3 6 6 1 -5 4 2 6 -6 -4 -6 4 2 -6 -5 -4 6 -1z" fill="#ffe36b" stroke="#f4f1ff" stroke-width=".8"/>
+<path d="M520 528 l3 6 6 1 -5 4 2 6 -6 -4 -6 4 2 -6 -5 -4 6 -1z" fill="#ffe36b" stroke="#f4f1ff" stroke-width=".8"/>
+<path d="M304 128 l3 6 6 1 -5 4 2 6 -6 -4 -6 4 2 -6 -5 -4 6 -1z" fill="#ffe36b" stroke="#f4f1ff" stroke-width=".8"/>
+<path d="M375 635 L384 617 L393 635z" fill="#fff" stroke="#f4f1ff" stroke-width="2"/>
+<text x="384" y="652" font-size="9" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">SPAWN</text>
+<text x="14" y="728" font-size="20" font-weight="bold" fill="#f4f1ff">AURORA ARCADE — THE FROZEN DIAL</text>
+<text x="14" y="746" font-size="11" fill="#f4f1ff">a night-lit ice lake where momentum draws your loops for you. Grid 20 studs; +x east, +z south. Generated from data/arenas/aurora.json — do not edit by hand.</text>
+<rect x="14" y="756" width="14" height="8" fill="#e2452f"/><text x="32" y="764" font-size="10" fill="#f4f1ff">stampede route</text>
+<rect x="126.8" y="756" width="14" height="8" fill="#ff9a1f"/><text x="144.8" y="764" font-size="10" fill="#f4f1ff">run / burrow circuit</text>
+<rect x="276.8" y="756" width="14" height="8" fill="#8a4fd6"/><text x="294.8" y="764" font-size="10" fill="#f4f1ff">legend route</text>
+<rect x="377.20000000000005" y="756" width="14" height="8" fill="#19b8a6"/><text x="395.20000000000005" y="764" font-size="10" fill="#f4f1ff">wind lane</text>
+<rect x="459.00000000000006" y="756" width="14" height="8" fill="#ffcf2e"/><text x="477.00000000000006" y="764" font-size="10" fill="#f4f1ff">bank ring</text>
+<rect x="540.8000000000001" y="756" width="14" height="8" fill="#f4f1ff"/><text x="558.8000000000001" y="764" font-size="10" fill="#f4f1ff">habitat (dotted)</text>
+<rect x="666.0000000000001" y="756" width="14" height="8" fill="#f4f1ff"/><text x="684.0000000000001" y="764" font-size="10" fill="#f4f1ff">solid = filled, soft = dashed</text>
+</svg>

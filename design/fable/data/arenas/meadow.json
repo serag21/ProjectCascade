@@ -1,0 +1,65 @@
+{
+  "id": "meadow", "biomeIndex": 1, "name": "Pop Meadow", "identity": "THE CLOVER BOWL - soft rolling pasture where walls, pens and water teach you to herd",
+  "movementTwist": "none (baseline feel). Bounce caps give a free aerial view.",
+  "units": "arena-relative studs; +x east, +z south (toward the hub); y up; ground y=0 unless an elevation says otherwise",
+  "bounds": [[-20,74],[20,74],[52,66],[76,44],[86,10],[80,-28],[60,-56],[26,-72],[-14,-76],[-52,-64],[-78,-36],[-86,0],[-78,36],[-52,62]],
+  "boundaryArt": "4-stud flowering hedge on a 2-stud grass berm; counts as a pinch wall",
+  "spawn": {"x": 0, "z": 66, "facing": "north"},
+  "elevation": [
+    {"id": "clover_knoll", "type": "hill", "x": 4, "z": -30, "r": 26, "y": 6},
+    {"id": "windmill_hill", "type": "hill", "x": 64, "z": 34, "r": 16, "y": 7},
+    {"id": "west_rise", "type": "hill", "x": -66, "z": 24, "r": 14, "y": 3}
+  ],
+  "features": [
+    {"id": "clover_tree", "type": "landmark_tree", "x": 4, "z": -30, "r": 5, "h": 46, "solid": true, "pinch": true, "note": "giant four-leaf clover canopy 34 studs wide; visible from everywhere; leaves drift down"},
+    {"id": "mirror_pond", "type": "water", "x": -50, "z": -10, "rx": 20, "rz": 14, "solid": false, "creatureBlock": true, "pinch": true, "note": "ankle-deep; players wade at waterSpeedScale; lily pads"},
+    {"id": "creek", "type": "water_band", "points": [[-30,-8],[-12,-2],[10,4],[34,2],[58,8],[82,6]], "width": 6, "solid": false, "creatureBlock": true, "pinch": true, "note": "splits the meadow into north and south herds; players jump or wade it anywhere"},
+    {"id": "log_bridge", "type": "prop_bridge", "x": 0, "z": 1, "r": 4, "solid": false, "note": "fallen log across the creek; dry crossing"},
+    {"id": "stepping_stones", "type": "prop_stones", "x": 46, "z": 5, "r": 4, "solid": false},
+    {"id": "mushroom_ring", "type": "bounce_ring", "x": 50, "z": -36, "r": 10, "h": 5, "solid": false, "note": "5 bounce caps on a 9-stud circle; a cap launches the player 22 studs up (no damage)"},
+    {"id": "windmill", "type": "landmark_windmill", "x": 64, "z": 34, "r": 5, "h": 38, "solid": true, "pinch": true, "note": "four pastel sails rotate 6 rpm; sails speed up during STAMPEDE"},
+    {"id": "pen_a", "type": "wall_u", "points": [[-52,30],[-52,44],[-38,44],[-38,30]], "h": 5, "solid": true, "creatureBlock": true, "pinch": true, "note": "dry-stone pen, open to the north; players can jump it"},
+    {"id": "pen_b", "type": "wall_u", "points": [[-30,40],[-30,54],[-16,54],[-16,40]], "h": 5, "solid": true, "creatureBlock": true, "pinch": true},
+    {"id": "tall_grass", "type": "cover", "x": -14, "z": 26, "r": 12, "solid": false, "note": "waist-high grass; creatures inside show only ears and sprouts"},
+    {"id": "bud_a", "type": "bloom_bud", "x": 22, "z": 26, "r": 3, "h": 9, "solid": true},
+    {"id": "bud_b", "type": "bloom_bud", "x": -28, "z": -48, "r": 3, "h": 9, "solid": true},
+    {"id": "bud_c", "type": "bloom_bud", "x": 62, "z": -8, "r": 3, "h": 9, "solid": true},
+    {"id": "perch_1", "type": "perch_flower", "x": 36, "z": 36, "r": 1.5, "h": 6, "solid": false},
+    {"id": "perch_2", "type": "perch_flower", "x": 48, "z": 48, "r": 1.5, "h": 6, "solid": false},
+    {"id": "perch_3", "type": "perch_flower", "x": 30, "z": 52, "r": 1.5, "h": 6, "solid": false},
+    {"id": "records_board", "type": "records_board", "x": -16, "z": 64, "r": 3, "solid": false}
+  ],
+  "bankRings": [
+    {"id": "south_gate", "x": 0, "z": 58, "r": 5},
+    {"id": "clover_ring", "x": -2, "z": -64, "r": 5}
+  ],
+  "habitats": [
+    {"id": "lawn_s", "kind": "meadow_lawn", "x": 12, "z": 46, "r": 10},
+    {"id": "lawn_n", "kind": "meadow_lawn", "x": -30, "z": -30, "r": 9},
+    {"id": "grass", "kind": "tall_grass", "x": -14, "z": 26, "r": 10},
+    {"id": "mush", "kind": "mushroom_ring", "x": 50, "z": -36, "r": 9},
+    {"id": "pens_field", "kind": "stone_pens_field", "x": -40, "z": 18, "r": 9},
+    {"id": "flowers", "kind": "flower_field", "x": 38, "z": 44, "r": 12}
+  ],
+  "pods": [
+    {"species": "pip", "habitat": "lawn_s", "count": 3},
+    {"species": "pip", "habitat": "grass", "count": 3},
+    {"species": "bunvolt", "habitat": "mush", "count": 2},
+    {"species": "cubloom", "habitat": "pens_field", "count": 4},
+    {"species": "flutter", "habitat": "flowers", "count": 1}
+  ],
+  "spareHabitats": ["lawn_n"],
+  "routes": [
+    {"id": "stampede_north", "kind": "stampede", "points": [[-72,-30],[-50,-40],[-28,-36],[-12,-48],[24,-52],[44,-54],[66,-34],[74,-14]]},
+    {"id": "stampede_south", "kind": "stampede", "points": [[74,22],[46,24],[22,36],[-2,32],[-24,28],[-48,20],[-70,18]]},
+    {"id": "legend_walk", "kind": "legend", "closed": true, "points": [[30,16],[4,14],[-6,34],[8,50],[30,44]]}
+  ],
+  "eventAnchors": [
+    {"id": "bloom_a", "event": "bloom_burst", "feature": "bud_a"},
+    {"id": "bloom_b", "event": "bloom_burst", "feature": "bud_b"},
+    {"id": "bloom_c", "event": "bloom_burst", "feature": "bud_c"}
+  ],
+  "lighting": {"clockTime": 10.5, "brightness": 2.6, "ambient": [150,170,160], "outdoorAmbient": [170,196,186], "atmosphere": {"density": 0.22, "color": [214,240,236], "decay": [255,236,200], "haze": 1.2, "glare": 0.2}, "colorShiftTop": [255,244,214], "bloom": {"intensity": 0.35, "size": 24, "threshold": 1.6}, "sky": "soft cumulus, sun at 40 degrees"},
+  "palette": {"ground": [108,214,142], "groundDark": [72,176,128], "path": [236,222,170], "water": [96,212,232], "wall": [226,214,196], "accent": [255,214,72], "accent2": [255,150,186]},
+  "story": "A shepherd's pasture that the Sparks took over: the windmill still turns, the pens still stand, and a clover the size of a house grew where the old well was."
+}

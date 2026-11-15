@@ -1,0 +1,78 @@
+{
+  "id": "canyon", "biomeIndex": 2, "name": "Fizz Canyon", "identity": "THE SWITCHBACK - a two-level racetrack canyon where you intercept instead of chase",
+  "movementTwist": "verticality: a 12-stud shelf and butte, geyser launches up, free jumps down (fall damage off). Chokes make trap loops.",
+  "units": "arena-relative studs; +x east, +z south; y up",
+  "bounds": [[-100,-30],[-80,-52],[-30,-56],[20,-50],[70,-54],[100,-34],[104,10],[84,40],[40,50],[12,64],[-12,64],[-50,48],[-90,36],[-104,4]],
+  "boundaryArt": "20-stud banded sandstone cliffs with teal fizz seams; counts as a pinch wall",
+  "spawn": {"x": 0, "z": 58, "facing": "north"},
+  "elevation": [
+    {"id": "north_shelf", "type": "plateau", "poly": [[-78,-50],[-30,-54],[20,-48],[68,-52],[90,-36],[70,-26],[20,-24],[-30,-26],[-80,-28]], "y": 12,
+     "ramps": [{"id": "ramp_w", "from": [-62,-12], "to": [-62,-28], "width": 10}, {"id": "ramp_e", "from": [58,-12], "to": [58,-27], "width": 10}]},
+    {"id": "central_butte", "type": "plateau", "x": 0, "z": 16, "r": 12, "y": 12, "ramps": []},
+    {"id": "the_arch", "type": "bridge", "from": [0,-24], "to": [0,5], "width": 8, "y": 12, "clearance": 10, "note": "natural stone arch from shelf to butte, over THE RUN; deck fades to 60% transparency when it occludes the local player"}
+  ],
+  "features": [
+    {"id": "arch_pier", "type": "rock", "x": 0, "z": -22, "r": 3.5, "h": 12, "solid": true, "pinch": true},
+    {"id": "butte_wall", "type": "cliff_circle", "x": 0, "z": 16, "r": 12, "h": 12, "solid": true, "pinch": true, "note": "collision cylinder of central_butte"},
+    {"id": "shelf_cliff", "type": "cliff_line", "points": [[-80,-28],[-30,-26],[20,-24],[70,-26]], "h": 12, "solid": true, "creatureBlock": true, "pinch": true, "note": "south face of north_shelf; gaps at the two ramps (10 wide)"},
+    {"id": "west_tooth", "type": "rock", "x": -52, "z": 2, "r": 4, "h": 9, "solid": true, "pinch": true, "note": "with shelf_cliff forms the WEST CHOKE (24 wide) on the north leg of THE RUN"},
+    {"id": "east_tooth", "type": "rock", "x": 54, "z": -1, "r": 4, "h": 9, "solid": true, "pinch": true, "note": "EAST CHOKE (22 wide)"},
+    {"id": "soda_falls", "type": "landmark_falls", "x": 94, "z": -12, "r": 6, "h": 40, "solid": true, "pinch": true, "note": "teal fizz waterfall with constant bubble particles; audible from 60 studs"},
+    {"id": "geyser_w", "type": "geyser", "x": -40, "z": -18, "r": 3, "solid": false, "note": "launches a player onto north_shelf"},
+    {"id": "geyser_e", "type": "geyser", "x": 36, "z": -17, "r": 3, "solid": false},
+    {"id": "geyser_3", "type": "geyser", "x": -56, "z": 18, "r": 3, "solid": false},
+    {"id": "geyser_4", "type": "geyser", "x": 30, "z": 10, "r": 3, "solid": false},
+    {"id": "geyser_5", "type": "geyser", "x": 66, "z": 4, "r": 3, "solid": false},
+    {"id": "sand_flats", "type": "sand", "x": -66, "z": 28, "r": 16, "solid": false, "note": "rippled pale sand; Dune Fin territory"},
+    {"id": "mound_1", "type": "mound", "x": -74, "z": 22, "r": 2.5, "solid": false},
+    {"id": "mound_2", "type": "mound", "x": -58, "z": 22, "r": 2.5, "solid": false},
+    {"id": "mound_3", "type": "mound", "x": -60, "z": 36, "r": 2.5, "solid": false},
+    {"id": "mound_4", "type": "mound", "x": -74, "z": 34, "r": 2.5, "solid": false},
+    {"id": "cactus_1", "type": "candy_cactus", "x": 50, "z": 26, "r": 2, "h": 10, "solid": true, "pinch": true},
+    {"id": "cactus_2", "type": "candy_cactus", "x": 66, "z": 24, "r": 2, "h": 12, "solid": true, "pinch": true},
+    {"id": "cactus_3", "type": "candy_cactus", "x": 60, "z": 38, "r": 2, "h": 8, "solid": true, "pinch": true},
+    {"id": "rest_w", "type": "rest_stone", "x": -82, "z": 0, "r": 2, "solid": false},
+    {"id": "rest_e", "type": "rest_stone", "x": 88, "z": 6, "r": 2, "solid": false},
+    {"id": "rest_s", "type": "rest_stone", "x": 0, "z": 36, "r": 2, "solid": false},
+    {"id": "records_board", "type": "records_board", "x": -10, "z": 60, "r": 3, "solid": false}
+  ],
+  "bankRings": [
+    {"id": "south_gate", "x": 0, "z": 48, "r": 5},
+    {"id": "shelf_ring", "x": 0, "z": -36, "r": 5, "y": 12}
+  ],
+  "habitats": [
+    {"id": "shelf_w", "kind": "north_shelf", "x": -44, "z": -40, "r": 9, "y": 12},
+    {"id": "shelf_e", "kind": "north_shelf", "x": 44, "z": -40, "r": 9, "y": 12},
+    {"id": "butte_top", "kind": "north_shelf", "x": 0, "z": 16, "r": 7, "y": 12, "on": "butte_wall"},
+    {"id": "run", "kind": "the_run", "route": "the_run"},
+    {"id": "cactus", "kind": "cactus_garden", "x": 58, "z": 30, "r": 12, "around": ["cactus_1","cactus_2","cactus_3"]},
+    {"id": "tooth_garden", "kind": "cactus_garden", "x": -86, "z": -16, "r": 8},
+    {"id": "flats", "kind": "sand_flats", "x": -66, "z": 28, "r": 14}
+  ],
+  "pods": [
+    {"species": "sunshell", "habitat": "shelf_w", "count": 2},
+    {"species": "sunshell", "habitat": "shelf_e", "count": 2},
+    {"species": "sunshell", "habitat": "butte_top", "count": 2},
+    {"species": "ziptail", "habitat": "run", "count": 2},
+    {"species": "prickle", "habitat": "cactus", "count": 2},
+    {"species": "prickle", "habitat": "tooth_garden", "count": 2},
+    {"species": "dunefin", "habitat": "flats", "count": 1}
+  ],
+  "spareHabitats": [],
+  "routes": [
+    {"id": "the_run", "kind": "run", "closed": true, "restStones": ["rest_w","rest_e","rest_s"], "points": [[-82,0],[-52,-10],[-20,-8],[0,-8],[22,-8],[54,-12],[84,-8],[88,6],[72,12],[40,8],[20,24],[0,36],[-20,26],[-40,14],[-66,12]]},
+    {"id": "stampede_north", "kind": "stampede", "points": [[-90,-4],[-52,-10],[-20,-8],[0,-8],[22,-8],[54,-12],[84,-4]]},
+    {"id": "stampede_south", "kind": "stampede", "points": [[88,6],[72,12],[40,8],[20,24],[0,36],[-20,26],[-40,14],[-66,12],[-90,6]]},
+    {"id": "dune_circuit", "kind": "burrow", "closed": true, "points": [[-74,22],[-58,22],[-60,36],[-74,34]]}
+  ],
+  "eventAnchors": [
+    {"id": "gy_w", "event": "fizz_geysers", "feature": "geyser_w"},
+    {"id": "gy_e", "event": "fizz_geysers", "feature": "geyser_e"},
+    {"id": "gy_3", "event": "fizz_geysers", "feature": "geyser_3"},
+    {"id": "gy_4", "event": "fizz_geysers", "feature": "geyser_4"},
+    {"id": "gy_5", "event": "fizz_geysers", "feature": "geyser_5"}
+  ],
+  "lighting": {"clockTime": 16.7, "brightness": 2.9, "ambient": [170,138,128], "outdoorAmbient": [214,170,150], "atmosphere": {"density": 0.3, "color": [255,214,176], "decay": [255,150,110], "haze": 1.6, "glare": 0.45}, "colorShiftTop": [255,196,140], "bloom": {"intensity": 0.4, "size": 28, "threshold": 1.5}, "sky": "low orange sun down the canyon axis (from the west), long shadows across THE RUN"},
+  "palette": {"ground": [236,170,116], "groundDark": [196,112,92], "path": [255,214,160], "water": [94,234,239], "wall": [214,120,96], "accent": [94,234,239], "accent2": [255,240,150]},
+  "story": "A soda spring carved this canyon. The Zip Tails wore a racetrack into the floor, and nobody has ever caught one by running after it."
+}
