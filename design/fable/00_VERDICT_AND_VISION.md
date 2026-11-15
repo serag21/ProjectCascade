@@ -2,6 +2,8 @@
 
 Baseline inspected: `claude/awesome-brown-27rwqo` @ `b1b62fd`. Nothing here is proven fun; it is a design to be judged by the Checkpoint 1 playtest (`09`).
 
+**Revision 2** (this pass) corrected three baseline claims in the table below, changed the scoring rules after a round model showed the first version rewarded farming singles (`10`), changed the camera and creature scale after rendering the real Meadow (`11`), and added the First Spark contest and the weekly rotation (`12`).
+
 ## 1. Verdict on the current build
 
 The owner's playtest is correct, and the source explains each finding.
@@ -14,7 +16,9 @@ The owner's playtest is correct, and the source explains each finding.
 | Similar creatures clustered | 18 creatures per arena at random positions; every body is the same ~2.8-stud ball with an accessory; four behaviours that are all "move away" | No encounter is different from any other. |
 | Catch, bank, repeat is boring | One bank pad, capacity 8, no decision attached to banking | The loop has no tension and no variation. |
 | HUD oversized and overlapping | 70-px top bar, objective paragraph, menu button, combo panel, toast, album card, two action buttons, all fixed-offset | Roughly a fifth of a phone screen is panels. |
-| 32.8 ms frames, 124 effect parts | Creatures are server Models of ~20 parts each moved every frame; all arenas are live at once; effects are Parts | Budget failures are structural, not tuning. |
+| 32.8 ms frames | Real miss against the 16.7 ms budget; **cause not established**. Creatures are server-created replicated Models of ~14–22 welded parts, all arenas exist at once, but `b1b62fd` already animates creatures on the client with one `PivotTo` each per frame, and the reading was taken inside Studio | Measure properly before attributing it (`11` §6). |
+| "124 effect parts" against a budget of 80 | The overlay counts every descendant of the effects folder (attachments, emitters, billboards), not parts | Not evidence of a breach; the real part count is unknown. |
+| 1.7 KB/s herd traffic | Within `b1b62fd`'s own ≤ 6 KB/s budget | Not a problem. |
 
 The engineering underneath (server authority, saves, Daily Stampede, progression, cosmetics, shared round clock, tests) is sound and is kept. The game on top of it is replaced.
 
@@ -55,14 +59,14 @@ Loop capture is a known mechanic family (line-drawing arcade games; stylus captu
 | Flat discs → three authored arenas with distinct movement | Arena origins, shared 110 s clock and phase times |
 | 18 random blobs → ≤ 14 creatures in authored pods with behaviours | The 12 species ids, names, colours, values, rarity, signature keys |
 | One bank pad → two run-through bank rings per arena | Carry, banking, glow, mutations, album, quests |
-| Per-catch chain → per-loop chain | Chain multiplier tiers x1–x4, medals, personal bests |
-| Sweeps, Spark Gate, Arena Rally → Bloom Burst, Geysers, Legends | Stampede, Starfall, Golden finale, Static Puffs (re-purposed) |
+| Per-catch chain → chain links weighted by loop size | Chain multiplier tiers x1–x4, medals, personal bests |
+| Sweeps, Spark Gate, Arena Rally → Bloom Burst, Geysers, Legends, the First Spark | Stampede, Starfall, Golden finale, Static Puffs (re-purposed) |
 | HUD panels → five small elements; feedback in the world | Menu tabs, settings, accessibility options |
 | Server creature Models → client-built models from packets | HerdNet snapshot approach, interpolation in `CreatureView` |
 
 ## 3. Research summary
 
-Method: the previous sessions' research (`docs/research/*`) plus five targeted searches on 2026-11-15. This session's network policy blocks direct page reads of most sources, so the findings below come from **search-result summaries**, not full reads. No game was played. No revenue or retention figures exist for any title and none are claimed.
+Method: the previous sessions' research (`docs/research/*`) plus five targeted searches on 2026-11-15 and two more for the contest rules in revision 2 (cited in `12`). This session's network policy blocks direct page reads of most sources, so the findings below come from **search-result summaries**, not full reads. No game was played. No revenue or retention figures exist for any title and none are claimed.
 
 **Reported by sources (not independently verified):**
 
@@ -77,13 +81,15 @@ Method: the previous sessions' research (`docs/research/*`) plus five targeted s
 
 | # | Hypothesis | Tested by |
 | --- | --- | --- |
-| H1 | A catch performed with the body is more satisfying than a button near a target | `09` Q1–Q4 |
-| H2 | Creatures that bunch when circled avoid the "disobedient flock" frustration, including solo | `09` Q5, herd specs |
-| H3 | Per-species counterplay sustains interest the way per-target difficulty does in skill collectors | `09` Q9–Q10, stage 2 |
-| H4 | A client-predicted dash on a speed curve removes the "glitchy" feel | `09` Q6, T-D1..3 |
-| H5 | Contribution-based shared encounters produce co-operation without theft complaints | `09` multiplayer questions |
-| H6 | Three arenas with different movement rules read as three places, not three colours | `09` Q13 |
-| H7 | A third-person camera at ~52° pitch makes loop size judgeable | `09` Q7 — the largest risk; fallback in `01` §6 |
+| H1 | A catch performed with the body is more satisfying than a button near a target | `09` Q1–Q2, Q11 |
+| H2 | Creatures that bunch when circled avoid the "disobedient flock" frustration, including solo | `09` Q5–Q6, herd specs |
+| H3 | Per-species counterplay sustains interest the way per-target difficulty does in skill collectors | `09` Q15–Q16, stage 2 |
+| H4 | A client-predicted dash on a speed curve removes the "glitchy" feel | `09` Q8, M7, T-D1..3 |
+| H5 | Contribution-based shared encounters produce co-operation without theft complaints | `09` Q18–Q19 |
+| H6 | Three arenas with different movement rules read as three places, not three colours | `09` Q13–Q14 |
+| H7 | A third-person camera at ~46° pitch, 38 studs back, makes loops judgeable and Sparks visible | `09` Q3, Q9 — the largest risk; fallback ladder in `01` §6 |
+| H8 | With size-weighted chain links, players choose herding over farming singles because it feels better, not only because it scores better | `09` Q7; the model only shows the scores |
+| H9 | A scarce single-winner contest decided by contribution is exciting rather than stressful, and fair alone | `09` Q20 |
 
 ## 4. What this design refuses to do
 

@@ -1,6 +1,6 @@
 # 03 — Creatures, behaviour and rarity
 
-Authoritative data: `data/creatures.json`. Silhouettes: `mockups/creature_silhouettes.svg`. Species ids, names, colours, values, rarity and signature keys are unchanged from `Config.Creatures`, so albums, mutations, signature stars and quests carry over.
+Authoritative data: `data/creatures.json`. Silhouettes: `mockups/creature_silhouettes.svg`. Build-ready part lists for the four Meadow species: `data/models/meadow_creatures.json` (reference: `mockups/pip_reference_sheet.png`). Species ids, names, colours, values, rarity and signature keys are unchanged from `Config.Creatures`, so albums, mutations, signature stars and quests carry over.
 
 ## 1. Principles
 
@@ -23,6 +23,8 @@ Each creature runs a small state machine at the existing server step. States com
 | `dazed` | event | Still, spinning, catchable | 10 |
 | `cinched` | inside a validated loop | Frozen until the result | 11 |
 
+The server keeps each creature's last 0.5 s of `(clock, x, z, ground level, catchable)` at the snapshot ticks; loop claims are resolved against that history at the client's view clock (`10` §5.5). "Uncatchable" below means `catchable = false` at that clock.
+
 Common rules: obstacle, water and boundary avoidance with a 2.5-stud margin; a dash boop applies a 6-stud sideways impulse and 0.8 s of `alert`; a creature returning to its habitat walks, never teleports; respawn happens at the habitat only when no player is within 22 studs, with a small "pop out of a burrow" animation.
 
 ## 3. Species
@@ -36,7 +38,7 @@ Difficulty: ● easy, ●● moderate, ●●● hard. Full parameters are in th
 | **Pip Pop** | Common · 3 | **Clump:** trio that squeezes together when circled | Ears flatten, one squeak | Any closed loop | ● |
 | **Bunvolt** | Common · 4 | **Hopper:** every 2.6 s under pressure, a 12-stud hop directly away (0.7 s airborne, uncatchable) | 0.5 s crouch + shrinking ground ring + spring twang | Close between hops, SNAP during the crouch, or stand opposite the gap so it hops back inside | ●● |
 | **Cubloom** | Uncommon · 5 | **Flock:** four move as one heavy block with a 0.4 s turn delay | All four lean before turning | Drive the block into a pen or against water; ring all four | ●● |
-| **Flutterwink** | Rare · 7 | **Percher:** flies between flower perches (uncatchable), lands 4.0 s; leaves 0.6 s after a player comes within 9 studs | Next perch glows 1.5 s early; wings fold over the 4 s | Lay a wide ring outside 9 studs around the glowing perch, close while it sits | ●●● |
+| **Flutterwink** | Rare · 7 | **Percher:** flies between flower perches (uncatchable), lands 4.0 s; leaves 0.6 s after a player comes within 9 studs | Next perch glows 1.5 s early; wings fold over the 4 s | Lay a wide ring outside 9 studs around the glowing perch, close while it sits. TIGHT if the ring is under 330 studs² (radius ≤ ~10.2) | ●●● |
 
 ### Fizz Canyon
 
@@ -56,7 +58,7 @@ Difficulty: ● easy, ●● moderate, ●●● hard. Full parameters are in th
 | **Starwhirl** | Rare · 14 | **Blinker:** orbits a spire. When a ribbon encloses > 70 % of the angle around it, it blinks 9 studs toward the widest gap (4 s cooldown) | 0.5 s spin-up + a faint blink line | Close the last 30 % in under 0.5 s (SNAP), or bait the blink and loop during the cooldown | ●●● |
 | **Antlume** | Rare · 16 | **Charger:** needs 2 wraps. After the first it rears 0.8 s then charges 40 studs, cutting ribbons, then stands winded 3 s | Antlers light; charge line on the ground | Wrap, sidestep, wrap again while winded. A second player's loop counts | ●●● |
 
-The four signature techniques map onto the existing keys with no data change: `DASH` → **SNAP!**, `PRECISE` → **TIGHT!**, `TOGETHER` → **ROUNDUP!** (loop of 3+), `RHYTHM` → **ON RHYTHM!** (chain x2+).
+The four signature techniques map onto the existing keys with no data change: `DASH` → **SNAP!**, `PRECISE` → **TIGHT!**, `TOGETHER` → **ROUNDUP!** (loop of 3+), `RHYTHM` → **ON RHYTHM!** (chain x2+). TIGHT normally needs two or more creatures; the three PRECISE species that are often caught alone have their own solo thresholds (`soloTightArea`: Flutterwink 330, Prism Prickle 60, Ribbubble 90).
 
 ## 4. Rarity and encounter frequency
 
@@ -81,8 +83,8 @@ No creature despawns on a timer while a player is engaging it. Event creatures l
 
 ## 6. Visual identity rules
 
-- One shared face kit (eyes, pupils, small mouth) on every species, so the set reads as one family.
-- Height varies 1.8 → 5.2 studs; width 1.6 → 5.6. No two species in an arena share both a height band and a gait.
-- ≤ 9 parts per creature (was ~20). Built on the client from the species id.
+- One shared face kit on every species — two glossy ink eyes, no whites; glints and cheeks only on the nearest creatures — so the set reads as one family.
+- All creatures are built at 1.3× their model size (`tuning.creatures.globalScale`), decided after the reference render showed them too small on screen. In-game heights run 2.3 → 6.8 studs (a Pip is 3.8 with ears; the player is 5). No two species in an arena share both a height band and a gait.
+- ≤ 9 parts per creature (was roughly 14–22). Built on the client from `data/models` part lists; ellipsoids are a Part with a Sphere SpecialMesh (`11` §2).
 - Each species' *state* must be readable from silhouette alone (tucked shell, folded wings, flared spines, raised antlers). Colour and glow are secondary cues.
 - Golden variant: gold body, Foil material, sparse sparkle, gold trail. The silhouette is unchanged.

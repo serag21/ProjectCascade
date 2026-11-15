@@ -1,6 +1,12 @@
 # 05 — Visual direction
 
-Reference images produced in this package (all original, all generated from the design data): `maps/*.svg`, `mockups/hud_desktop.svg`, `mockups/hud_phone.svg`, `mockups/creature_silhouettes.svg`, `mockups/loop_anatomy.svg`. They are schematic references for layout, proportion and hierarchy, not renders of the game. No 3D render was produced; none is claimed.
+Reference images produced in this package (all original, all generated from the design data):
+
+- **Rendered references** (three.js, Roblox-equivalent primitives, real layout and camera numbers): `mockups/meadow_gameplay_frame.png`, `mockups/camera_pitch_comparison.png`, `mockups/pip_reference_sheet.png`, `mockups/cinch_storyboard.png`. Details and construction data: `11`.
+- **Schematic references:** `maps/*.svg`, `mockups/hud_desktop.svg`, `mockups/hud_phone.svg`, `mockups/creature_silhouettes.svg`, `mockups/loop_anatomy.svg`.
+- **Effect textures:** `assets/textures/*.png`.
+
+None of these is a screenshot of the game. They fix layout, proportion, scale and hierarchy; they prove nothing about how the game looks in Roblox lighting, runs, or feels.
 
 ## 1. The look in one line
 
@@ -9,7 +15,7 @@ Reference images produced in this package (all original, all generated from the 
 ## 2. Rules of composition
 
 1. **Value hierarchy.** Ground is mid-value and low-contrast. Landmarks are light against the sky. Creatures are the most saturated objects. The ribbon is the only near-white emissive line.
-2. **Three scales.** Every view should contain a skyline landmark (30+ studs), mid props (5–12 studs) and ground detail (< 2 studs, client-only decor). The current build has only the middle scale.
+2. **Three scales.** Every view should contain a large landmark or its base and shadow (30+ studs), mid props (5–12 studs) and ground detail (< 2 studs, client-only decor). The current build has only the middle scale. At the gameplay camera there is no skyline; tall landmarks read by trunk, base and shadow.
 3. **No flat disc.** Ground is Terrain with gentle hills (≤ 7 studs), a water or ice feature, and a path colour that leads from spawn toward the first pod and the first bank ring.
 4. **Rounded, thick, slightly squashed.** Minimum prop thickness 1 stud; corners read as soft. No thin poles, no text signs in the play space.
 5. **Neon budget:** ≤ 40 emissive parts per arena. Emission means "interactive or imminent".
@@ -34,6 +40,7 @@ Contrast requirements (checked in `09`): creature body vs local ground ≥ 3:1 l
 See `mockups/creature_silhouettes.svg` and `03` §6.
 
 - **Silhouette first.** Each species passes the black-shape test at 60 studs.
+- **Scale.** Built at 1.3× model size so a Pip is about 34 px wide on a 1280-px screen at the default camera.
 - **Proportions:** head-body in one mass, features oversized (ears, wings, shell, antlers) and at least 40 % of the height for the "tall" species.
 - **Animation (client, CFrame offsets only; no Humanoids or Motor6D):**
 
@@ -41,7 +48,7 @@ See `mockups/creature_silhouettes.svg` and `03` §6.
 | --- | --- |
 | Gait | Per species (hop, waddle, strut, skitter, glide, roll). 2–4 Hz, squash 10–15 % on contact |
 | Anticipation | Every telegraph is a pose held for its duration: crouch, puff, spin-up, rear |
-| Look-at | Eyes (pupil offset ≤ 0.12 stud) track the nearest player within awareness |
+| Look-at | The whole creature turns to face the nearest player within awareness (eyes are single glossy parts; no pupil tracking) |
 | Startle | 0.15 s stretch + a single pooled "!" (existing bang pool) |
 | Cinched | Wide eyes, arms-in, 5° wobble |
 | Caught | 0.12 s squash → 0.2 s pop scale 1.25 → arc into the parade |
@@ -52,7 +59,7 @@ See `mockups/creature_silhouettes.svg` and `03` §6.
 
 | Element | Spec |
 | --- | --- |
-| Ribbon | 1.2 studs wide, flat on the ground, soft-edged; head opaque, tail 30 %; a brighter core line; player's cosmetic trail sets its colour |
+| Ribbon | 1.2 studs wide (texture `ribbon_trail.png`: soft edge, brighter core), flat on the ground; head opaque, tail 30 %; player's cosmetic trail sets its colour. Two Trails: travel and loop |
 | Length cue | The last 25 % of remaining length pulses gently (static in reduced motion) |
 | Snap preview | Dashed white line from head to the snap point + a small ring at the snap point |
 | Close | Whole loop flashes to white for one frame, then cinches |
@@ -66,7 +73,7 @@ Limits: no full-screen flashes, no screen shake, no strobing. Largest luminance 
 
 ## 6. Camera presentation
 
-Raised chase camera (`01` §6). Additional presentation beats:
+Raised chase camera: pitch 46°, distance 38 (`01` §6; chosen from `mockups/camera_pitch_comparison.png`). Additional presentation beats:
 
 - **Round start:** 1.2 s pull-back from the player to gameplay distance while 3-2-1 plays.
 - **Stampede telegraph:** no camera take-over; an edge chevron points to the entry.

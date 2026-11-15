@@ -586,6 +586,16 @@
     "hudCoverageMaxFraction": {
       "value": 0.09,
       "status": "fixed"
+    },
+    "effectInstances": {
+      "value": 120,
+      "status": "hyp",
+      "note": "Beams + Trails + enabled ParticleEmitters + enabled BillboardGuis; set from the first real measurement"
+    },
+    "creaturePartsTotal": {
+      "value": 320,
+      "status": "fixed",
+      "note": "30 creatures x <= 9 parts + 32 pooled near-detail parts, rounded"
     }
   },
   "creatures": {

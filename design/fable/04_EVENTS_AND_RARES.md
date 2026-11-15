@@ -1,6 +1,6 @@
 # 04 — World events, rare encounters and multiplayer
 
-Authoritative data: `data/events.json` (times, rules, telegraphs) and `data/creatures.json` (`variants`, `legends`, `hazards`).
+Authoritative data: `data/events.json` (times, rules, telegraphs), `data/creatures.json` (`variants`, `legends`, `hazards`) and `data/first_spark.json`. Only the Stampede and Bloom Burst are in the Checkpoint 1 slice (`data/slice.json`).
 
 ## 1. The round as a three-act piece
 
@@ -53,6 +53,9 @@ A gilded member of a native species spawns at the habitat farthest from all play
 - **Window:** 40 s. Solo-completable with clean play; designed to be finished comfortably by 2–4.
 - **Reward:** every contributor gets the Legend album stamp, score proportional to their wraps with a 50 % floor, and one Legend Token. Three tokens unlock that Legend's cosmetic trail. No random drop, nothing purchasable, failure costs nothing.
 
+### The First Spark (hourly per arena; one winner)
+The scarce, single-winner contest: a UTC-scheduled Spark that touches down five times; three rings catch it; the player who landed the most rings is crowned and the other ring-landers earn a real assist. Full rules, fairness cases and evidence: `12` §1.
+
 ### Static Puff (existing hazard, re-purposed)
 Still per-player and still from the third round. It now drifts toward its owner's **ribbon**: touching the ribbon cuts it (no score penalty). Touching the owner scatters two parade members, recatchable. Dash through it to pop it. It gives the ribbon something to be defended from, and makes long greedy loops a risk.
 
@@ -60,8 +63,8 @@ Still per-player and still from the third round. It now drifts toward its owner'
 
 | Goal | Mechanism |
 | --- | --- |
-| Co-operation that is felt | Shared wraps (Antlume, Golden, Legends). Herding assists: if a creature you were pushing within the last 1.5 s is caught by someone else, you get **ASSIST** points and full album credit (existing `creditAssist`, extended to album) |
-| Competition without theft | Loops are personal. Podium awards (existing) are re-keyed: Biggest Loop, Longest Chain, Golden Wrangler, Best Herder (assists), Static Buster. Nobody is ranked last |
+| Co-operation that is felt | Shared wraps (Antlume, Golden, Legends): everyone who contributes is rewarded. Herding assists: if a creature you were pushing within the last 1.5 s is caught by someone else, you get **ASSIST** points and full album credit (existing `creditAssist`, extended to album) |
+| Competition without theft | Loops are personal. Podium awards (existing) are re-keyed: Biggest Loop, Longest Chain, Golden Wrangler, Best Herder (assists), Static Buster. Nobody is ranked last. The one single-winner prize is the First Spark, decided by contribution, not last hit |
 | Spectacle | An 8+ loop announces STAMPEDE! to the arena; Legends dim the sky; bank fountains are visible to all |
 | No griefing | Players do not collide. Ribbons do not interact. Nobody can cut another's ribbon, block a ring, or take anything from a parade. Scattered parade members are recatchable by their owner first for 2 s |
 | Solo always complete | Every multi-wrap target is achievable alone within its window; no event requires a second player |

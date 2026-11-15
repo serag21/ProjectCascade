@@ -2,8 +2,8 @@
 
 Two kinds of evidence, never mixed in a report:
 
-- **A — Automated (offline):** logic, security, data, budgets that can be computed. Run by agents with `python3 tools/run_checks.py`.
-- **S — Studio (owner, hands on):** feel, readability, looks, sound, real performance. Only a person playing can establish these. Per `AGENTS.md`, agents do not run Studio.
+- **A — Automated (offline):** logic, security, data, computable budgets. Run by agents: `python3 tools/run_checks.py` (which also runs `python3 design/fable/tools/validate.py`).
+- **S — Studio (owner, hands on):** feel, readability, looks, sound, real performance. Per `AGENTS.md`, agents do not run Studio.
 
 A green offline suite means the rules are implemented as written. It says nothing about whether the game is enjoyable.
 
@@ -11,97 +11,148 @@ A green offline suite means the rules are implemented as written. It says nothin
 
 | Id | Requirement | Method |
 | --- | --- | --- |
-| T-DATA1 | Design data is internally consistent | `python3 design/fable/tools/validate.py` exits 0 |
+| T-DATA1 | Design data, vectors, round model and document references are consistent | `design/fable/tools/validate.py` exits 0 |
 | T-DATA2 | Generated Luau equals the JSON | `design-data-fresh` check |
-| T-L1 | Loop geometry correct | `SparkLoop.spec` (cases in `08` WP-02) |
-| T-L2 | No catch without physically encircling | `SparkLoopService.spec` adversarial set: 0 catches, 0 score, telemetry incremented |
-| T-L3 | A stationary input-spamming bot scores 0 in a full round | headless scenario |
-| T-L4 | A bot walking a 6-stud circle around the starter pod catches all 3 within 5 s | headless scenario |
-| T-L5 | Two simultaneous loops over one creature: exactly one catch, the other gets ASSIST | headless 2-player scenario |
-| T-D1 | Dash motion starts in the input frame; no server-created constraint exists | unit test + grep check for `LinearVelocity` in `S/` |
-| T-D2 | Dash charges, buffer and recharge match tuning | unit test, fake clock |
-| T-D3 | Server budget accepts a legal dash and rejects 2× distance | `SparkRules.spec` |
-| T-H1 | Each species' state machine honours its telegraph and uncatchable windows (±1 server step) | `SparkHerd.spec` |
-| T-H2 | No flee speed ≥ walk speed except runner/charge | validator + spec |
-| T-H3 | Base creatures ≤ 14, with events ≤ 30, pods ≥ 24 apart, across a 20-cycle soak | headless soak |
-| T-N1 | Herd traffic ≤ 1.2 KB/s average, ≤ 3.6 KB/s peak per client | headless soak byte counter |
-| T-N2 | Server creates zero creature Instances | headless instance census |
-| T-W1 | Every arena feature in JSON exists in the built world with collision where solid | `SparkWorldData.spec` |
-| T-W2 | Parts per arena ≤ 2,600 incl. client decor; creature ≤ 9 parts | census |
-| T-FX1 | Local effect parts ≤ 80 at worst case (stampede + cinch + telegraphs) | pool-size assertion; manifest sums to 75 |
-| T-UI1 | HUD rects equal `ui_layout.json` at the three reference viewports; no overlaps; persistent coverage ≤ 9 % | layout smoke test |
-| T-E1 | Events fire at the times in `events.json` with telegraph lead ≥ specified | `SparkDepth.spec` |
-| T-E2 | Shared wraps: every contributor rewarded, floor 50 % | spec |
-| T-P1 | Profile v1–v3 load into v4 with no field lost; v5 refused | `SparkProfile.spec` |
-| T-P2 | 500-request flood and malformed payloads on `Loop`/`Dash` change nothing | scenario H ported |
-| T-S1 | 4 players × 20 cycles: no error, flat non-herd instance count, flat thread count | scenario L ported |
+| T-L1 | `Loop.luau` matches the reference | All 59 vectors in `data/test_vectors.json` |
+| T-L2 | No catch without physically encircling | Adversarial set (`10` §6) through `LoopService`: 0 catches, 0 score, telemetry incremented |
+| T-L3 | A stationary input-spamming bot scores 0 in a full round | Headless scenario |
+| T-L4 | A bot walking a 6-stud circle around the starter pod catches all 3 within 5 s | Headless scenario |
+| T-L5 | Two simultaneous loops over one creature: one catch, the other ASSIST | Headless 2-player scenario |
+| T-L6 | Lag compensation: catch evaluated at the view clock, clamped to 0.35 s | Resolution vectors through `LoopService` |
+| T-L7 | Level rule: a ring on one level never catches on another | `layer_rule` vector; repeated in the built canyon (stage 2) |
+| T-P0 | Farming singles does not beat competent herding; expert herding ≥ 2.5 × expert single-farming | `validate.py` round-model assertions |
+| T-D1 | Dash motion starts in the input frame; no server-created constraint | Unit test + grep for `LinearVelocity` under `S/` |
+| T-D2 | Dash charges, buffer, recharge match tuning | Unit test, fake clock |
+| T-D3 | Server budget accepts a legal dash and rejects twice the distance | `SparkRules.spec` |
+| T-H1 | Each species honours its telegraph and uncatchable windows (± one server step) | `SparkHerd.spec` |
+| T-H2 | No flee speed ≥ walk speed except runner and charge | `validate.py` + spec |
+| T-H3 | Base creatures ≤ 14, with events ≤ 30, pods ≥ 24 apart, over a 20-cycle soak | Headless soak |
+| T-N1 | Herd traffic ≤ 1.2 KB/s average, ≤ 3.6 KB/s peak per client | Headless byte counter |
+| T-N2 | Server creates zero creature Instances | Headless census |
+| T-W1 | Every arena feature exists with collision where solid | `SparkWorldData.spec` |
+| T-W2 | Arena parts ≤ 2,600 including client decor; creature ≤ 9 parts | Census |
+| T-FX1 | Effect **parts** ≤ 80 at worst case | Pool sizes (manifest sums to 75) |
+| T-UI1 | HUD rects equal `ui_layout.json` at three viewports; no overlap; persistent coverage ≤ 9 % | Layout smoke test |
+| T-E1 | Events fire at `events.json` times with the specified telegraph lead | `SparkDepth.spec` |
+| T-E2 | Shared wraps: every contributor rewarded, 50 % floor | Spec (stage 2) |
+| T-E3 | First Spark: UTC schedule, winner and tie rules, photo finish, cap | `SparkFirstSpark.spec` (stage 2) |
+| T-S0 | Slice scope: everything `off` in `slice.json` is unreachable, everything `in` is present | Spec driven by `Design.Slice` |
+| T-P1 | Profile v1–v3 load into v4 with nothing lost; v5 refused | `SparkProfile.spec` (stage 2) |
+| T-P2 | 500-request flood and malformed payloads on `Loop`/`Dash` change nothing | Scenario H ported |
+| T-S1 | 4 players × 20 cycles: no error, flat non-herd instances, flat threads | Scenario L ported (stage 3) |
 
-## 2. Studio measurements (owner or supervised session)
+## 2. Studio measurements
 
-| Id | Measure | Target | How |
+How to take them: `11` §6 (F8 overlay v2; a separate server and client, not Play Solo; MicroProfiler for causes).
+
+| Id | Measure | Target | Baseline on `b1b62fd` |
 | --- | --- | --- | --- |
-| M1 | Frame time, Meadow, solo, desktop | p50 ≤ 12.5 ms, p95 ≤ 16.7 ms (baseline 32.8 ms) | In-game perf overlay / MicroProfiler, 2 full rounds |
-| M2 | Frame time during Stampede | p95 ≤ 20 ms | same |
-| M3 | Local effect parts peak | ≤ 80 (baseline 124) | existing overlay counter |
-| M4 | Herd receive rate | ≤ 1.2 KB/s avg (baseline 1.7) | existing overlay counter |
-| M5 | Time to first loop / first bank / round end, first-time player | ≤ 10 s / ≤ 30 s / ≤ 2:00 | funnel metrics from the session |
-| M6 | Dash input-to-motion | Visibly same frame at 60 fps (no perceptible delay) | 60 fps screen recording, frame step |
-| M7 | Server start to playable with Terrain generation | ≤ 5 s | log timestamps |
-| M8 | Mobile device frame time (one mid-range phone) | p50 ≤ 25 ms | device test at Checkpoint 2 |
+| M1 | Client frame time, Meadow, solo, desktop | p50 ≤ 12.5 ms, p95 ≤ 16.7 ms | 32.8 ms average, taken with the old overlay; cause not established. Re-take with the same method as the new build for a fair comparison |
+| M2 | Frame time during the Stampede | p95 ≤ 20 ms | — |
+| M3 | Effect parts (visible `BasePart`s under `SparkFx`) | ≤ 80 | Unknown: the old 124 counted all descendants |
+| M4 | Effect instances (beams, trails, emitters, billboards) | Record; provisional ≤ 120 | Unknown |
+| M5 | Herd receive rate | ≤ 1.2 KB/s average | 1.7 KB/s (within the old ≤ 6 budget) |
+| M6 | Time to first loop / first bank / round end, first-time player | ≤ 10 s / ≤ 30 s / ≤ 2:00 | — |
+| M7 | Dash input to motion | Same frame at 60 fps (frame-step a recording) | Visibly delayed |
+| M8 | Server start to playable with Terrain | ≤ 5 s | — |
+| M9 | `claimDeviation` p99 over five rounds | Record; sets `serverPathTolerance` | — |
+| M10 | One mid-range phone, frame time | p50 ≤ 25 ms | Checkpoint 2 |
 
 If M1 misses with Terrain on, repeat with `worldPartsOnly = true` and report both.
 
-## 3. Checkpoint 1 — the feel test (Meadow slice, solo, ~20 minutes)
+## 3. Checkpoint 1 — is the core worth building on?
 
-The owner plays at least five rounds, then answers. Scale: 1 (no) – 5 (yes), plus a sentence.
+**Scope:** the Meadow slice (`data/slice.json`), solo. **One question:** are movement, herding and ring closure enjoyable enough to build the rest around? World, events and HUD are present so the verb is judged in context, but they are not what passes or fails.
 
-**Core verb**
-1. Did you understand how to catch without reading anything? How many seconds until your first catch?
-2. Does closing a ring and watching it cinch feel good? Still good on the 30th loop?
-3. Could you tell when a ring would close, and how big a ring you could still make?
-4. Did you find yourself *choosing* — which group, how big, when to dash — rather than repeating one motion?
-5. Did the Sparks behave in a way you could predict and use (bunching, hopping), or did they feel random or annoying?
+**Not judged here:** sound (no audio is uploaded), Canyon and Aurora, rares, progression, multiplayer, balance of scores and medals.
+
+### 3.1 What is and is not in the build
+
+| Present | Absent or hidden |
+| --- | --- |
+| The full Meadow; Pip, Bunvolt, Cubloom, Flutterwink | Canyon, Aurora (locked) |
+| Ribbon loops, snap, cinch; SNAP, TIGHT, MEDLEY; chain; two bank rings | PINCH (walls block creatures but do not close ribbons yet) |
+| Predicted dash with two charges; chase camera with preset keys | Upgrades, perks, Heat (hidden; fixed values for everyone) |
+| Bloom Burst at 30 s, Stampede at 55 s, finale ×1.5 from 85 s | Golden Runaway, Legends, First Spark, Static Puff |
+| Slice results sheet: score, provisional medal, best loop size | Best Loop card, next goal, CLAIM, Daily Stampede |
+| F8 overlay v2, F9 tuning panel | Final audio (placeholders or silence) |
+
+### 3.2 Script (about 25 minutes)
+
+1. **Round 1, cold.** Do not read anything first. Note the seconds to your first catch and whether you understood why it worked.
+2. **Rounds 2–3, play.** Ring whole pods. Try the Cubloom flock near the pens. Use both bank rings. Be at the Bloom bud at 30 s and on the Stampede route at 55 s.
+3. **Round 4, dash.** Close rings with a dash (SNAP). Shove a straggler back into a ring. Try to catch a Bunvolt between hops.
+4. **Round 5, camera.** Press `[` and `]` to try the three pitches mid-round. Open F9 and try camera distance 32 and 44, creature scale 1.15 and 1.45. Leave it where it feels best and note the values.
+5. **Round 6, tuning (optional).** In F9 try ribbon lifetime 3.4 and 5.0, snap radius 3.5 and 6, dash distance 12 and 18. Note anything clearly better.
+6. **Measure.** F8 overlay: write down M1–M5 and M9 during round 3. Record 10 s of dashing at 60 fps for M7.
+7. **Once:** look at one Pip up close and confirm it is an ellipsoid, not a sphere (`11` §2).
+
+### 3.3 Questions (1 = no, 5 = yes, plus a sentence)
+
+**Ring closure**
+1. Did you catch something within the first 15 s without instructions?
+2. Does closing a ring and watching it cinch feel good — and still good by round 5?
+3. Could you tell when a ring was about to close, and roughly how large a ring you could still make?
+4. When a ring missed, did you know why?
+
+**Herding**
+5. Did the Sparks react to you in a way you could predict and use?
+6. Did you find yourself choosing — which group, how big, from which side — rather than repeating one motion?
+7. Was ringing a whole pod clearly better and more satisfying than picking off singles?
 
 **Movement and camera**
-6. Does the dash feel immediate and smooth? Any stutter, snap-back or slide at the end?
-7. Could you judge loops from the default camera? Did you fight the camera at any point?
-8. Is running around simply pleasant (speed, turning, jumping the creek, the bounce caps)?
-
-**Encounters**
-9. Did the Bunvolt hop feel fair — did you see it coming, and did you want to try again?
-10. Was the Stampede exciting? Did you understand what to do when the route lit up?
-
-**World and presentation**
-11. Does the Meadow feel like a place? Name the landmarks you remember.
-12. Was anything on the HUD in your way? Was anything missing?
-13. Could you always tell where to go next?
-14. Were the Sparks easy to tell apart at a distance?
-15. Do the sounds make catching more satisfying? Anything irritating?
-16. Does the music help you feel the round building?
+8. Is the dash immediate and smooth, with no stutter, snap-back or slide?
+9. Could you see the Sparks and your ribbon well enough at the default camera? Which preset did you end on?
+10. Is simply running around pleasant?
 
 **Verdict**
-17. After five rounds, did you want another? Why or why not?
-18. What was the most fun moment, and the most boring 20 seconds?
+11. After five rounds, did you want another?
+12. Most fun moment; most boring 20 seconds.
 
-**Pass rule:** Q2, Q4, Q6 and Q17 at 4 or above, none of Q1–Q8 below 3, and M1/M3 within target. Anything else: tune inside the ranges in `tuning.json`, apply the fallbacks, and repeat Checkpoint 1. Stage 2 does not start on a fail.
+Context questions (recorded, not part of the pass rule): did the Bloom Burst and Stampede read as events; does the Meadow feel like a place; was the HUD in the way.
 
-## 4. Checkpoint 2 — content and co-op (all arenas; solo and two clients)
+### 3.4 What the answers trigger
 
-19. Do the three arenas play differently? Describe each in a sentence.
-20. Is ice gliding fun or frustrating? Is the wind lane worth using?
-21. Did intercepting a Zip Tail feel clever? Did it take more than a few tries to learn?
-22. Which species was most satisfying to beat? Which was a chore?
-23. With two players: did you help each other without planning to? Did anything feel stolen?
-24. Did the Legend feel like an event? Was the shared reward fair?
-25. Did the Static Puff add tension or just annoyance?
-26. Any moment where a creature escaped and you could not tell why?
+**Pass:** Q2, Q6, Q8 and Q11 at 4 or more; no question in 1–10 below 3; M1 and M3 in target. → Stage 2, with the F9 values the owner settled written into `tuning.json`.
 
-Readability checks in the same session (observer notes, not opinions): each species identified by name at 60 studs; ribbon visible against every ground type including ice at night; every telegraph noticed before its effect at least 4 times in 5.
+Otherwise, find the first matching row:
+
+| Feedback | Response | Specific action |
+| --- | --- | --- |
+| Q8 ≤ 3: dash stutters, snaps back or slides | **Tune**, then code | Check M7. If motion starts late → implementation defect in `Movement` (fix, not tune). If it starts on time but feels wrong → `dash.speedCurve`, `duration`, `distance`, exit blend |
+| Q3 ≤ 3 or Q4 ≤ 3: cannot judge closing or misses | **Tune** | `ribbon.snapRadius` up (to 6); stronger snap preview; ribbon length cue. If misses come with a late result → check latency handling against `10` §5.7 |
+| Q9 ≤ 3: cannot see Sparks or ribbon | **Camera change** | Step 1: adopt the owner's preferred preset/distance/scale. Step 2: add the ground guide ring (`01` §6). Step 3: fixed three-quarter camera. Re-test after each step |
+| Q5 ≤ 3: Sparks feel random or annoying | **Tune** | `awareness`, flee speed, the 0.6 pod-cohesion weight in `03` §2; lengthen telegraphs. Bunvolt specifically: hop interval 2.6 → 3.2 s |
+| Q7 ≤ 3: singles feel as good as pods | **Tune** | Pod spread tighter, `sizeMultiplier` steeper, pop ladder and ROUNDUP effects stronger |
+| Q10 ≤ 3: running feels dull or sluggish | **Tune** | `walkSpeed` (to 27), camera look-ahead and smoothing |
+| Q6 ≤ 3 but Q2 ≥ 4: closing feels good, no decisions | **Tune content, limited** | More varied pod formations and positions; bring PINCH forward from stage 2. One iteration only |
+| Q2 ≤ 3 after one tuning pass, or Q11 ≤ 2 with Q8 and Q9 ≥ 4 | **Rethink the core verb** | The mechanics work and the owner still does not enjoy drawing rings. Stop. Do not build stage 2. Options to weigh, in order: (a) loops that must be *held* briefly to catch (timing skill), (b) herding into the existing pens and bank rings as the catch, with the ribbon as a herding tool, (c) a different concept |
+| M1 or M3 out of target, answers good | **Engineering** | MicroProfiler top three labels; Terrain off; decor budget. Does not block stage 2 planning but must be closed before Checkpoint 2 |
+
+At most two tune-and-retest cycles. If the pass rule is still not met after two, treat it as a rethink.
+
+## 4. Checkpoint 2 — content and co-op
+
+All three arenas solo, then a two-client session. Audio should be uploaded by now.
+
+13. Do the three arenas play differently? One sentence each.
+14. Is ice gliding fun or frustrating? Is the wind lane worth using?
+15. Did intercepting a Zip Tail feel clever? How many tries to learn?
+16. Which species was most satisfying to beat? Which was a chore?
+17. Do walls finishing a ring (PINCH) feel fair and useful?
+18. With two players: did you help each other without planning to? Did anything feel stolen?
+19. Did the Legend feel like an event? Was the shared reward fair?
+20. First Spark: exciting or stressful? Was the winner rule clear without explanation? Is three rings alone achievable?
+21. Does the Static Puff add tension or just annoyance?
+22. Any catch or miss you could not explain? (Level rule under the Arch, latency.)
+23. Do the sounds make catching more satisfying? Does the music tell you the Stampede is coming? Anything irritating?
+
+Observer checks: each species named correctly at 60 studs; ribbon visible on every ground type including ice at night; each telegraph noticed before its effect at least 4 times in 5.
 
 ## 5. Checkpoint 3 — release-candidate criteria
 
-All of §1 green; M1–M8 in target; Checkpoint 1 and 2 passed; first-session script (`07`) observed with a first-time player other than the owner (≥ 3 people if possible, recording M5); 10 consecutive rounds per arena without softlock; 4-client session without desync; Daily Stampede parity between two clients; economy recalibrated (WP-14); audio uploaded and heard. Publishing remains the owner's separate decision.
+All of §1 green; M1–M10 in target; Checkpoints 1 and 2 passed; the first-session script (`07`) observed with at least one first-time player other than the owner, recording M6; 10 consecutive rounds per arena without a softlock; a 4-client session without desync; Daily Stampede and weekly Gauntlet parity between two clients; economy recalibrated from real rounds (WP-14); a First Spark observed on two servers at the same UTC mark. Publishing remains the owner's separate decision.
 
 ## 6. What no test here can establish
 
-Whether players return the next day, whether the loop holds interest for weeks, and whether the game stands out on the platform. Those need a live private beta and real data, after Checkpoint 3.
+Whether players return the next day, whether the loop holds for weeks, whether an hourly contest is a draw or a stressor, and whether the game stands out on the platform. Those need a private beta with real players after Checkpoint 3.

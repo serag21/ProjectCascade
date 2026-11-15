@@ -8,19 +8,20 @@ Conventions: arena-relative studs, +x east, +z south (toward the hub), y up. Are
 
 | Rule | Value |
 | --- | --- |
-| First sight from spawn | A landmark on the skyline, a bank ring 8–10 studs ahead, and one pod within 25 studs |
-| Landmarks | 3–4 per arena, each ≥ 30 studs tall or uniquely shaped, visible from anywhere in bounds |
+| First sight from spawn | A bank ring 8–10 studs ahead, one pod within 25 studs, and at least two mid-distance features. At the gameplay camera (46°) there is no skyline: landmarks are recognised by their bases and found by turning the camera (`11` §1) |
+| Landmarks | 3–4 per arena, each ≥ 30 studs tall or uniquely shaped, with a distinctive base and a long shadow; visible from anywhere in bounds when the camera is turned toward them |
 | Bank rings | Exactly 2, ≥ 100 studs apart: one at the spawn gate, one deep in the arena |
 | Habitats | Each species lives at a named habitat; pods spawn there and nowhere else. ≥ 24 studs between habitat centres |
 | Live creatures | ≤ 14 base (meadow 13, canyon 13, aurora 12); ≤ 30 with event extras |
 | Stampede routes | Exactly 2, alternating per cycle, never through a bank ring or within 12 studs of spawn |
-| Walls | ≤ 5 studs high are player-jumpable; creatures never cross walls or water |
+| First Spark glints | Exactly 5 per arena, 30–60 studs apart, drawn on the maps as numbered circles (`12`) |
+| Walls | ≤ 5 studs high are player-jumpable; creatures never cross walls or water. Boundary hedge 3.5 studs; hedge, canopy and arch deck fade when between camera and player |
 | Collision | No invisible walls. Every blocker is a visible feature in the JSON. Fall damage is off |
 | Navigation | Any two points are reachable in ≤ 12 s on foot; no dead ends narrower than 10 studs |
 
 ## Arena 1 — POP MEADOW: "The Clover Bowl"
 
-**Role:** teach the loop, herding and pinch walls. Baseline movement.
+**Role:** teach the loop, herding and pinch walls. Baseline movement. This is the Checkpoint 1 slice arena; reference frame `mockups/meadow_gameplay_frame.png`.
 **Size:** 172 × 150. **Feel:** warm morning, soft hills, a toy-farm pasture.
 
 | Zone | Where (x, z) | What it is | What it teaches |

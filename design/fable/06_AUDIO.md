@@ -37,12 +37,12 @@ Dash: `dash_go` on the input frame (second charge +3 semitones), `dash_ready` ti
 | Arena | Tempo · key | Mood and instruments |
 | --- | --- | --- |
 | Pop Meadow | 112 · C major | Sunny, bouncy: marimba, plucked strings, whistle lead |
-| Fizz Canyon | 126 · D mixolydian | Galloping: twang pluck, hand claps, slide lead |
-| Aurora Arcade | 104 · A minor → C major at the finale | Sparkling, wide: glass bells, soft arpeggio, sub pad |
+| Fizz Canyon | 105 · D mixolydian | Galloping: twang pluck, hand claps, slide lead |
+| Aurora Arcade | 90 · A minor → C major at the finale | Sparkling, wide: glass bells, soft arpeggio, sub pad |
 
 Transitions: stems fade in over one bar on the beat; arena change crossfades 1.5 s; intermission keeps stem A low-passed at −6 dB; results plays an 8-bar sting; opening the menu ducks by 8 dB and never stops the music. At chain x4 a tambourine layer joins.
 
-The existing three arena loops and finale layers supply stems A and D. Stems B and C are new work (WP-17).
+Tempos are those of the existing loops (112 / 105 / 90 bpm) so the existing arena loops and finale layers supply stems A and D unchanged. Stems B and C are new work (WP-17).
 
 ## 4. Signature sounds
 
@@ -62,6 +62,10 @@ Meadow: birdsong, creek, windmill creak. Canyon: dry wind, the falls, pebbles. A
 
 Bus levels: music 0.5, SFX 0.8, ambience 0.35, UI 0.6. No cue above −6 dBFS after bus gain; no sustained energy above 6 kHz beyond 150 ms; ±1 semitone variation on repeats; all loops fade ≥ 80 ms; the stampede rumble is high-passed at 60 Hz for phone speakers. Existing volume sliders remain; a reduced-audio option drops distant creature voices and the x4 layer.
 
-## 8. Not verifiable offline
+## 8. What the first slice plays
 
-Whether the mix is pleasant, whether the ladder is satisfying rather than cloying over twenty rounds, and whether the horn is recognisable can only be judged by listening in Studio after upload (`09` Q15–Q16).
+Exactly the 22 cues and two music files listed in `data/slice.json` (`11` §5): 18 reuse WAVs already in `assets/audio`, catch pops are the existing `catch.wav` pitch-stepped up the ladder, and four short WAVs are new (`loop_close`, `loop_cinch`, `loop_whiff`, `ribbon_tick`). No audio has been uploaded to Roblox, so until the owner uploads, cues play on unverified built-in placeholders or are silent, and **sound is not judged at Checkpoint 1**.
+
+## 9. Not verifiable offline
+
+Whether the mix is pleasant, whether the ladder is satisfying rather than cloying over twenty rounds, and whether the horn is recognisable can only be judged by listening in Studio after upload (`09` Q23).

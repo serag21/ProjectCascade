@@ -384,7 +384,7 @@ for md in sorted(ROOT.glob("*.md")):
     text = md.read_text()
     for ref in set(re.findall(r"`((?:data|mockups|maps|assets|tools)/[\w./*{},-]+)`", text)):
         if "*" in ref or "{" in ref: continue
-        planned = {"tools/gen_design_data.py"}   # created by WP-01
+        planned = {"tools/gen_design_data.py", "data/models/canyon_creatures.json", "data/models/aurora_creatures.json"}   # created by WP-01 / WP-10 / WP-12
         if not (ROOT / ref).exists() and not (REPO / ref).exists() and ref not in planned: err(f"{md.name} refers to missing file {ref}")
     for w in set(re.findall(r"WP-\d\d", text)):
         if w not in known_wp: err(f"{md.name} refers to unknown {w}")
