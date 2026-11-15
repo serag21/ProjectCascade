@@ -7,7 +7,7 @@
     },
     "PRECISE": {
       "label": "TIGHT!",
-      "rule": "caught in a loop with the TIGHT tech"
+      "rule": "caught in a loop with the TIGHT tech (group rule, or the species' soloTightArea when caught alone)"
     },
     "TOGETHER": {
       "label": "ROUNDUP!",
@@ -23,7 +23,8 @@
     "avoid": "all species treat solid obstacles, water and arena boundary as impassable; none ever jumps a wall",
     "ribbon": "creatures do NOT collide with the ribbon; only closing a loop matters",
     "boop": "a dash passing within tuning.dash.boopRadius shoves and startles (0.8s) any species unless noted",
-    "despawn": "normal pod creatures never despawn on a timer; event creatures despawn at their listed lifetime by hopping into a burrow puff (never mid-loop: despawn is delayed while inside a live cinch)"
+    "despawn": "normal pod creatures never despawn on a timer; event creatures despawn at their listed lifetime by hopping into a burrow puff (never mid-loop: despawn is delayed while inside a live cinch)",
+    "faceKit": "two glossy ink eyes (no whites); glints and cheeks are near-detail parts shown only within 35 studs"
   },
   "species": [
     {
@@ -221,7 +222,9 @@
           217,
           90
         ]
-      }
+      },
+      "soloTightArea": 330,
+      "soloTightNote": "ring between the 9-stud awareness edge and about 10.2 studs"
     },
     {
       "id": "sunshell",
@@ -359,7 +362,9 @@
           249,
           231
         ]
-      }
+      },
+      "soloTightArea": 60,
+      "soloTightNote": "a ring under 4.4 studs radius: only safe while the spines are in"
     },
     {
       "id": "dunefin",
@@ -508,7 +513,9 @@
           240,
           255
         ]
-      }
+      },
+      "soloTightArea": 90,
+      "soloTightNote": "a walked ring under 5.4 studs radius"
     },
     {
       "id": "starwhirl",

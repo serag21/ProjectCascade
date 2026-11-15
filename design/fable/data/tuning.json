@@ -550,7 +550,8 @@
     "frameMsDesktopP50": {
       "value": 12.5,
       "status": "fixed",
-      "baseline": 32.8
+      "baseline": 32.8,
+      "baselineNote": "owner's F8 reading in Studio on b1b62fd. The overlay averages RenderStepped dt; in Studio Play that includes the Studio editor and, in Play Solo, the server in the same process. It is a real miss against the 16.7 ms budget but its cause is NOT established: b1b62fd already interpolates creatures on the client with one PivotTo per visible creature per frame. Measure as 11 section 6 before attributing it"
     },
     "frameMsMobileP50": {
       "value": 25,
@@ -559,12 +560,14 @@
     "localEffectParts": {
       "value": 80,
       "status": "fixed",
-      "baseline": 124
+      "baseline": "124 DESCENDANTS of SparkLocalEffects (b1b62fd counts #GetDescendants(): attachments, emitters, billboards and labels included), so the real part count is unknown and may be under budget",
+      "measure": "visible BaseParts only: IsA('BasePart') and Transparency < 1 under workspace.SparkFx"
     },
     "herdBytesPerSecondAvg": {
       "value": 1200,
       "status": "fixed",
-      "baseline": 1700
+      "baseline": 1700,
+      "baselineNote": "1.7 KB/s was WITHIN b1b62fd's own budget (<= 6 KB/s in the F8 overlay). The 1.2 KB/s target is a new, tighter goal from fewer creatures and an adaptive send rate, not a fix for a failure"
     },
     "herdBytesPerSecondPeak": {
       "value": 3600,
@@ -573,7 +576,8 @@
     "creaturePartsMax": {
       "value": 9,
       "status": "fixed",
-      "baseline": "~20"
+      "baseline": "~20",
+      "baselineNote": "b1b62fd creatures are server-created replicated Models of roughly 14-22 welded parts"
     },
     "arenaPartsVisibleMax": {
       "value": 2600,

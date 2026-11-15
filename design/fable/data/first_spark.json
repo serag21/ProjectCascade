@@ -1,0 +1,67 @@
+{
+  "_note": "THE FIRST SPARK: the one scarce, single-winner contest. Shared Legends (events.json) are unchanged and stay contribution-for-all. All numbers are hypotheses unless marked fixed. Stage 2 (WP-20); not in the Meadow slice.",
+  "id": "first_spark",
+  "name": "The First Spark",
+  "fantasy": "A white-gold Spark that crosses each arena once an hour. It touches down five times. Three rings catch it. One player wears the crown.",
+  "schedule": {
+    "clock": "UTC wall clock, identical on every server, so changing servers cannot find another one",
+    "marks": {"meadow": ":00", "canyon": ":20", "aurora": ":40"},
+    "status": "fixed",
+    "start": "at the mark if the arena round clock is between 5 s and 80 s; otherwise at the first moment it is. Worst-case delay 45 s",
+    "announce": [
+      {"at": "always", "where": "menu Play tab and every records board", "text": "First Spark: <arena> in mm:ss"},
+      {"at": "mark - 60 s", "where": "arena", "cue": "sky beam over glint 1 + toast 'The First Spark is coming'"},
+      {"at": "mark - 10 s", "where": "arena", "cue": "all five glints light, numbered 1 to 5, with a thin sky-line joining them in order"}
+    ],
+    "replaces": "that round's Golden Runaway is skipped if the two would overlap",
+    "privateServers": "same schedule; crowns count (the daily cap below is what bounds farming)"
+  },
+  "course": {
+    "glints": 5, "route": "each arena's route with kind 'glint' (5 points, 30-60 studs apart)",
+    "restSeconds": {"value": 2.6, "range": [2.0, 3.2], "status": "hyp", "note": "catchable only while resting on a glint"},
+    "streakSeconds": {"value": 2.0, "status": "hyp", "note": "uncatchable arc between glints, always this long regardless of distance"},
+    "totalSeconds": 23.0,
+    "telegraph": "the next glint pulses during the streak; a rest shows a shrinking halo that is the 2.6 s timer",
+    "awareness": 0, "note": "it does not flee and cannot be herded or booped: the test is being there and ringing cleanly"
+  },
+  "capture": {
+    "ringsNeeded": 3,
+    "oneRingPerRest": "the first valid loop around it at a rest lands a ring; it then streaks on at once",
+    "photoFinish": {"windowSeconds": 0.15, "rule": "every valid claim that reaches the server within this window of the first valid claim competes; the SMALLEST server-measured loop area takes the ring. Removes ping as the decider", "status": "hyp"},
+    "ringScore": 40,
+    "expiry": "after the fifth rest it leaves. Fewer than 3 rings: it escapes, nobody is crowned, ring scores are kept, nothing is lost"
+  },
+  "winner": {
+    "rule": "when the third ring lands, the player who landed the MOST rings wins the crown",
+    "ties": ["smallest total server-measured area across their rings", "earliest final ring"],
+    "why": "the last ring is not special, so finishing someone else's work hands THEM the crown and you the assist: there is nothing to steal and every reason to finish"
+  },
+  "eligibility": {
+    "toRing": "any player in the arena who is playing the round (not sitting out, not in the Daily Stampede), including someone who joined the arena or the server mid-window",
+    "toBeCrowned": "has not already been crowned in this arena this UTC day",
+    "ifTopContributorIsCapped": "the crown passes to the next player in the ranking; the capped player receives the assist reward",
+    "dailyCap": {"crownsPerArenaPerUtcDay": 1, "status": "fixed"}
+  },
+  "rewards": {
+    "crown": {
+      "to": "the winner only",
+      "grants": ["+1 Crown for that arena (profile.crowns)", "+150 round score", "Sparkbearer aura until the next First Spark in that arena on that server: white-gold ribbon and a small crown beside the name, visible to everyone", "arena-wide and server-wide toast naming the winner"],
+      "permanent": [{"crowns": 1, "unlock": "title 'Sparkbearer'"}, {"crowns": 3, "unlock": "ribbon style Firstlight (white-gold)"}, {"crowns": 10, "unlock": "cinch effect Firstlight"}, {"crowns": 25, "unlock": "title 'First Among Sparks' + crown count shown on the nameplate"}],
+      "noLeaderboard": "there is deliberately no crown ranking: a board would reward attendance, not skill"
+    },
+    "assist": {
+      "to": "every other player who landed a ring or lost a photo finish, when the capture succeeds",
+      "grants": ["+90 round score (60% of the winner's)", "+1 Ember (profile.embers)", "album stamp 'Witnessed the First Spark' the first time"],
+      "permanent": [{"embers": 4, "unlock": "ribbon style Emberlight (copper)"}, {"embers": 12, "unlock": "cinch effect Emberlight"}, {"embers": 30, "unlock": "title 'Kindler'"}]
+    },
+    "never": ["no purchase affects it", "no random drop", "no loss on failure", "no reward that changes gameplay stats"]
+  },
+  "fairness": {
+    "solo": "A solo player must land all three rings: reach 3 of 5 telegraphed glints, 30-60 studs apart, with 4.6 s between touchdowns. Hard, and identical for everyone. Solo rest time may be tuned separately (soloRestSeconds) if crowns prove much easier alone than contested",
+    "soloRestSeconds": {"value": 2.6, "range": [2.0, 2.6], "status": "hyp"},
+    "lateJoiners": "can ring any remaining rest and can win. A player who arrives after it leaves sees the countdown to the next one",
+    "latency": "photo finish + the standard 0.35 s view-clock rewind; ties are decided by loop size, never by arrival order inside the window",
+    "griefing": "players do not collide and ribbons do not interact; nobody can block a glint or cancel another player's ring"
+  },
+  "profile": {"crowns": {"meadow": 0, "canyon": 0, "aurora": 0}, "embers": 0, "crownDay": {"meadow": 0, "canyon": 0, "aurora": 0}, "note": "added in Profile v4 with the Legend fields"}
+}

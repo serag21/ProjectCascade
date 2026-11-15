@@ -65,6 +65,12 @@
 <polyline points="272,336 384,264 496,336" fill="none" stroke="#8a4fd6" stroke-width="3" stroke-dasharray="10 6" stroke-linejoin="round"/>
 <circle cx="272" cy="336" r="5" fill="#8a4fd6"/>
 <text x="328" y="292" font-size="9" font-weight="bold" text-anchor="middle" fill="#8a4fd6" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">legend_glide</text>
+<polyline points="296,520 160,408 304,304 488,248 608,432" fill="none" stroke="#f4f1ff" stroke-width="1.2" stroke-dasharray="2 6" stroke-opacity=".7"/>
+<circle cx="296" cy="520" r="9" fill="#fffbe0" stroke="#f4f1ff" stroke-width="1.6"/><text x="296" y="524" font-size="11" font-weight="bold" text-anchor="middle" fill="#1b2440">1</text>
+<circle cx="160" cy="408" r="9" fill="#fffbe0" stroke="#f4f1ff" stroke-width="1.6"/><text x="160" y="412" font-size="11" font-weight="bold" text-anchor="middle" fill="#1b2440">2</text>
+<circle cx="304" cy="304" r="9" fill="#fffbe0" stroke="#f4f1ff" stroke-width="1.6"/><text x="304" y="308" font-size="11" font-weight="bold" text-anchor="middle" fill="#1b2440">3</text>
+<circle cx="488" cy="248" r="9" fill="#fffbe0" stroke="#f4f1ff" stroke-width="1.6"/><text x="488" y="252" font-size="11" font-weight="bold" text-anchor="middle" fill="#1b2440">4</text>
+<circle cx="608" cy="432" r="9" fill="#fffbe0" stroke="#f4f1ff" stroke-width="1.6"/><text x="608" y="436" font-size="11" font-weight="bold" text-anchor="middle" fill="#1b2440">5</text>
 <circle cx="344" cy="528" r="36" fill="#fff" fill-opacity=".18" stroke="#f4f1ff" stroke-width="2" stroke-dasharray="2 5"/>
 <text x="344" y="532" font-size="10" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">crownlet x3</text>
 <text x="344" y="548" font-size="8" font-weight="normal" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">rim_s</text>
@@ -100,11 +106,12 @@
 <text x="384" y="652" font-size="9" font-weight="bold" text-anchor="middle" fill="#f4f1ff" stroke="#191a3a" stroke-width="2.5" paint-order="stroke">SPAWN</text>
 <text x="14" y="728" font-size="20" font-weight="bold" fill="#f4f1ff">AURORA ARCADE — THE FROZEN DIAL</text>
 <text x="14" y="746" font-size="11" fill="#f4f1ff">a night-lit ice lake where momentum draws your loops for you. Grid 20 studs; +x east, +z south. Generated from data/arenas/aurora.json — do not edit by hand.</text>
-<rect x="14" y="756" width="14" height="8" fill="#e2452f"/><text x="32" y="764" font-size="10" fill="#f4f1ff">stampede route</text>
-<rect x="126.8" y="756" width="14" height="8" fill="#ff9a1f"/><text x="144.8" y="764" font-size="10" fill="#f4f1ff">run / burrow circuit</text>
-<rect x="276.8" y="756" width="14" height="8" fill="#8a4fd6"/><text x="294.8" y="764" font-size="10" fill="#f4f1ff">legend route</text>
-<rect x="377.20000000000005" y="756" width="14" height="8" fill="#19b8a6"/><text x="395.20000000000005" y="764" font-size="10" fill="#f4f1ff">wind lane</text>
-<rect x="459.00000000000006" y="756" width="14" height="8" fill="#ffcf2e"/><text x="477.00000000000006" y="764" font-size="10" fill="#f4f1ff">bank ring</text>
-<rect x="540.8000000000001" y="756" width="14" height="8" fill="#f4f1ff"/><text x="558.8000000000001" y="764" font-size="10" fill="#f4f1ff">habitat (dotted)</text>
-<rect x="666.0000000000001" y="756" width="14" height="8" fill="#f4f1ff"/><text x="684.0000000000001" y="764" font-size="10" fill="#f4f1ff">solid = filled, soft = dashed</text>
+<rect x="14" y="756" width="14" height="8" fill="#fffbe0"/><text x="32" y="764" font-size="10" fill="#f4f1ff">First Spark glints 1-5</text>
+<rect x="176.4" y="756" width="14" height="8" fill="#e2452f"/><text x="194.4" y="764" font-size="10" fill="#f4f1ff">stampede route</text>
+<rect x="289.2" y="756" width="14" height="8" fill="#ff9a1f"/><text x="307.2" y="764" font-size="10" fill="#f4f1ff">run / burrow circuit</text>
+<rect x="439.2" y="756" width="14" height="8" fill="#8a4fd6"/><text x="457.2" y="764" font-size="10" fill="#f4f1ff">legend route</text>
+<rect x="539.6" y="756" width="14" height="8" fill="#19b8a6"/><text x="557.6" y="764" font-size="10" fill="#f4f1ff">wind lane</text>
+<rect x="621.4000000000001" y="756" width="14" height="8" fill="#ffcf2e"/><text x="639.4000000000001" y="764" font-size="10" fill="#f4f1ff">bank ring</text>
+<rect x="703.2" y="756" width="14" height="8" fill="#f4f1ff"/><text x="721.2" y="764" font-size="10" fill="#f4f1ff">habitat (dotted)</text>
+<rect x="828.4000000000001" y="756" width="14" height="8" fill="#f4f1ff"/><text x="846.4000000000001" y="764" font-size="10" fill="#f4f1ff">solid = filled, soft = dashed</text>
 </svg>

@@ -1,0 +1,83 @@
+{
+  "_note": "Exactly what the first playable slice (Checkpoint 1) contains. If it is not listed as 'in', it is absent or hidden. tools/validate.py checks every id here against the other data files.",
+  "purpose": "decide whether movement, herding and ring closure are enjoyable enough to build the rest around",
+  "arena": "meadow",
+  "players": "built for 1-4 (shared clock, atomic claims) but ACCEPTED solo only",
+  "species": ["pip", "bunvolt", "cubloom", "flutter"],
+  "in": {
+    "movement": ["walk 24", "client-predicted dash with 2 charges", "jump", "raised chase camera", "camera pitch preset keys [ and ]", "Classic camera setting", "bounce caps"],
+    "loop": ["ribbon", "snap and crossing closure", "snap preview", "cinch", "server claim validation with lag compensation", "techniques SNAP, TIGHT, MEDLEY", "size multiplier", "chain links and multiplier", "empty-loop whiff", "escape 'nope' hop"],
+    "parade": ["capacity 12", "overflow", "two run-through bank rings", "bank multiplier", "auto-bank at the buzzer"],
+    "world": ["full Meadow from meadow.json", "client decor", "arena lighting profile", "hedge and canopy fade"],
+    "events": ["bloom_burst", "stampede"],
+    "round": ["shared 110 s clock and 10 s intermission (existing Cycle)", "3-2-1 start", "results sheet (score, medal from medalsProvisional, best loop size, next round countdown)"],
+    "hud": ["timer", "phase", "parade", "score", "chain", "menu", "toast", "dash", "hint", "dashButton"],
+    "onboarding": ["starter Pips (existing allowance)", "ghost ring round 1", "hint: Run a circle around the Sparks", "hint: Bigger ring, bigger score", "hint: Dash to snap a ring shut (after the first Bunvolt escape)"],
+    "debug": ["F8 overlay v2 (11 section 6)", "F9 tuning panel: ribbon lifetime, snap radius, dash distance, walk speed, camera pitch/distance, creature scale (Studio only, session only)", "claimDeviation telemetry in the F8 overlay"]
+  },
+  "stubbed": {
+    "PINCH": "walls block creatures and are built, but ribbon-to-wall closure is stage 2 (WP-13). No pinch hint in the slice",
+    "golden_runaway": "not spawned; the finale is the x1.5 loop multiplier only",
+    "results": "no Best Loop card drawing, no next-goal line, no CLAIM button",
+    "audio": "see cues below: existing WAVs via built-in fallbacks unless the owner uploads; music = existing music_meadow + finale layer"
+  },
+  "off": {
+    "static_puff": "hazard disabled",
+    "legend": "disabled",
+    "first_spark": "disabled",
+    "daily_stampede": "menu entry hidden (tuning.features.trialEnabled = false)",
+    "heat_and_perks": "forced to Heat 0, no perks; Play Setup tab hidden",
+    "upgrades": "Upgrades tab hidden; boots/magnet/basket levels ignored (fixed tuning values) so the feel under test is the same for everyone",
+    "weekly_remix": "forced to none",
+    "arena_travel": "Canyon and Aurora are locked in the menu (old layouts still exist behind worldLegacy but are not reachable)",
+    "profile_changes": "profile stays v3; glow and XP still accrue through the existing bank/round paths; quests keyed to old counters keep counting TIGHT as precision and SNAP as dashCatches"
+  },
+  "cues": {
+    "_note": "Audio the slice plays. 'asset' names a WAV: existing = already in assets/audio; new = to be generated in WP-07 with the recipe in 11 section 5. Every id is silent or on a built-in placeholder until the owner uploads and runs tools/set_audio_ids.py, so audio is NOT judged at Checkpoint 1.",
+    "sfx": [
+      {"id": "loop_close", "asset": "new: loop_close.wav", "fallback": "rbxasset://sounds/electronicpingshort.wav @ speed 0.8"},
+      {"id": "loop_cinch", "asset": "new: loop_cinch.wav", "fallback": "none (silent)"},
+      {"id": "catch_pop", "asset": "existing: catch.wav, PlaybackSpeed = 2^(step/12) on the pentatonic ladder", "fallback": "catalog fallback of 'catch'"},
+      {"id": "loop_whiff", "asset": "new: loop_whiff.wav", "fallback": "rbxasset://sounds/button.wav @ speed 0.6"},
+      {"id": "tech_stinger", "asset": "existing: signature.wav", "fallback": "none (silent)"},
+      {"id": "roundup_stinger", "asset": "existing: chain_tier.wav @ speed 0.8", "fallback": "catalog fallback of 'chain_tier'"},
+      {"id": "stampede_stinger", "asset": "existing: golden_catch.wav", "fallback": "catalog fallback of 'golden_catch'"},
+      {"id": "ribbon_near_close", "asset": "new: ribbon_tick.wav", "fallback": "catalog fallback of 'ui' @ speed 1.5"},
+      {"id": "dash_go", "asset": "existing: dash.wav (second charge speed 1.19)", "fallback": "catalog fallback of 'dash'"},
+      {"id": "dash_ready", "asset": "existing: ui_click.wav @ speed 1.6", "fallback": "catalog fallback of 'ui_click'"},
+      {"id": "dash_empty", "asset": "existing: ui_click.wav @ speed 0.5", "fallback": "catalog fallback of 'ui_click'"},
+      {"id": "boop", "asset": "existing: pop.wav @ speed 0.8", "fallback": "catalog fallback of 'pop'"},
+      {"id": "bank_slam", "asset": "existing: bank.wav", "fallback": "catalog fallback of 'bank'"},
+      {"id": "chain_up", "asset": "existing: chain_tier.wav", "fallback": "catalog fallback of 'chain_tier'"},
+      {"id": "bounce_cap", "asset": "existing: pop.wav @ speed 0.6", "fallback": "catalog fallback of 'pop'"},
+      {"id": "bloom_chime", "asset": "existing: gate_open.wav", "fallback": "none (silent)"},
+      {"id": "bloom_open", "asset": "existing: golden_spawn.wav", "fallback": "none (silent)"},
+      {"id": "stampede_rumble", "asset": "existing: stampede_rumble.wav (looped 49-55 s)", "fallback": "none (silent)"},
+      {"id": "stampede_horn", "asset": "existing: start_whistle.wav @ speed 0.75 (the real horn is WP-17)", "fallback": "none (silent)"},
+      {"id": "round_count", "asset": "existing: countdown.wav", "fallback": "catalog fallback of 'countdown'"},
+      {"id": "round_go", "asset": "existing: start_whistle.wav", "fallback": "none (silent)"},
+      {"id": "round_time", "asset": "existing: buzzer.wav", "fallback": "none (silent)"}
+    ],
+    "music": {"base": "existing: music_meadow.wav", "finaleLayer": "existing: music_meadow_finale.wav (fades in at 85 s)", "notInSlice": "stems B and C, intermission low-pass, x4 tambourine"},
+    "newWavs": ["loop_close.wav", "loop_cinch.wav", "loop_whiff.wav", "ribbon_tick.wav"],
+    "voices": "none in the slice except the Bunvolt hop wind-up, which reuses pop.wav @ speed 0.5 (it is gameplay information)"
+  },
+  "visualCues": [
+    {"id": "ribbon", "texture": "ribbon_trail.png", "fallback": "untextured Trail"},
+    {"id": "ribbon_snap_preview", "texture": "snap_dash.png", "fallback": "untextured Beam, width 0.3"},
+    {"id": "loop_cinch", "texture": "cinch_ring.png", "fallback": "untextured Beams"},
+    {"id": "catch_pop", "texture": "pop_spark.png", "fallback": "default particle"},
+    {"id": "payout_tag", "texture": null, "fallback": null},
+    {"id": "telegraph_ring", "texture": "telegraph_ring.png", "fallback": "flat neon ring part"},
+    {"id": "boop_ring", "texture": "telegraph_ring.png", "fallback": "flat neon ring part"},
+    {"id": "bank_fountain", "texture": "pop_spark.png", "fallback": "default particle"},
+    {"id": "dash_streak", "texture": null, "fallback": null}
+  ],
+  "defaults": {
+    "terrain": "Roblox Terrain on (tuning.features.worldPartsOnly = false). If server start exceeds 5 s or M1 fails, flip the flag and rebuild",
+    "camera": "raised chase, pitch 46, distance 38; Classic available in Settings",
+    "textures": "fallbacks until the owner uploads the 7 PNGs",
+    "audio": "fallbacks until the owner uploads",
+    "medals": "tuning.scoring.medalsProvisional"
+  }
+}

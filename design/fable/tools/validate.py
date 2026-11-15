@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Validate design/fable data for internal consistency and render the arena maps.
+"""Validate design/fable data and documents for internal consistency and render the arena maps.
 
 Usage (from the repository root):  python3 design/fable/tools/validate.py [--no-render]
 Exit code 0 = consistent. Stdlib only. Never touches game/.
 """
 import json, math, re, sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
@@ -120,6 +121,19 @@ for aid, a in arenas.items():
         n = len(r["points"]); closed = r.get("closed", False)
         for p in r["points"]:
             if not pip(p, B): err(f"{tag} route {r['id']} point {p} outside bounds")
+        if r["kind"] == "glint":
+            if n != 5: err(f"{tag} glint route needs 5 points")
+            for i in range(n - 1):
+                d = math.hypot(r["points"][i + 1][0] - r["points"][i][0], r["points"][i + 1][1] - r["points"][i][1])
+                if not 30 <= d <= 60: err(f"{tag} glint {i}->{i+1} is {d:.0f} studs apart (need 30-60)")
+            for i, p in enumerate(r["points"]):
+                for f in blockers:
+                    if blocker_clearance(p, f) < 3: err(f"{tag} glint {i} within 3 of blocker {f['id']}")
+                for b in a["bankRings"]:
+                    if math.hypot(p[0] - b["x"], p[1] - b["z"]) < b["r"] + 8: err(f"{tag} glint {i} too close to bank ring {b['id']}")
+                if ground_y(p) != r.get("ys", [0] * 5)[i]: err(f"{tag} glint {i} y {r.get('ys', [0]*5)[i]} != ground {ground_y(p)}")
+                if math.hypot(p[0] - sp[0], p[1] - sp[1]) < 12: err(f"{tag} glint {i} too close to spawn")
+            continue
         for i in range(n if closed else n - 1):
             p, q = r["points"][i], r["points"][(i + 1) % n]
             for f in blockers:
@@ -186,6 +200,7 @@ for aid, a in arenas.items():
         if ea["event"] not in {e["id"] for e in events["events"]}: err(f"{tag} event anchor {ea['id']} unknown event")
     if sum(1 for r in a["routes"] if r["kind"] == "stampede") != 2: err(f"{tag} needs exactly 2 stampede routes")
     if sum(1 for r in a["routes"] if r["kind"] in ("legend", "run")) < 1: err(f"{tag} needs a legend route")
+    if sum(1 for r in a["routes"] if r["kind"] == "glint") != 1: err(f"{tag} needs exactly one First Spark glint route")
     notes.append(f"{aid}: {len(a['features'])} features, {len(hl)} habitats, {total}/{cap} base creatures, bounds {max(p[0] for p in B)-min(p[0] for p in B)}x{max(p[1] for p in B)-min(p[1] for p in B)} studs")
 
 # ---------- events ----------
@@ -250,9 +265,137 @@ for p in wps["packages"]:
     for d in p["deps"]:
         if d not in wp: err(f"{p['id']} dep {d} missing")
         elif wp[d]["stage"] > p["stage"]: err(f"{p['id']} depends on later-stage {d}")
-        elif int(d[3:]) >= int(p["id"][3:]): err(f"{p['id']} dep {d} is not earlier (cycle risk)")
     if p["agent"] not in ("opus", "sonnet"): err(f"{p['id']} agent")
     if not p["accept"]: err(f"{p['id']} has no acceptance criteria")
+
+
+# ---------- models, reference rules, test vectors, round model ----------
+models = json.loads((DATA / "models/meadow_creatures.json").read_text())
+scale = tuning["creatures"]["globalScale"]["value"]
+for sid, d in models["species"].items():
+    if sid not in species: err(f"model {sid} is not a species"); continue
+    sil = species[sid]["silhouette"]
+    if len(d["parts"]) != sil["parts"]: err(f"model {sid} has {len(d['parts'])} parts, creatures.json says {sil['parts']}")
+    if abs(d["height"] * scale - sil["height"]) > 0.15 or abs(d["width"] * scale - sil["width"]) > 0.15: err(f"model {sid} size x globalScale != creatures.json silhouette")
+    top = max(p["pos"][1] + p["size"][1] / 2 for p in d["parts"])
+    if abs(top - d["height"]) > 0.45: err(f"model {sid} declared height {d['height']} but parts reach {top:.2f}")
+    if sum(1 for p in d["parts"] if p["name"].startswith("eye")) != 2: err(f"model {sid} needs exactly two eyes")
+if set(models["species"]) != set(assets["creatureModels"]["authored"]): err("asset_manifest.creatureModels.authored != data/models species")
+for s in creatures["species"]:
+    if s["signature"] == "PRECISE" and s["pod"]["size"][1] == 1 and "soloTightArea" not in s: err(f"{s['id']} is a solo PRECISE species without soloTightArea")
+import io, contextlib
+committed = (DATA / "test_vectors.json").read_text()
+with contextlib.redirect_stdout(io.StringIO()):
+    import gen_test_vectors  # regenerates data/test_vectors.json from the reference
+if (DATA / "test_vectors.json").read_text() != committed: err("data/test_vectors.json was stale (now regenerated: review and commit)")
+tv = json.loads((DATA / "test_vectors.json").read_text())
+notes.append(f"test vectors: {len(tv['closure'])} closure, {len(tv['containment'])} containment, {len(tv['validation'])} validation, {len(tv['resolution'])} resolution, {len(tv['scoring'])} scoring, {len(tv['bank'])} bank")
+import play_model
+with contextlib.redirect_stdout(io.StringIO()): pm = play_model.run_all()
+stored = json.loads((DATA / "play_model_results.json").read_text())["results"]
+if stored != json.loads(json.dumps(pm)): err("data/play_model_results.json is stale: run tools/play_model.py --write")
+v1, v2 = pm["v1_db5dd1b"], pm["v2_current"]
+sc = lambda t, k: t[k]["score_mean"]
+if not sc(v1, "optimizer_singles") > sc(v1, "competent_roundup"): err("model no longer reproduces the v1 problem it documents")
+if not sc(v2, "optimizer_singles") < sc(v2, "competent_roundup"): err("PLAY PATTERN: farming singles beats competent herding under current rules")
+if not sc(v2, "optimizer_herder") >= 2.5 * sc(v2, "optimizer_singles"): err("PLAY PATTERN: expert herding is not clearly ahead of expert single-farming")
+med = tuning["scoring"]["medalsProvisional"]["value"]
+if not med["Bronze"] <= v2["beginner_single_pip"]["score_mean"]: err("provisional Bronze is above the beginner model mean")
+if not v2["competent_roundup"]["score_p10"] >= med["Silver"]: err("provisional Silver is above the competent p10")
+if not v2["optimizer_herder"]["score_p10"] >= med["Gold"]: err("provisional Gold is above the herding optimizer p10")
+notes.append("round model (Meadow slice, mean score): " + ", ".join(f"{k} {v['score_mean']}" for k, v in v2.items()))
+
+# ---------- audio vs the live catalog ----------
+catalog = set(re.findall(r"^\t(\w+)=\{", (REPO / "game/ReplicatedStorage/Spark/AudioCatalog.luau").read_text(), re.M))
+for s in audio["sfx"]:
+    if "existing" in s and s["existing"] not in catalog: err(f"audio {s['id']}: existing key '{s['existing']}' is not in AudioCatalog.luau")
+audio_files = {p.name for p in (REPO / "assets/audio").glob("*.wav")}
+
+# ---------- slice ----------
+slice_ = load("slice.json")
+ev_ids = {e["id"] for e in events["events"]}
+if slice_["arena"] not in arenas: err("slice arena unknown")
+sa = arenas[slice_["arena"]]
+if set(slice_["species"]) != {p["species"] for p in sa["pods"]}: err("slice species != species with pods in the slice arena")
+for e in slice_["in"]["events"]:
+    if e not in ev_ids or sa["biomeIndex"] not in next(x for x in events["events"] if x["id"] == e)["arenas"]: err(f"slice event {e} invalid for the slice arena")
+if set(slice_["in"]["hud"]) != set(el): err("slice HUD elements != ui_layout elements")
+sfx_ids = set(aids)
+for c in slice_["cues"]["sfx"]:
+    if c["id"] not in sfx_ids: err(f"slice cue {c['id']} not in audio_events.json")
+    m = re.match(r"(existing|new): (\w+\.wav)", c["asset"])
+    if not m: err(f"slice cue {c['id']} asset must start 'existing: x.wav' or 'new: x.wav'")
+    elif m.group(1) == "existing" and m.group(2) not in audio_files: err(f"slice cue {c['id']}: {m.group(2)} is not in assets/audio")
+    elif m.group(1) == "new" and m.group(2) not in slice_["cues"]["newWavs"]: err(f"slice cue {c['id']}: {m.group(2)} missing from newWavs")
+for k in ("base", "finaleLayer"):
+    if slice_["cues"]["music"][k].split(": ")[1].split(" ")[0] not in audio_files: err(f"slice music {k} file missing")
+vfx_ids = {x["id"] for x in assets["vfx"]}; tex = set(assets["textures"]["files"])
+for c in slice_["visualCues"]:
+    if c["id"] not in vfx_ids: err(f"slice visual cue {c['id']} not in asset_manifest vfx")
+    if c["texture"] and c["texture"] not in tex: err(f"slice texture {c['texture']} not in asset manifest")
+for f in tex:
+    if not (ROOT / assets["textures"]["dir"] / f).exists(): err(f"texture file missing: {f}")
+for off in ("static_puff", "legend", "first_spark"):
+    if off not in slice_["off"]: err(f"slice must list {off} as off")
+notes.append(f"slice: {len(slice_['species'])} species, {len(slice_['in']['events'])} events, {len(slice_['cues']['sfx'])} audio cues ({len(slice_['cues']['newWavs'])} new WAVs), {len(slice_['visualCues'])} visual cues")
+
+# ---------- First Spark ----------
+fs = load("first_spark.json")
+if set(fs["schedule"]["marks"]) != set(arenas): err("first_spark marks must cover exactly the arenas")
+if len(set(fs["schedule"]["marks"].values())) != len(arenas): err("first_spark marks must be staggered")
+if fs["capture"]["ringsNeeded"] > fs["course"]["glints"]: err("first_spark needs more rings than glints")
+total = fs["course"]["glints"] * fs["course"]["restSeconds"]["value"] + (fs["course"]["glints"]) * fs["course"]["streakSeconds"]["value"]
+if abs(total - fs["course"]["totalSeconds"]) > 0.01: err(f"first_spark totalSeconds should be {total}")
+walk = tuning["movement"]["walkSpeed"]["value"]
+budget = fs["course"]["restSeconds"]["value"] + fs["course"]["streakSeconds"]["value"]
+for aid, a in arenas.items():
+    g = next(r for r in a["routes"] if r["kind"] == "glint")["points"]
+    worst = max(math.hypot(g[i + 1][0] - g[i][0], g[i + 1][1] - g[i][1]) for i in range(4))
+    need = worst / walk + 1.3   # run there, then a 5-stud-radius ring
+    if need > budget + fs["course"]["restSeconds"]["value"] - 1.3 + 1.3: err(f"[{aid}] solo cannot reach consecutive glints in time")
+    notes.append(f"first spark [{aid}]: longest hop {worst:.0f} studs = {worst/walk:.1f} s on foot; touchdown-to-touchdown {budget:.1f} s")
+
+# ---------- rotation ----------
+rot = load("rotation.json")
+live_remix = re.findall(r'\{id="(\w+)", name=', (REPO / "game/ReplicatedStorage/Spark/Remix.luau").read_text())
+if [r["id"] for r in rot["remixes"]] != live_remix: err("rotation remix ids/order differ from Remix.luau (Remix.forWeek indexes by position)")
+if len(rot["gauntlets"]) != 5: err("rotation needs 5 gauntlets (week % 5)")
+order12 = [s["id"] for s in creatures["species"]]
+if len({(w * 5) % 12 for w in range(12)}) != 12: err("spotlight formula does not visit all 12 species")
+feat_ids = [f["id"] for f in rot["feats"]["list"]]
+if len(feat_ids) != len(set(feat_ids)): err("duplicate feat ids")
+vocab = set(rot["feats"]["vocabulary"]) | {"noRibbonCutBy", "chainHeldFrom", "medal"}
+for f in rot["feats"]["list"]:
+    w = f["when"]
+    if w.get("species") and w["species"] not in species: err(f"feat {f['id']} unknown species")
+    if w.get("event") and w["event"] not in ev_ids: err(f"feat {f['id']} unknown event")
+    if w.get("arena") and w["arena"] not in arenas: err(f"feat {f['id']} unknown arena")
+    for k in w:
+        if k not in vocab: err(f"feat {f['id']} uses condition '{k}' outside the vocabulary")
+    for tname in w.get("techs", []):
+        if tname not in tuning["scoring"]["techs"]: err(f"feat {f['id']} unknown technique {tname}")
+if {f["when"].get("species") for f in rot["feats"]["list"]} >= set(species) is False: err("not every species has a feat")
+arena_names = ["meadow", "canyon", "aurora"]
+notes.append("rotation, first 8 week indices: " + " | ".join(f"w{w}: {rot['remixes'][w % 6]['name']} + {rot['gauntlets'][w % 5]['name']} @ {arena_names[w % 3]} + {species[order12[(w * 5) % 12]]['name']}" for w in range(8)))
+
+# ---------- documents refer only to things that exist ----------
+known_wp = {p["id"] for p in wps["packages"]}
+for md in sorted(ROOT.glob("*.md")):
+    text = md.read_text()
+    for ref in set(re.findall(r"`((?:data|mockups|maps|assets|tools)/[\w./*{},-]+)`", text)):
+        if "*" in ref or "{" in ref: continue
+        planned = {"tools/gen_design_data.py"}   # created by WP-01
+        if not (ROOT / ref).exists() and not (REPO / ref).exists() and ref not in planned: err(f"{md.name} refers to missing file {ref}")
+    for w in set(re.findall(r"WP-\d\d", text)):
+        if w not in known_wp: err(f"{md.name} refers to unknown {w}")
+orders = sorted(p["order"] for p in wps["packages"])
+if orders != list(range(1, len(orders) + 1)): err("work package order must be 1..N without gaps")
+by_order = sorted(wps["packages"], key=lambda p: p["order"])
+for p in by_order:
+    for d in p["deps"]:
+        if wp[d]["order"] >= p["order"]: err(f"{p['id']} is ordered before its dependency {d}")
+if [p["stage"] for p in by_order] != sorted(p["stage"] for p in by_order): err("work package order must not go back a stage")
+notes.append("route: " + " > ".join(p["id"][3:] for p in by_order))
 
 # ---------- render maps ----------
 def render(a):
@@ -300,9 +443,14 @@ def render(a):
             o.append(f'<circle cx="{X(f["x"])}" cy="{Z(f["z"])}" r="{max(f["r"],1.5)*S}" fill="{col}" fill-opacity="{.95 if f.get("solid") else .45}" stroke="{ink}" stroke-width="{3 if t.startswith("landmark") else 1}"{dash}/>')
             if t.startswith("landmark") or f["r"] >= 5: lab(f["x"], f["z"] - f["r"] - 2, f["id"], 10, "bold")
             elif t not in ("perch_flower", "mound", "lake_marker"): lab(f["x"], f["z"] - f["r"] - 1.5, f["id"], 8)
-    rc = {"stampede": "#e2452f", "run": "#ff9a1f", "legend": "#8a4fd6", "wind": "#19b8a6", "burrow": "#3d74d9"}
+    rc = {"stampede": "#e2452f", "run": "#ff9a1f", "legend": "#8a4fd6", "wind": "#19b8a6", "burrow": "#3d74d9", "glint": "#ffffff"}
     for r in a["routes"]:
         tag = "polygon" if r.get("closed") else "polyline"
+        if r["kind"] == "glint":
+            o.append(f'<polyline points="{pts(r["points"])}" fill="none" stroke="{ink}" stroke-width="1.2" stroke-dasharray="2 6" stroke-opacity=".7"/>')
+            for i, (gx, gz) in enumerate(r["points"]):
+                o.append(f'<circle cx="{X(gx)}" cy="{Z(gz)}" r="9" fill="#fffbe0" stroke="{ink}" stroke-width="1.6"/><text x="{X(gx)}" y="{Z(gz)+4}" font-size="11" font-weight="bold" text-anchor="middle" fill="#1b2440">{i+1}</text>')
+            continue
         o.append(f'<{tag} points="{pts(r["points"])}" fill="none" stroke="{rc[r["kind"]]}" stroke-width="3" stroke-dasharray="10 6" stroke-linejoin="round"/>')
         p0, p1 = r["points"][0], r["points"][1]
         o.append(f'<circle cx="{X(p0[0])}" cy="{Z(p0[1])}" r="5" fill="{rc[r["kind"]]}"/>')
@@ -324,7 +472,7 @@ def render(a):
     o.append(f'<text x="14" y="{H+24}" font-size="20" font-weight="bold" fill="{ink}">{a["name"].upper()} — {a["identity"].split(" - ")[0]}</text>')
     o.append(f'<text x="14" y="{H+42}" font-size="11" fill="{ink}">{a["identity"].split(" - ")[1]}. Grid 20 studs; +x east, +z south. Generated from data/arenas/{a["id"]}.json — do not edit by hand.</text>')
     lx = 14
-    for name, col in [("stampede route", rc["stampede"]), ("run / burrow circuit", rc["run"]), ("legend route", rc["legend"]), ("wind lane", rc["wind"]), ("bank ring", "#ffcf2e"), ("habitat (dotted)", ink), ("solid = filled, soft = dashed", ink)]:
+    for name, col in [("First Spark glints 1-5", "#fffbe0"), ("stampede route", rc["stampede"]), ("run / burrow circuit", rc["run"]), ("legend route", rc["legend"]), ("wind lane", rc["wind"]), ("bank ring", "#ffcf2e"), ("habitat (dotted)", ink), ("solid = filled, soft = dashed", ink)]:
         o.append(f'<rect x="{lx}" y="{H+52}" width="14" height="8" fill="{col}"/><text x="{lx+18}" y="{H+60}" font-size="10" fill="{ink}">{name}</text>'); lx += 26 + len(name) * 6.2
     o.append("</svg>")
     (ROOT / "maps" / f"{a['id']}.svg").write_text("\n".join(o))

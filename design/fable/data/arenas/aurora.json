@@ -52,7 +52,8 @@
     {"id": "wind_east", "kind": "wind", "points": [[62,-30],[72,-8],[70,22],[56,46],[28,58]], "note": "one-way, north to south"},
     {"id": "stampede_ice", "kind": "stampede", "points": [[-66,-26],[-30,-18],[0,-16],[30,-18],[66,-26]], "note": "the herd SLIDES across the lake; loops here are drawn while gliding"},
     {"id": "stampede_rim", "kind": "stampede", "points": [[64,28],[40,44],[18,54],[-12,54],[-40,46],[-64,28]]},
-    {"id": "legend_glide", "kind": "legend", "points": [[-28,0],[0,-18],[28,0]], "note": "ping-pong between the three lake markers"}
+    {"id": "legend_glide", "kind": "legend", "points": [[-28,0],[0,-18],[28,0]], "note": "ping-pong between the three lake markers"},
+    {"id": "first_spark_glints", "kind": "glint", "points": [[-22, 46], [-56, 18], [-20, -8], [26, -22], [56, 24]], "note": "touchdown points in order for the First Spark (data/first_spark.json)"}
   ],
   "eventAnchors": [
     {"id": "sf_1", "event": "starfall", "x": -24, "z": -8},

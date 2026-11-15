@@ -3,7 +3,7 @@
   "movementTwist": "none (baseline feel). Bounce caps give a free aerial view.",
   "units": "arena-relative studs; +x east, +z south (toward the hub); y up; ground y=0 unless an elevation says otherwise",
   "bounds": [[-20,74],[20,74],[52,66],[76,44],[86,10],[80,-28],[60,-56],[26,-72],[-14,-76],[-52,-64],[-78,-36],[-86,0],[-78,36],[-52,62]],
-  "boundaryArt": "4-stud flowering hedge on a 2-stud grass berm; counts as a pinch wall",
+  "boundaryArt": "3.5-stud flowering hedge on a low grass berm; counts as a pinch wall. Hedge parts between the camera and the local player fade to 70% transparency (the spawn lawn is close to the south boundary)",
   "spawn": {"x": 0, "z": 66, "facing": "north"},
   "elevation": [
     {"id": "clover_knoll", "type": "hill", "x": 4, "z": -30, "r": 26, "y": 6},
@@ -52,7 +52,8 @@
   "routes": [
     {"id": "stampede_north", "kind": "stampede", "points": [[-72,-30],[-50,-40],[-28,-36],[-12,-48],[24,-52],[44,-54],[66,-34],[74,-14]]},
     {"id": "stampede_south", "kind": "stampede", "points": [[74,22],[46,24],[22,36],[-2,32],[-24,28],[-48,20],[-70,18]]},
-    {"id": "legend_walk", "kind": "legend", "closed": true, "points": [[30,16],[4,14],[-6,34],[8,50],[30,44]]}
+    {"id": "legend_walk", "kind": "legend", "closed": true, "points": [[30,16],[4,14],[-6,34],[8,50],[30,44]]},
+    {"id": "first_spark_glints", "kind": "glint", "points": [[-4, 40], [26, 14], [34, -20], [-14, -50], [-50, -34]], "note": "touchdown points in order for the First Spark (data/first_spark.json)"}
   ],
   "eventAnchors": [
     {"id": "bloom_a", "event": "bloom_burst", "feature": "bud_a"},

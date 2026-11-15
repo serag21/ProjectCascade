@@ -63,7 +63,8 @@
     {"id": "the_run", "kind": "run", "closed": true, "restStones": ["rest_w","rest_e","rest_s"], "points": [[-82,0],[-52,-10],[-20,-8],[0,-8],[22,-8],[54,-12],[84,-8],[88,6],[72,12],[40,8],[20,24],[0,36],[-20,26],[-40,14],[-66,12]]},
     {"id": "stampede_north", "kind": "stampede", "points": [[-90,-4],[-52,-10],[-20,-8],[0,-8],[22,-8],[54,-12],[84,-4]]},
     {"id": "stampede_south", "kind": "stampede", "points": [[88,6],[72,12],[40,8],[20,24],[0,36],[-20,26],[-40,14],[-66,12],[-90,6]]},
-    {"id": "dune_circuit", "kind": "burrow", "closed": true, "points": [[-74,22],[-58,22],[-60,36],[-74,34]]}
+    {"id": "dune_circuit", "kind": "burrow", "closed": true, "points": [[-74,22],[-58,22],[-60,36],[-74,34]]},
+    {"id": "first_spark_glints", "kind": "glint", "points": [[-18, 42], [-44, 18], [-30, -10], [-20, -40], [20, -8]], "note": "touchdown points in order for the First Spark (data/first_spark.json)", "ys": [0, 0, 0, 12, 0]}
   ],
   "eventAnchors": [
     {"id": "gy_w", "event": "fizz_geysers", "feature": "geyser_w"},

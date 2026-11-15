@@ -1,0 +1,73 @@
+{
+  "_note": "Everything a returning player sees change, driven by data and the UTC week index (Progression.week / Remix.week, weeks start Monday 00:00 UTC). Adding an entry to any list is a data-only content update. Numbers are hypotheses. Stage 3 (WP-21) unless noted.",
+  "principles": [
+    "Nothing here is exclusive to a date: every gauntlet, reward and spotlight returns on a fixed cycle, so a missed week costs nothing permanent",
+    "Targets are skill thresholds, never volume ('do X once well', not 'do X 200 times')",
+    "No streaks, no login rewards, no timers that punish absence",
+    "No reward changes gameplay stats"
+  ],
+  "weekly": {
+    "remix": {"pick": "remixes[week % 6]", "existing": "Remix.forWeek"},
+    "gauntlet": {"pick": "gauntlets[week % 5]"},
+    "gauntletArena": {"pick": "['meadow','canyon','aurora'][week % 3]"},
+    "spotlight": {"pick": "Config.Creatures[(week * 5) % 12]", "effect": "that species has one extra pod in its arena (spare habitat) and its signature catches count double toward signature stars for the week"},
+    "repeatPeriodWeeks": 60, "note": "lcm(6,5,3,12): the same full combination returns after 60 weeks; any single element returns within 6"
+  },
+  "remixes": [
+    {"id": "golden_rush", "name": "Golden Rush", "rule": "two extra Golden Runaways in the finale", "data": {"extraGoldens": 2}},
+    {"id": "big_herd", "name": "Big Herd", "rule": "every arena's spare habitat holds a pod and the Stampede brings 4 more", "data": {"sparePods": true, "stampedeExtra": 4}},
+    {"id": "rhythm_week", "name": "Rhythm Week", "rule": "chain window +1 s", "data": {"chainBonus": 1}},
+    {"id": "stampede_season", "name": "Stampede Season", "rule": "a second Stampede at 95 s on the other route", "data": {"secondStampedeAt": 95}},
+    {"id": "starfall_everywhere", "name": "Starfall Everywhere", "rule": "Starfall replaces the signature event in every arena (impact points: that arena's bloom buds / geysers)", "data": {"starfallEverywhere": true}},
+    {"id": "fizz_festival", "name": "Fizz Festival", "rule": "Static Puff pops are worth double; Puffs appear only at Heat 1+", "data": {"popMultiplier": 2, "staticsMinHeat": 1}}
+  ],
+  "gauntlets": [
+    {"id": "one_ribbon", "name": "One Short Ribbon", "rule": "ribbon lifetime 3.0 s, length 70", "overrides": {"ribbon.lifetime": 3.0, "ribbon.maxLength": 70}, "tests": "tight, efficient loops"},
+    {"id": "no_dash", "name": "Feet Only", "rule": "no dash", "overrides": {"dash.charges": 0}, "tests": "herding and positioning without SNAP or boops"},
+    {"id": "stampede_only", "name": "Three Stampedes", "rule": "no pods; a Stampede at 20, 55 and 90 s", "overrides": {"pods": false, "stampedeAt": [20, 55, 90]}, "tests": "horseshoe timing and big loops"},
+    {"id": "big_game", "name": "Big Game", "rule": "only Uncommon and Rare species spawn; respawn 4 s", "overrides": {"rarities": ["Uncommon", "Rare"], "podRespawnSeconds": [4, 4]}, "tests": "every species counter back to back"},
+    {"id": "full_parade", "name": "Full Parade", "rule": "banking is only possible with a full parade; a zap ends the run", "overrides": {"bankMinimum": "capacity", "zapEndsRun": true}, "tests": "risk management and routes"}
+  ],
+  "gauntletFormat": {
+    "run": "one 110 s solo run on the Trial paddock of the week's arena, seeded by the week index: identical for everyone that week (reuses the Daily Stampede machinery, WP-15)",
+    "attempts": "unlimited; best score counts",
+    "board": "weekly best-score board per gauntlet (existing weekly leaderboard), reset each week",
+    "seals": {"tiers": ["Bronze", "Silver", "Gold", "Radiant"], "thresholdScale": {"Bronze": 0.5, "Silver": 1.0, "Gold": 1.6, "Radiant": 2.2}, "relativeTo": "that gauntlet's par score, set from the round model then from real runs", "kept": "the best seal per gauntlet is permanent and shown in the Album"},
+    "rewards": "each gauntlet owns one ribbon texture set, unlocked at its Silver seal, recoloured at Gold, animated at Radiant. Available whenever that gauntlet is the week's (every 5 weeks), forever"
+  },
+  "feats": {
+    "_note": "Permanent, authored mastery cards shown in the Album: one per species, plus arena and technique feats. Each is a single well-played moment. Conditions use a small vocabulary the server evaluates on each Loop result or at round end.",
+    "vocabulary": {"scope": "loop | round", "species": "species id that must be in the loop / counted", "count": "how many", "techs": "all listed techniques on that loop", "stateAtCatch": "Herd state the creature was in at the view clock", "loopSize": "minimum creatures in the loop", "speciesInLoop": "minimum distinct species", "chain": "minimum multiplier when the loop lands", "event": "loop made on creatures from this event", "noDash": "no dash used in the round", "bank": "parade size at a bank", "heat": "minimum Heat", "arena": "arena id", "wall": "pinch wall feature id or type"},
+    "list": [
+      {"id": "pip_parade", "name": "Six in a Row", "text": "Ring 6 Pip Pops in one loop", "when": {"scope": "loop", "species": "pip", "count": 6}},
+      {"id": "bunvolt_crouch", "name": "Caught Napping", "text": "SNAP a ring shut on 2 Bunvolts while both are crouching", "when": {"scope": "loop", "species": "bunvolt", "count": 2, "techs": ["SNAP"], "stateAtCatch": "crouch"}},
+      {"id": "cubloom_pen", "name": "Good Shepherd", "text": "PINCH a full Cubloom flock against a stone pen", "when": {"scope": "loop", "species": "cubloom", "count": 4, "techs": ["PINCH"], "wall": "wall_u"}},
+      {"id": "flutter_tight", "name": "Held Breath", "text": "TIGHT ring on a perched Flutterwink", "when": {"scope": "loop", "species": "flutter", "count": 1, "techs": ["TIGHT"], "stateAtCatch": "perched"}},
+      {"id": "sunshell_bowl", "name": "Strike", "text": "Bowl a Sunshell into a group and ring 5 or more", "when": {"scope": "loop", "species": "sunshell", "count": 1, "loopSize": 5}},
+      {"id": "ziptail_moving", "name": "Roadblock", "text": "Catch a Zip Tail that is running, not resting", "when": {"scope": "loop", "species": "ziptail", "count": 1, "stateAtCatch": "run"}},
+      {"id": "prickle_spines", "name": "Threading the Needle", "text": "Ring 2 Prism Prickles with their spines out", "when": {"scope": "loop", "species": "prickle", "count": 2, "stateAtCatch": "spines_out"}},
+      {"id": "dunefin_first", "name": "Called It", "text": "Catch a Dune Fin within 1 s of it breaching", "when": {"scope": "loop", "species": "dunefin", "count": 1, "stateAtCatch": "breach_first_second"}},
+      {"id": "crownlet_court", "name": "Royal Court", "text": "Ring two whole Crownlet courts in one loop", "when": {"scope": "loop", "species": "crownlet", "count": 6}},
+      {"id": "ribbubble_walk", "name": "Soft Feet", "text": "Ring 2 Ribbubbles in a round with no dash", "when": {"scope": "loop", "species": "ribbubble", "count": 2, "noDash": true}},
+      {"id": "starwhirl_snap", "name": "Before It Blinks", "text": "SNAP a Starwhirl during its spin-up", "when": {"scope": "loop", "species": "starwhirl", "count": 1, "techs": ["SNAP"], "stateAtCatch": "spin_up"}},
+      {"id": "antlume_clean", "name": "Stand Your Ground", "text": "Wrap an Antlume twice without its charge cutting your ribbon", "when": {"scope": "round", "species": "antlume", "count": 1, "stateAtCatch": "winded", "noRibbonCutBy": "charge"}},
+      {"id": "meadow_full_bloom", "name": "Full Bloom", "text": "Ring all 8 from one Bloom Burst", "when": {"scope": "loop", "event": "bloom_burst", "loopSize": 8, "arena": "meadow"}},
+      {"id": "canyon_choke", "name": "Chokehold", "text": "Ring 8 from a Stampede at a canyon choke with PINCH", "when": {"scope": "loop", "event": "stampede", "loopSize": 8, "techs": ["PINCH"], "arena": "canyon"}},
+      {"id": "aurora_glide", "name": "One Long Glide", "text": "Ring 8 from the ice Stampede", "when": {"scope": "loop", "event": "stampede", "loopSize": 8, "arena": "aurora"}},
+      {"id": "medley_four", "name": "The Whole Bunch", "text": "Ring all four species of an arena in one loop", "when": {"scope": "loop", "speciesInLoop": 4}},
+      {"id": "triple_tech", "name": "Showing Off", "text": "One loop with SNAP, TIGHT and MEDLEY", "when": {"scope": "loop", "techs": ["SNAP", "TIGHT", "MEDLEY"]}},
+      {"id": "ten_ring", "name": "Lasso", "text": "Ring 10 or more in one loop", "when": {"scope": "loop", "loopSize": 10}},
+      {"id": "chain_keeper", "name": "Unbroken", "text": "Hold x4 from the Stampede to the buzzer", "when": {"scope": "round", "chainHeldFrom": 69, "chain": 4}},
+      {"id": "four_full_banks", "name": "Bank Manager", "text": "Bank a full parade four times in a round", "when": {"scope": "round", "bank": 12, "count": 4}},
+      {"id": "heat_five_gold", "name": "Heartbeat Gold", "text": "Gold medal at Heat 5", "when": {"scope": "round", "medal": "Gold", "heat": 5}}
+    ],
+    "reward": "a feat mark in the Album; every 7 feats unlocks one ribbon colour (3 total)"
+  },
+  "alwaysOn": [
+    {"what": "Daily Stampede", "cadence": "daily", "existing": true},
+    {"what": "First Spark", "cadence": "hourly per arena, staggered 20 min", "data": "first_spark.json"},
+    {"what": "Legends", "cadence": "every 4th arena cycle (about every 8 minutes per arena)", "data": "events.json"},
+    {"what": "Heat 0-5 medals per arena", "cadence": "permanent ladder", "existing": true},
+    {"what": "Signature stars 10 / 25 / 50 per species", "cadence": "permanent ladder", "existing": true}
+  ]
+}
