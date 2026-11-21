@@ -10,13 +10,13 @@ local function arc(a,b) local d=math.abs(a-b)%TAU; return math.min(d,TAU-d) end
 local function clampQ(v) return math.clamp(math.floor(v*10+0.5),-32768,32767)/10 end
 
 -- Constants ------------------------------------------------------------------
-check(HerdNet.Version==1 and HerdNet.MaxPacketBytes==900 and HerdNet.HeaderBytes==8 and HerdNet.EntryBytes==10,"Wire constants")
-check(HerdNet.EntriesPerPacket==89 and HerdNet.HeaderBytes+HerdNet.EntriesPerPacket*HerdNet.EntryBytes<=HerdNet.MaxPacketBytes
+check(HerdNet.Version==2 and HerdNet.MaxPacketBytes==900 and HerdNet.HeaderBytes==8 and HerdNet.EntryBytes==12,"Wire constants")
+check(HerdNet.EntriesPerPacket==74 and HerdNet.HeaderBytes+HerdNet.EntriesPerPacket*HerdNet.EntryBytes<=HerdNet.MaxPacketBytes
 	and HerdNet.HeaderBytes+(HerdNet.EntriesPerPacket+1)*HerdNet.EntryBytes>HerdNet.MaxPacketBytes,"Packet capacity is maximal")
-local bits={fleeing=1,dazed=2,golden=4,runner=8,startled=16,trial=32}
+local bits={fleeing=1,dazed=2,golden=4,runner=8,startled=16,trial=32,private=64}
 local count=0
 for name,bit in pairs(HerdNet.Flags) do count+=1; check(bits[name]==bit,"Flag "..name) end
-check(count==6,"Exactly six flags")
+check(count==7,"Exactly seven flags")
 
 -- Basic round trip -------------------------------------------------------------
 local sample={
@@ -27,11 +27,11 @@ local sample={
 }
 local packets=HerdNet.pack(2,12.25,sample)
 check(#packets==1 and type(packets[1])=="buffer","Small herd fits one packet")
-check(buffer.len(packets[1])==8+4*10,"Exact packet length")
+check(buffer.len(packets[1])==8+4*12,"Exact packet length")
 local state,reason=HerdNet.unpack(packets[1])
 check(state~=nil,"Round trip decodes: "..tostring(reason))
 assert(state)
-check(state.version==1 and state.arena==2 and state.clock==12.25,"Header round trip")
+check(state.version==2 and state.arena==2 and state.clock==12.25,"Header round trip")
 check(#state.entries==4,"Entry count")
 for index,entry in ipairs(sample) do
 	local got=state.entries[index]
@@ -71,7 +71,7 @@ for index,packet in ipairs(split) do
 	check(buffer.len(packet)<=HerdNet.MaxPacketBytes,"Each packet <= 900 bytes")
 	local decoded=HerdNet.unpack(packet); assert(decoded)
 	check(decoded.arena==3 and decoded.clock==99.5,"Each packet carries full header")
-	check(#decoded.entries==(if index==1 then 89 else 31),"Greedy split sizes")
+	check(#decoded.entries==(if index==1 then 74 else 46),"Greedy split sizes")
 	for _,entry in ipairs(decoded.entries) do table.insert(recovered,entry) end
 end
 check(#recovered==120,"All entries recovered")
@@ -84,7 +84,7 @@ local function sized(k)
 	for i=1,k do t[i]={id=i,x=0,z=0,heading=0} end
 	return t
 end
-check(#HerdNet.pack(1,0,sized(89))==1 and #HerdNet.pack(1,0,sized(90))==2 and #HerdNet.pack(1,0,sized(178))==2
+check(#HerdNet.pack(1,0,sized(74))==1 and #HerdNet.pack(1,0,sized(75))==2 and #HerdNet.pack(1,0,sized(148))==2
 	and #HerdNet.pack(1,0,sized(179))==3,"Split boundaries")
 local empty=HerdNet.pack(1,5,{})
 check(#empty==1 and buffer.len(empty[1])==8,"Empty herd still sends one header-only packet")
@@ -124,7 +124,7 @@ check(HerdNet.unpack(truncated)==nil,"Truncated packet rejected")
 check(select(2,HerdNet.unpack(truncated))=="Length mismatch","Truncation reason")
 local extended=copy(good,buffer.len(good)+1)
 check(HerdNet.unpack(extended)==nil,"Trailing garbage rejected")
-local wrongVersion=copy(good,buffer.len(good)); buffer.writeu8(wrongVersion,0,2)
+local wrongVersion=copy(good,buffer.len(good)); buffer.writeu8(wrongVersion,0,3)
 check(select(2,HerdNet.unpack(wrongVersion))=="Wrong version","Wrong version rejected")
 local zeroVersion=copy(good,buffer.len(good)); buffer.writeu8(zeroVersion,0,0)
 check(HerdNet.unpack(zeroVersion)==nil,"Version zero rejected")
@@ -140,7 +140,7 @@ local nanClock=copy(good,buffer.len(good)); buffer.writef32(nanClock,4,0/0)
 check(select(2,HerdNet.unpack(nanClock))=="Invalid clock","NaN clock rejected")
 local infClock=copy(good,buffer.len(good)); buffer.writef32(infClock,4,math.huge)
 check(HerdNet.unpack(infClock)==nil,"Infinite clock rejected")
-local oversize=buffer.create(8+90*10); buffer.writeu8(oversize,0,1); buffer.writeu8(oversize,1,1); buffer.writeu16(oversize,2,90)
+local oversize=buffer.create(8+75*12); buffer.writeu8(oversize,0,2); buffer.writeu8(oversize,1,1); buffer.writeu16(oversize,2,75)
 check(select(2,HerdNet.unpack(oversize))=="Too long","Packets above 900 bytes rejected")
 
 -- Clamping ---------------------------------------------------------------------------------
@@ -233,7 +233,7 @@ for round=1,2000 do
 		batch[i]=entry
 	end
 	local out=HerdNet.pack(arena,clock,batch)
-	check(#out==math.max(1,math.ceil(#expected/89)),"Fuzz packet count "..round)
+	check(#out==math.max(1,math.ceil(#expected/74)),"Fuzz packet count "..round)
 	local cursor=0
 	for _,packet in ipairs(out) do
 		packetsSeen+=1
@@ -259,7 +259,7 @@ for round=1,2000 do
 		check(ok,"Corrupt input never throws")
 		if result==nil then corruptRejected+=1 else
 			corruptAccepted+=1
-			check(buffer.len(bad)==8+#result.entries*10 and result.version==1 and result.arena>=1 and finite(result.clock),
+			check(buffer.len(bad)==8+#result.entries*12 and result.version==2 and result.arena>=1 and finite(result.clock),
 				"Accepted corrupt packet is still structurally valid (payload byte flips are undetectable)")
 		end
 	end
@@ -273,7 +273,14 @@ for _=1,2000 do
 	if len>=1 and math.random()<0.5 then buffer.writeu8(soup,0,1) end
 	local ok,result=pcall(HerdNet.unpack,soup)
 	check(ok,"Byte soup never throws")
-	check(result==nil or (len<=900 and len==8+#result.entries*10),"Byte soup accepted only when structurally valid")
+	check(result==nil or (len<=900 and len==8+#result.entries*12),"Byte soup accepted only when structurally valid")
+end
+-- v2 fields: species/state nibbles and height (WP-06).
+do
+	local b=HerdNet.pack(1,5,{{id=9,x=1,z=2,heading=0,flags=64,species="bunvolt",state=4,height=3.3}})[1]
+	local d=HerdNet.unpack(b)
+	check(d.entries[1].species=="bunvolt" and d.entries[1].state==4 and math.abs(d.entries[1].height-3.25)<1e-9 and HerdNet.has(d.entries[1].flags,"private"),"v2 species/state/height/private round trip")
+	check(HerdNet.Species[1]=="pip" and HerdNet.SpeciesIndex.static_puff==15 and #HerdNet.Species==16,"species table")
 end
 print(string.format("PASS SparkHerdNet: %d assertions (pure buffer codec; %d fuzz packets, %d entries, %d/%d corrupt copies rejected/structurally-valid; no network)",
 	n,packetsSeen,entriesSeen,corruptRejected,corruptAccepted))

@@ -135,10 +135,10 @@ test("two contenders cannot duplicate a single creature; the second gets an ASSI
     local a,b=player(1),player(2);local sa,sb=session(),session();sessions[a]=sa;sessions[b]=sb
     local c=target(1,2)
     loop(a,sa);loop(b,sb)
-    assert(c.claimed and c.model.destroyed and herd[1]==nil)
+    assert(c.claimed and c.gone and herd[1]==nil)
     assert(#sa.carry==1 and #sb.carry==0 and sa.challenge.captures==1 and sb.challenge.captures==0)
     assert(sb.challenge.assists==1,"second claimant credited")
-    assert(#delayed==1,"one respawn scheduled")
+    assert(c.gone,"pod respawn is Habitat's job (creature marked gone)")
     bank(a,sa,true);bank(b,sb,true)
     assert(sa.profile.totalBanked==1 and sb.profile.totalBanked==0)
 end)
@@ -294,7 +294,7 @@ def main() -> None:
     blocks += extract(source, "local function creatureBase(entry)", "local function rootOf(player)")
     blocks += extract(source, "local function roundPlaying(s,now)", "local function objective(")
     blocks += extract(source, "local function hintOnce(player,s,id,text)", "local function teleport(player,s)")
-    blocks += extract(source, "local function bank(player,s,automatic)", "-- options (all server-owned): def, position, golden, extra")
+    blocks += extract(source, "local function bank(player,s,automatic)", "-- Creatures are server DATA only (WP-06)")
     blocks += extract(source, "-- BEGIN CATCH TRANSACTIONS", "-- END CATCH TRANSACTIONS")
     with tempfile.TemporaryDirectory(prefix="spark-gameplay-") as directory:
         folder = Path(directory)

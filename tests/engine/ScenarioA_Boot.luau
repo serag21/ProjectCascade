@@ -17,47 +17,39 @@ for _, child in ipairs(h.world:GetChildren()) do if child:GetAttribute("BiomeInd
 check(arenas == 4, "Three shared arenas + Trial Grounds (" .. arenas .. ")")
 local trialGrounds = h.world:FindFirstChild("trials")
 check(trialGrounds ~= nil and trialGrounds:GetAttribute("BiomeIndex") == 4, "Trial Grounds is arena 4 (x=900)")
-local creatures = h:creatures()
-check(#creatures == 54, "54 herd creatures (" .. #creatures .. ")")
-local species = {}
-for _, model in ipairs(creatures) do
-	check(model.PrimaryPart ~= nil and model:GetAttribute("CreatureId") ~= nil, "Creature has root + id")
-	species[model:GetAttribute("Species")] = true
+-- WP-06: creatures are server data only (T-N2). The Meadow holds its pods from
+-- meadow.json (13, <= the 14 base cap); Canyon/Aurora are unreachable in the slice.
+local serverModels = 0
+for _, d in ipairs(e.workspace:GetDescendants()) do
+	if d:IsA("Model") and (d:GetAttribute("CreatureId") ~= nil or string.sub(d.Name, 1, 6) == "Spark_") then serverModels += 1 end
 end
-local count = 0; for _ in pairs(species) do count += 1 end
-check(count == 12, "All 12 species present (" .. count .. ")")
-check(h.world:FindFirstChild("Statics") ~= nil, "Statics folder")
+check(serverModels == 0, "Server creates zero creature Instances (" .. serverModels .. ")")
 local booted = false
 for _, line in ipairs(e.output) do if string.find(line, "Staged build booted", 1, true) then booted = true end end
 check(booted, "Main reached end of boot")
--- Living herd (D13): the server never moves creature models (no CFrame
--- replication); with nobody in the game no herd packets are sent at all.
-local first = creatures[1]:GetPivot().Position
 e.advance(5)
 h:assertClean("idle herd")
-check((creatures[1]:GetPivot().Position - first).Magnitude < 1e-6, "Server does not move creature models")
 check((h.herdPackets or 0) == 0, "No herd packets without players")
--- A player receives compact snapshots of their arena; the harness applies them
--- like a client would, so models follow the authoritative herd.
 local p = h:join(1501)
-local before = creatures[1]:GetPivot().Position
 e.advance(3)
 h:collect()
 check((h.herdPackets or 0) >= 20, "Herd snapshots arrive at ~10 Hz (" .. tostring(h.herdPackets) .. ")")
 check(h.herdBytes / h.herdPackets <= 900, "Every packet within the unreliable payload limit")
 check(e.unreliableDropped == 0, "No unreliable packet dropped")
-local moved = 0
-for _, model in ipairs(h:creatures()) do
-	if model:GetPivot().Position.X < 150 and (model:GetPivot().Position - before).Magnitude > 0 then moved += 1 end
+local creatures = h:creatures()
+local species, shared, private = {}, 0, 0
+for _, model in ipairs(creatures) do
+	species[model:GetAttribute("Species")] = (species[model:GetAttribute("Species")] or 0) + 1
+	if model:GetAttribute("StarterOwnerId") == p.UserId then private += 1 else shared += 1 end
 end
-check(moved >= 10, "Arena creatures follow the snapshots (" .. moved .. ")")
+check(shared == 13, "Meadow pods: 3+3 Pip, 2 Bunvolt, 4 Cubloom, 1 Flutterwink (" .. shared .. ")")
+check(private == 3, "Three private starter Pips, sent only to their owner (" .. private .. ")")
+check(species.pip == 9 and species.bunvolt == 2 and species.cubloom == 4 and species.flutter == 1, "Species mix")
+local Arenas = e.requireSource("ReplicatedStorage/Spark/Design/Arenas.luau")
+for _, model in ipairs(creatures) do
+	local pos = model:GetPivot().Position
+	check(Arenas.inBounds("meadow", pos.X, pos.Z), "Creature inside the Meadow bounds")
+end
 print(string.format("INFO herd: packets=%d avgBytes=%.0f bytesPerSecond=%.0f", h.herdPackets, h.herdBytes / h.herdPackets, h.herdBytes / 3))
-for _, model in ipairs(h:creatures()) do
-	local biome = 1
-	local p = model:GetPivot().Position
-	local ox = math.floor((p.X + 150) / 300) * 300
-	local flat = math.sqrt((p.X - ox) ^ 2 + p.Z ^ 2)
-	check(flat <= 49, "Creature within herd radius (" .. flat .. ")")
-end
 h:report("boot")
 print("PASS ScenarioA_Boot: " .. Harness.count() .. " checks; world parts=" .. e.countInstances(h.world))

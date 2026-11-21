@@ -42,7 +42,12 @@ function LoopService.record(svc, sess, x, z, t, g)
 	if not (finite(x) and finite(z) and finite(t)) then return nil end
 	local path = sess.path
 	local last = path[#path]
-	if last and (x - last.x) ^ 2 + (z - last.z) ^ 2 < svc.minStep * svc.minStep then return nil end
+	if last and (x - last.x) ^ 2 + (z - last.z) ^ 2 < svc.minStep * svc.minStep then
+		-- Standing still is continuous presence, not a hole: refresh the last sample's
+		-- time so a pause before a ring never reads as a path gap (found in WP-06).
+		if t - last.t >= 0.5 then last.t = t end
+		return nil
+	end
 	table.insert(path, {x = x, z = z, t = t, g = g or 0})
 	while #path > 1 and path[1].t < t - svc.pathSeconds do table.remove(path, 1) end
 	return last

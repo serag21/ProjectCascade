@@ -160,4 +160,18 @@ do
 	check(not LoopService.contested(svc,{[8]={by=1,at=100,biome=1,history=outside}},claim,2,1,100.4,20),"outside the ring is not a contest")
 	check(not LoopService.contested(svc,recent,claim,2,1,101.2,20) and recent[7]==nil,"contest credit expires after 1 s")
 end
+-- Pausing before a ring is not a path gap: a stationary player keeps refreshing presence.
+do
+	local svc,sess=service(),LoopService.session()
+	LoopService.record(svc,sess,8,0,10,0)
+	for k=1,15 do LoopService.record(svc,sess,8,0.1,10+k*0.1,0) end -- 1.5 s standing still
+	local ring={}
+	for i=1,24 do
+		local a=i*math.pi/12
+		LoopService.record(svc,sess,8*math.cos(a),8*math.sin(a),11.6+i*0.09,0)
+		ring[i]={x=8*math.cos(a),z=8*math.sin(a),g=0}
+	end
+	local ok,reason=LoopService.validate(svc,sess,{poly=ring},11.6+24*0.09,nil,nil)
+	check(ok,"a ring after a pause validates: "..tostring(reason))
+end
 print("SparkLoopService: "..assertions.." assertions passed")

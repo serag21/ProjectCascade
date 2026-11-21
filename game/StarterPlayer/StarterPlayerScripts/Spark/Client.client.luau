@@ -36,6 +36,11 @@ local Loop=require(Shared:WaitForChild("Loop"))
 local Movement=require(script.Parent:WaitForChild("Movement"))
 local SparkCamera=require(script.Parent:WaitForChild("SparkCamera"))
 local Ribbon=require(script.Parent:WaitForChild("Ribbon"))
+local CreatureKit=require(script.Parent:WaitForChild("CreatureKit"))
+local DesignModels=require(Shared:WaitForChild("Design"):WaitForChild("Models"))
+local DesignCreatures=require(Shared:WaitForChild("Design"):WaitForChild("Creatures"))
+local scaleOverride=nil -- F9 creature scale (Studio only, session only)
+local function creatureScale() return scaleOverride or DesignTuning.creatures.globalScale end
 local remotes=Shared:WaitForChild("Remotes")
 local Action=remotes:WaitForChild("Action")
 local State=remotes:WaitForChild("State")
@@ -53,6 +58,19 @@ gui.Parent=playerGui
 -- latest = last server state with the cached profile/boards merged in.
 local latest=nil
 local cachedProfile,cachedBoards,cachedDailyBoard=nil,nil,nil
+-- Ground maps per arena (client copy of the server GroundMap; WP-05).
+local clientMaps={}
+local function arenaIndex() return (latest and latest.biome) or 1 end
+local function mapFor(index)
+	if not clientMaps[index] then
+		local biome=Config.Biomes[index]
+		local def=biome and DesignArenas[biome.id]
+		local legacy=false
+		for _,id in ipairs(DesignTuning.features.worldLegacy or {}) do if biome and id==biome.id then legacy=true end end
+		clientMaps[index]=if def and not legacy then GroundMap.build(def) else GroundMap.flat(biome and biome.id or "?")
+	end
+	return clientMaps[index]
+end
 -- Blocks the server sends only when they change (state budget): keep the last copy.
 local cachedBlocks={}
 local results
@@ -542,7 +560,17 @@ local effects=Effects.new({playerGui=playerGui,gui=gui,folder=effectsFolder,redu
 task.spawn(function()
 	local world=workspace:WaitForChild("SparkWorld")
 	local herd=world:WaitForChild("Creatures")
-	creatureView=CreatureView.new({folder=herd,camera=function() return workspace.CurrentCamera end,
+	-- HerdNet v2 (WP-06): creatures are built here from packets (CreatureKit);
+	-- the server creates no creature Instances.
+	local sparkCreatures=workspace:FindFirstChild("SparkCreatures") or Instance.new("Folder")
+	sparkCreatures.Name="SparkCreatures"; sparkCreatures.Parent=workspace
+	creatureView=CreatureView.new({folder=sparkCreatures,camera=function() return workspace.CurrentCamera end,
+		build=function(entry)
+			return CreatureKit.build(entry.species,{Models=DesignModels,Creatures=DesignCreatures,
+				scale=creatureScale(),golden=HerdNet.has(entry.flags,"golden")})
+		end,
+		release=function(model) model:Destroy() end,
+		groundAt=function(x,z) return GroundMap.height(mapFor(arenaIndex()),x,z) end,
 		reducedMotion=reduced,localUserId=player.UserId,guiParent=playerGui,
 		quality=function()
 			local ok,level=pcall(function() return UserSettings().GameSettings.SavedQualityLevel.Value end)
@@ -651,6 +679,9 @@ Feedback.OnClientEvent:Connect(function(data)
 	if data.kind=="Results" then roundBeat("TIME!","buzzer") end
 	if data.kind=="Round" and extra.trial then roundBeat("GO!","start_whistle") end
 	if data.kind=="Loop" and ribbonRef then ribbonRef.result(nil) end
+	if data.kind=="Loop" and creatureView and type(extra.caught)=="table" then
+		for _,c in ipairs(extra.caught) do if type(c)=="table" and c.creatureId then creatureView.remove(c.creatureId) end end
+	end
 	if data.kind=="RibbonCut" and ribbonRef then ribbonRef.cut() end
 	local hasTags=type(extra.tags)=="table" and #extra.tags>0
 	-- Scored catches speak through floating tags; toasts stay for onboarding and events.
@@ -1017,18 +1048,6 @@ RunService.RenderStepped:Connect(function(dt)
 	end
 end)
 -- Predicted dash, raised chase camera and the ribbon (WP-03).
-local clientMaps={}
-local function arenaIndex() return (latest and latest.biome) or 1 end
-local function mapFor(index)
-	if not clientMaps[index] then
-		local biome=Config.Biomes[index]
-		local def=biome and DesignArenas[biome.id]
-		local legacy=false
-		for _,id in ipairs(DesignTuning.features.worldLegacy or {}) do if biome and id==biome.id then legacy=true end end
-		clientMaps[index]=if def and not legacy then GroundMap.build(def) else GroundMap.flat(biome and biome.id or "?")
-	end
-	return clientMaps[index]
-end
 local function inRound() return latest~=nil and (latest.phase=="Playing" or latest.phase=="Warmup") end
 local sparkCamera=SparkCamera.new({tuning=DesignTuning,reduced=reduced,
 	shouldRun=function() return latest~=nil and (latest.phase=="Playing" or latest.phase=="Warmup" or latest.phase=="Results") end,

@@ -25,7 +25,8 @@ for round = 1, 10 do
 	table.insert(samples, {instances = e.countInstances(), other = e.countInstances() - herdInstances, herd = herd, statics = statics, sleepers = e.sleepers()})
 	table.insert(scores, sa.mastery.score .. "/" .. sb.mastery.score)
 	check(statics == 0, "No statics left between rounds (" .. statics .. ")")
-	check(herd >= 54 and herd <= 54 + 12, "Herd bounded after settle (" .. herd .. ")")
+	-- WP-06: Meadow pods only (base cap 14) plus up to 3 private starters per player.
+	check(herd >= 1 and herd <= 14 + 6, "Herd bounded after settle (" .. herd .. ")")
 end
 local first, last = samples[1], samples[#samples]
 local lines = {}

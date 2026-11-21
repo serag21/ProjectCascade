@@ -26,6 +26,7 @@ CreatureView.BlendSeconds = 0.18 -- state changes cross-fade instead of popping
 CreatureView.BangPool = 4
 CreatureView.BangSeconds = 0.6
 CreatureView.StaleSeconds = 3 -- forget model-less ids / last poses after this (s)
+CreatureView.BuiltStaleSeconds = 1.0 -- client-built models leave 1 s after their id stops arriving
 CreatureView.Flags = {fleeing = 1, dazed = 2, golden = 4, runner = 8, startled = 16, trial = 32}
 
 local FLAG_FLEE, FLAG_DAZED, FLAG_RUNNER, FLAG_STARTLED = 1, 2, 8, 16
@@ -192,6 +193,8 @@ function CreatureView.interpolate(a, b, alpha, out)
 	out.z = az + (bz - az) * alpha
 	out.heading = wrapAngle(if alpha <= 1 then ah + d * alpha else bh + clamp(d * (alpha - 1), -0.5, 0.5))
 	out.flags = b.flags
+	out.height = num(a.height, 0) + (num(b.height, 0) - num(a.height, 0)) * clamp(alpha, 0, 1)
+	out.state = b.state
 	return out
 end
 
@@ -238,7 +241,7 @@ function CreatureView.new(ctx)
 	local bangsCreated = 0
 
 	local function slot(x, z, heading, flags, clock, at)
-		return {x = x, z = z, heading = heading, flags = flags, clock = clock, at = at}
+		return {x = x, z = z, heading = heading, flags = flags, clock = clock, at = at, height = 0, state = 0}
 	end
 	local function newRecord(id, now)
 		return {
@@ -422,6 +425,8 @@ function CreatureView.new(ctx)
 					b.x, b.z = entry.x, entry.z
 					b.heading = num(entry.heading, a.heading)
 					b.flags = if finite(entry.flags) then clamp(math.floor(entry.flags), 0, 2 ^ 30) else 0
+					b.height = num(entry.height, 0)
+					b.state = if finite(entry.state) then entry.state else 0
 					b.clock, b.at = clock, received
 					local span = clock - a.clock
 					local dx, dz = b.x - a.x, b.z - a.z
@@ -430,6 +435,7 @@ function CreatureView.new(ctx)
 						or span <= 0 or distance > math.max(8, 60 * span) then
 						-- First sighting, long gap, arena change or teleport: snap, don't slide.
 						a.x, a.z, a.heading, a.flags, a.clock, a.at = b.x, b.z, b.heading, b.flags, b.clock, b.at
+						a.height, a.state = b.height, b.state
 						rec.rawSpeed, rec.rawTurn = 0, 0
 					else
 						rec.rawSpeed = distance / span
@@ -439,8 +445,47 @@ function CreatureView.new(ctx)
 					rec.ready = true
 				end
 				rec.lastSeen = math.max(rec.lastSeen, received)
+				-- HerdNet v2: the client builds the model the first time it sees an id.
+				if rec.model == nil and ctx.build and not rec.removed then
+					local model = ctx.build(entry)
+					if model then
+						model:SetAttribute("CreatureId", id)
+						model.Parent = ctx.folder
+						bind(rec, model)
+						rec.built = true
+					end
+				end
 			end
 		end
+	end
+
+	-- Remove a client-built creature now (e.g. listed in a Loop result).
+	function self.remove(id)
+		local rec = creatures[id]
+		if not rec then return end
+		rec.removed = true
+		local model = rec.model
+		if model then
+			unbind(rec, lastNow or 0)
+			if rec.built and ctx.release then ctx.release(model) end
+		end
+		creatures[id] = nil
+	end
+	-- Freeze a creature in its cinched pose until the server result (or 0.8 s).
+	function self.cinch(id, untilT)
+		local rec = creatures[id]
+		if rec then rec.cinchedUntil = untilT end
+	end
+	-- Rendered arena-relative position of an id (for client-side prediction).
+	function self.position(id)
+		local rec = creatures[id]
+		if not rec or not rec.ready or not rec.drawn then return nil end
+		return rec.drawn.x, rec.drawn.z, rec.drawn.state
+	end
+	function self.ids()
+		local out = {}
+		for id, rec in pairs(creatures) do if rec.ready and rec.model then table.insert(out, id) end end
+		return out
 	end
 
 	function self.track(model)
@@ -489,10 +534,14 @@ function CreatureView.new(ctx)
 		else
 			alpha = math.max(0, (renderClock - a.clock) / span)
 		end
+		if rec.cinchedUntil and now < rec.cinchedUntil and rec.cf then return end
 		local e = CreatureView.interpolate(a, b, alpha, scratch)
+		rec.drawn = rec.drawn or {}
+		rec.drawn.x, rec.drawn.z, rec.drawn.state = e.x, e.z, e.state
 		local origin = rec.origin
 		local px, pz = origin.X + e.x, origin.Z + e.z
-		local baseY = origin.Y + CreatureView.GroundY
+		-- Client-built creatures stand on GroundMap ground (+ hop / flight height).
+		local baseY = origin.Y + (if ctx.groundAt then ctx.groundAt(e.x, e.z) else CreatureView.GroundY) + (e.height or 0)
 		local flags = e.flags
 		local startled = hasFlag(flags, FLAG_STARTLED)
 		local rising = startled and not hasFlag(rec.lastFlags, FLAG_STARTLED)
@@ -556,6 +605,11 @@ function CreatureView.new(ctx)
 		local p = CreatureView.pose(rec.family, if state == "startled" then now - rec.startleAt else rec.gait,
 			rec.speed, state, reduced, rec.seed, poseOut)
 		local bob, squash, lean, spin, pitch = p.bob, p.squash, p.lean, p.spin, p.pitch
+		-- Species telegraphs from the HerdNet state code: Bunvolt crouch (3) squashes,
+		-- a Cubloom lean (7) tilts, a perched Flutterwink (5) holds still.
+		if e.state == 3 then squash, bob = 0.72, 0
+		elseif e.state == 7 then lean = 0.18
+		elseif e.state == 5 then bob, spin = 0, 0 end
 		if not reduced then
 			lean = clamp(lean + clamp(rec.turn * BANK[rec.family], -0.25, 0.25), -0.35, 0.35)
 		end
@@ -634,7 +688,12 @@ function CreatureView.new(ctx)
 
 		for id, rec in pairs(creatures) do
 			local model = rec.model
-			if model == nil then
+			if rec.built and model ~= nil and now - rec.lastSeen > CreatureView.BuiltStaleSeconds then
+				-- The id stopped appearing: remove the client-built model after 1.0 s.
+				unbind(rec, now)
+				if ctx.release then ctx.release(model) end
+				creatures[id] = nil
+			elseif model == nil then
 				if now - rec.lastSeen > CreatureView.StaleSeconds then creatures[id] = nil end
 			elseif model.Parent == nil or rec.root == nil or rec.root.Parent == nil then
 				unbind(rec, now) -- destroyed mid-frame; ChildRemoved may not have run yet

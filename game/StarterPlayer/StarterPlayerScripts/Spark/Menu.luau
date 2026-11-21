@@ -14,6 +14,9 @@ local Progression = require(Shared:WaitForChild("Progression"))
 local Cosmetics = require(Shared:WaitForChild("Cosmetics"))
 local Trial = require(Shared:WaitForChild("Trial"))
 local Ui = require(script.Parent.Ui)
+-- Checkpoint 1 slice scope (outside the pure block): hidden tabs.
+local Slice = require(Shared:WaitForChild("Design"):WaitForChild("Slice"))
+local SLICE_HIDDEN = {Upgrades = not Slice.on("upgrades"), Play = not Slice.on("heat_and_perks")}
 local palette, make, round, label, button = Ui.palette, Ui.make, Ui.round, Ui.label, Ui.button
 
 local Menu = {}
@@ -481,7 +484,7 @@ function Menu.new(ctx)
 		for _, name in ipairs(Menu.visibleTabs(d)) do self.revealed[name] = true end
 		local list = {}
 		for _, name in ipairs(Menu.Tabs) do
-			if self.revealed[name] or name == "Album" or name == "Settings" then table.insert(list, name) end
+			if (self.revealed[name] or name == "Album" or name == "Settings") and not SLICE_HIDDEN[name] then table.insert(list, name) end
 		end
 		local changed = table.concat(list, ",") ~= table.concat(self.visibleList, ",")
 		self.visibleList = list
@@ -1087,7 +1090,14 @@ function Menu.new(ctx)
 		header("COMFORT")
 		toggle("reducedMotion", "Reduced motion")
 		toggle("highContrast", "High-contrast targets")
-		toggle("holdCatch", "Hold to catch")
+		if ctx.cameraClassic then
+			-- Raised chase camera by default; Classic restores the Roblox camera (session only).
+			local on = ctx.cameraClassic()
+			local r = row(64, "Setting_cameraClassic")
+			local b = button(r, "Camera: "..(if on then "CLASSIC" else "CHASE"), UDim2.fromOffset(12,10), UDim2.new(1,-24,0,44),
+				if on then palette.mint else palette.paper, function() ctx.setCameraClassic(not on); self.render() end)
+			b.ZIndex = 9; b.Name = "ToggleButton"
+		end
 		local scales = Profile.UiScales
 		local currentScale = number(setting(p, "uiScale"))
 		local scaleRow = row(102, "Setting_uiScale")
@@ -1121,19 +1131,17 @@ function Menu.new(ctx)
 			if ctx.photoMode then self.open(nil); ctx.photoMode() else ctx.toast("Press H to hide the HUD") end
 		end, "PhotoButton", 44)
 		header("CONTROLS")
-		local hold = setting(p, "holdCatch") == true
 		local r = row(124, "ControlsHelp"); rowText(r, "Move: WASD / thumbstick • Jump: Space / A", 14, 7)
-		rowText(r, if hold then "Catch: hold E / X / CATCH (Hold to catch is on)" else "Catch: E / X / tap CATCH", 14, 34)
-		rowText(r, "Dash: Shift / B • Bank: R / Y", 14, 61)
+		rowText(r, "Catch: run a ring around Sparks (your ribbon closes it)", 14, 34)
+		rowText(r, "Dash: Shift / E / B / RT • Camera: right-drag / right stick", 14, 61)
 		rowText(r, "Menu: M / Select • Photo: H • All rewards earned in play", 13, 88)
-		local help = row(196, "MasteryHelp")
-		rowText(help, "Close + facing = PRECISE • Dash THROUGH Sparks to catch several", 13, 7)
-		rowText(help, "Chain catches: "..Menu.chainLadder(), 13, 33)
-		rowText(help, "Herd Sparks through the SPARK GATE • Dash through the STAMPEDE RUN", 13, 59)
-		rowText(help, "Purple statics zap you: dodge, or DASH through to pop them", 13, 85)
-		rowText(help, "Zaps scatter carried Sparks • recatch them!", 13, 111)
-		rowText(help, "Bank before the BUZZER or carried style bonus is lost", 13, 137)
-		rowText(help, "Banked score, glow and collection are always safe", 13, 163)
+		local help = row(170, "MasteryHelp")
+		rowText(help, "Bigger rings score more: ring a whole pod at once", 13, 7)
+		rowText(help, "SNAP: close a ring within a dash • TIGHT: a snug ring around a group", 13, 33)
+		rowText(help, "MEDLEY: three species in one ring • chains build x2 / x3 / x4", 13, 59)
+		rowText(help, "Run through a gold BANK ring to bank your parade", 13, 85)
+		rowText(help, "Bigger parades bank for more (x1.25 / x1.5 / x2)", 13, 111)
+		rowText(help, "The buzzer banks what you carry at x1", 13, 137)
 		if setting(p, "competition") == true then
 			local scores = row(130, "SessionScores")
 			rowText(scores, "Optional session scores • current rounds", 14, 4)

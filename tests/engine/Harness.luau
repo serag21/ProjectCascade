@@ -22,7 +22,8 @@ function Harness.boot(options)
 	engine.startServer()
 	-- World.build (3 arenas + Trial Grounds) and herd seeding yield across frames.
 	engine.advance(options.bootSeconds or 2)
-	local h = {engine = engine, states = {}, feedback = {}}
+	local h = {engine = engine, states = {}, feedback = {}, latestHerdClock = {}}
+	Harness.herdNet = engine.requireSource("ReplicatedStorage/Spark/HerdNet.luau")
 	local rs = engine.service("ReplicatedStorage")
 	local shared = rs:FindFirstChild("Spark")
 	h.remotes = shared and shared:FindFirstChild("Remotes")
@@ -30,37 +31,59 @@ function Harness.boot(options)
 	return setmetatable(h, {__index = Harness})
 end
 
--- HerdNet packets (server stops moving creature models; clients render them).
--- The harness plays the client's role for scenario bots: it applies the latest
--- snapshot per arena to the shared fake models so GetPivot() follows the herd.
-function Harness.decodeHerd(packet)
-	if type(packet) ~= "buffer" or buffer.len(packet) < 8 then return nil end
-	local count = buffer.readu16(packet, 2)
-	if buffer.len(packet) ~= 8 + count * 10 then return nil end
-	local out = {arena = buffer.readu8(packet, 1), clock = buffer.readf32(packet, 4), entries = {}}
-	for i = 0, count - 1 do
-		local o = 8 + i * 10
-		table.insert(out.entries, {id = buffer.readu32(packet, o), x = buffer.readi16(packet, o + 4) / 10,
-			z = buffer.readi16(packet, o + 6) / 10, flags = buffer.readu8(packet, o + 9)})
-	end
-	return out
+-- HerdNet v2 (WP-06): the server creates no creature Instances. The harness
+-- decodes the packets each player receives (real HerdNet module) and exposes
+-- lightweight pseudo-models so scenario bots can target creatures as before.
+function Harness.decodeHerd(packet, h)
+	local HerdNet = Harness.herdNet
+	if not HerdNet then return nil end
+	return HerdNet.unpack(packet)
 end
-function Harness.applyHerd(h, packets)
-	if not h.world then return end
-	local byId = {}
-	for _, model in ipairs(h.world.Creatures:GetChildren()) do
-		local id = model:GetAttribute("CreatureId")
-		if id then byId[id] = model end
+function Harness.applyHerd(_h, _packets) end
+local Pseudo = {}
+Pseudo.__index = Pseudo
+function Pseudo:GetPivot() return self.cf end
+function Pseudo:GetAttribute(name) return self.attrs[name] end
+function Pseudo:IsA(name) return name == "Model" end
+local function pseudo(h, id)
+	h.pseudo = h.pseudo or {}
+	local m = h.pseudo[id]
+	if not m then
+		m = setmetatable({attrs = {CreatureId = id}, cf = Harness.CFrame.new(0, 0, 0), Parent = nil, Name = "Spark_" .. id}, Pseudo)
+		h.pseudo[id] = m
 	end
-	for _, packet in pairs(packets) do
-		local decoded = Harness.decodeHerd(packet)
-		if decoded then
-			local originX = (decoded.arena - 1) * 300
-			for _, entry in ipairs(decoded.entries) do
-				local model = byId[entry.id]
-				if model and model.Parent then model:PivotTo(DT.CFrame.new(originX + entry.x, 2.2, entry.z)) end
-			end
-		end
+	return m
+end
+-- Apply one received packet (like a client): creatures persist 1.0 s after their
+-- id stops arriving, and leave at once when a Loop result lists them.
+function Harness.ingestHerd(h, userId, packet)
+	local HerdNet = Harness.herdNet
+	local decoded = HerdNet.unpack(packet)
+	if not decoded then return end
+	local originX = (decoded.arena - 1) * 300
+	h.herdSeen = h.herdSeen or {}
+	for _, entry in ipairs(decoded.entries) do
+		local m = pseudo(h, entry.id)
+		h.herdSeen[entry.id] = h.engine.now
+		m.cf = Harness.CFrame.new(originX + entry.x, 2.2 + (entry.height or 0), entry.z)
+		m.attrs.Species = entry.species
+		m.attrs.State = entry.state
+		m.attrs.Golden = HerdNet.has(entry.flags, "golden") or nil
+		m.attrs.Dazed = HerdNet.has(entry.flags, "dazed") or nil
+		m.attrs.Fleeing = HerdNet.has(entry.flags, "fleeing") or nil
+		if HerdNet.has(entry.flags, "private") then m.attrs.StarterOwnerId = userId end
+		m.attrs.Trial = HerdNet.has(entry.flags, "trial") or nil
+		m.Parent = h.world
+	end
+end
+function Harness.forgetCreature(h, id)
+	if h.pseudo and h.pseudo[id] then h.pseudo[id].Parent = nil; h.pseudo[id] = nil end
+	if h.herdSeen then h.herdSeen[id] = nil end
+end
+function Harness.refreshHerd(h)
+	local now = h.engine.now
+	for id, at in pairs(h.herdSeen or {}) do
+		if now - at > 1.0 then h:forgetCreature(id) end
 	end
 end
 
@@ -80,8 +103,19 @@ function Harness.collect(h)
 				herd[buffer.readu8(packet, 1)] = packet
 				h.latestHerd = h.latestHerd or {}
 				h.latestHerd[buffer.readu8(packet, 1)] = packet
+				-- One packet list per player per tick (a tick is one clock value).
+				h.latestHerdBy = h.latestHerdBy or {}
+				local clock = buffer.readf32(packet, 4)
+				local list = h.latestHerdBy[userId]
+				if not list or h.latestHerdClock[userId] ~= clock then
+					list = {}; h.latestHerdBy[userId] = list; h.latestHerdClock[userId] = clock
+				end
+				table.insert(list, packet)
+				h:ingestHerd(userId, packet)
 				h.herdPackets = (h.herdPackets or 0) + 1
 				h.herdBytes = (h.herdBytes or 0) + buffer.len(packet)
+				h.herdBytesBy = h.herdBytesBy or {}
+				h.herdBytesBy[userId] = (h.herdBytesBy[userId] or 0) + buffer.len(packet)
 			end
 		elseif entry.remote == "State" then
 			-- Copy, never mutate the logged payload: traffic measurements read the log.
@@ -102,10 +136,14 @@ function Harness.collect(h)
 		elseif entry.remote == "Feedback" then
 			h.feedback[userId] = h.feedback[userId] or {}
 			table.insert(h.feedback[userId], entry.args[1])
+			local f = entry.args[1]
+			if type(f) == "table" and f.kind == "Loop" and type(f.extra) == "table" and type(f.extra.caught) == "table" then
+				for _, c in ipairs(f.extra.caught) do h:forgetCreature(c.creatureId) end
+			end
 		end
 	end
 	if #log > 0 then h.lastSeq = log[#log].seq end
-	h:applyHerd(herd)
+	h:refreshHerd()
 end
 function Harness.state(h, player) h:collect(); return h.states[player.UserId] end
 function Harness.feedbackOf(h, player, kind)
@@ -147,10 +185,13 @@ end
 
 -- Nearest creature model (optionally filtered) to a position.
 function Harness.creatures(h, filter)
+	h:collect()
 	local list = {}
-	local folder = h.world and h.world:FindFirstChild("Creatures")
-	if not folder then return list end
-	for _, model in ipairs(folder:GetChildren()) do
+	local ids = {}
+	for id in pairs(h.pseudo or {}) do table.insert(ids, id) end
+	table.sort(ids)
+	for _, id in ipairs(ids) do
+		local model = h.pseudo[id]
 		if not filter or filter(model) then table.insert(list, model) end
 	end
 	return list
@@ -179,7 +220,7 @@ end
 function Harness.viewClock(h, arena)
 	h:collect()
 	local packet = h.latestHerd and h.latestHerd[arena or 1]
-	local decoded = packet and Harness.decodeHerd(packet)
+	local decoded = packet and Harness.herdNet.unpack(packet)
 	return if decoded then decoded.clock - 0.1 else 0
 end
 -- Per-bot ribbon state.

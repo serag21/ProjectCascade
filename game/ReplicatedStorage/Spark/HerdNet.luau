@@ -5,19 +5,30 @@
 -- interpolate; a lost packet only delays the creatures it carried by one tick.
 --
 -- Header (8 bytes):  u8 version | u8 arena (1..255) | u16 count | f32 clock
--- Entry (10 bytes):  u32 id | i16 round(x*10) | i16 round(z*10) | u8 heading | u8 flags
+-- Entry (12 bytes, version 2):  u32 id | i16 round(x*10) | i16 round(z*10) | u8 heading
+--   | u8 flags | u8 (species index << 4 | state code) | u8 height above ground x4
+-- species index 0..15 = Design.Creatures species order (12), then legends (3),
+-- then static_puff; state codes are Herd.CODES; height in 0.25-stud steps (0..63.75).
 -- x/z are arena-relative studs (0.1 stud steps, clamped to the int16 range, i.e.
 -- -3276.8..3276.7). heading is radians quantized to 256 steps over [0, 2pi).
 -- clock should be a small relative clock (arena/round seconds): f32 keeps ~7
 -- significant digits, so absolute Unix time would lose whole minutes.
 local HerdNet = {}
-HerdNet.Version = 1
+local Creatures = if script then require(script.Parent.Design.Creatures) else require("./Design/Creatures")
+HerdNet.Version = 2
 HerdNet.MaxPacketBytes = 900
 HerdNet.HeaderBytes = 8
-HerdNet.EntryBytes = 10
--- 89 entries -> 898 bytes, the most that fits under MaxPacketBytes.
+HerdNet.EntryBytes = 12
+-- 74 entries -> 896 bytes, the most that fits under MaxPacketBytes.
 HerdNet.EntriesPerPacket = math.floor((HerdNet.MaxPacketBytes - HerdNet.HeaderBytes) / HerdNet.EntryBytes)
-HerdNet.Flags = {fleeing=1, dazed=2, golden=4, runner=8, startled=16, trial=32}
+HerdNet.Flags = {fleeing=1, dazed=2, golden=4, runner=8, startled=16, trial=32, private=64}
+-- Species index table (0-based on the wire).
+HerdNet.Species = {}
+for _, list in ipairs({Creatures.species, Creatures.legends, Creatures.hazards}) do
+	for _, def in ipairs(list) do table.insert(HerdNet.Species, def.id) end
+end
+HerdNet.SpeciesIndex = {}
+for index, id in ipairs(HerdNet.Species) do HerdNet.SpeciesIndex[id] = index - 1 end
 
 local TAU = 2 * math.pi
 local INT16_MIN, INT16_MAX = -32768, 32767
@@ -52,7 +63,12 @@ local function sanitize(entry)
 	if not finite(id) or id % 1 ~= 0 or id < 0 or id > UINT32_MAX then return nil end
 	if not finite(x) or not finite(z) or not finite(heading) then return nil end
 	if not finite(flags) or flags % 1 ~= 0 or flags < 0 or flags > 255 then return nil end
-	return id, position(x), position(z), headingByte(heading), flags
+	local species = entry.species
+	local index = if type(species) == "string" then HerdNet.SpeciesIndex[species] elseif finite(species) then species else 0
+	if not finite(index) or index % 1 ~= 0 or index < 0 or index > 15 then index = 0 end
+	local state = if finite(entry.state) and entry.state % 1 == 0 then math.clamp(entry.state, 0, 15) else 0
+	local height = if finite(entry.height) then math.clamp(math.floor(entry.height * 4 + 0.5), 0, 255) else 0
+	return id, position(x), position(z), headingByte(heading), flags, index * 16 + state, height
 end
 
 -- arena: integer 1..255. clock: number (non-finite or beyond f32 range -> 0).
@@ -63,13 +79,14 @@ end
 function HerdNet.pack(arena, clock, entries)
 	if not finite(arena) or arena % 1 ~= 0 or arena < 1 or arena > 255 then return {}, "Invalid arena" end
 	local time = if finite(clock) and math.abs(clock) <= F32_MAX then clock else 0
-	local ids, xs, zs, headings, flagList = {}, {}, {}, {}, {}
+	local ids, xs, zs, headings, flagList, kinds, heights = {}, {}, {}, {}, {}, {}, {}
 	if type(entries) == "table" then
 		for _, entry in ipairs(entries) do
-			local id, x, z, heading, flags = sanitize(entry)
+			local id, x, z, heading, flags, kind, height = sanitize(entry)
 			if id then
 				table.insert(ids, id); table.insert(xs, x); table.insert(zs, z)
 				table.insert(headings, heading); table.insert(flagList, flags)
+				table.insert(kinds, kind); table.insert(heights, height)
 			end
 		end
 	end
@@ -90,6 +107,8 @@ function HerdNet.pack(arena, clock, entries)
 			buffer.writei16(buf, offset + 6, zs[index])
 			buffer.writeu8(buf, offset + 8, headings[index])
 			buffer.writeu8(buf, offset + 9, flagList[index])
+			buffer.writeu8(buf, offset + 10, kinds[index])
+			buffer.writeu8(buf, offset + 11, heights[index])
 			offset += HerdNet.EntryBytes
 		end
 		table.insert(packets, buf)
@@ -121,6 +140,9 @@ function HerdNet.unpack(buf)
 			z = buffer.readi16(buf, offset + 6) / 10,
 			heading = buffer.readu8(buf, offset + 8) * TAU / 256,
 			flags = buffer.readu8(buf, offset + 9),
+			species = HerdNet.Species[bit32.rshift(buffer.readu8(buf, offset + 10), 4) + 1],
+			state = bit32.band(buffer.readu8(buf, offset + 10), 15),
+			height = buffer.readu8(buf, offset + 11) / 4,
 		}
 		offset += HerdNet.EntryBytes
 	end

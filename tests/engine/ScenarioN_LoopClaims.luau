@@ -76,6 +76,8 @@ end
 local aIds, bIds = caughtIds(resultsA), caughtIds(resultsB)
 local winners = (if aIds[id] then 1 else 0) + (if bIds[id] then 1 else 0)
 print(string.format("INFO contest: target=%d A caught=%s B caught=%s", id, tostring(aIds[id]), tostring(bIds[id])))
+for _, r in ipairs(resultsB) do print("INFO B result: rejected=" .. tostring(r.extra.rejected) .. " reason=" .. tostring(r.extra.reason) .. " caught=" .. #(r.extra.caught or {})) end
+for _, r in ipairs(resultsA) do print("INFO A result: rejected=" .. tostring(r.extra.rejected) .. " reason=" .. tostring(r.extra.reason) .. " caught=" .. #(r.extra.caught or {})) end
 if winners == 1 then
 	local loser = if aIds[id] then b else a
 	local assists = h:feedbackOf(loser, "Assist")

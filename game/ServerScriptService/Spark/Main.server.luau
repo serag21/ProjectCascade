@@ -18,6 +18,8 @@ local Encounters = require(Shared.Encounters)
 local Progression = require(Shared.Progression)
 local Cycle = require(Shared.Cycle)
 local HerdNet = require(Shared.HerdNet)
+local Herd = require(Shared.Herd)
+local DesignEvents = require(Shared.Design.Events)
 local Cosmetics = require(Shared.Cosmetics)
 local Trial = require(Shared.Trial)
 local Remix = require(Shared.Remix)
@@ -26,6 +28,7 @@ local DesignTuning = require(Design.Tuning)
 local Slice = require(Design.Slice)
 local DesignCreatures = require(Design.Creatures)
 local LoopService = require(script.Parent.LoopService)
+local Habitat = require(script.Parent.Habitat)
 local LOOP_T = Loop.tuning(DesignTuning)
 local loops = LoopService.new(Loop, LOOP_T, {rate = DesignTuning.ribbon.claimRateLimitPerSecond})
 local World = require(script.Parent.World)
@@ -273,16 +276,16 @@ local function rootOf(player)
 end
 local function clearStarters(userId)
 	for id,c in pairs(herd) do
-		if c.starterOwner==userId then c.model:Destroy(); herd[id]=nil end
+		if c.starterOwner==userId then c.gone=true; c.claimed=true; herd[id]=nil end
 	end
 	for owner,s in pairs(sessions) do if owner.UserId==userId then s.starterRemaining=0 end end
 end
 local function clearTrial(userId)
 	for id,c in pairs(herd) do
-		if c.trialOwner==userId then c.claimed=true; c.model:Destroy(); herd[id]=nil end
+		if c.trialOwner==userId then c.claimed=true; c.gone=true; herd[id]=nil end
 	end
 end
-local issueStarters,spawnCreature
+local issueStarters,spawnCreature,stepHerd,broadcastHerd
 local clearPersonal,onRoundRecorded
 local settleTrial,startTrial,leaveTrial
 -- The trial arena has one constant rhythm: no shared phase shifts, no intermission.
@@ -486,18 +489,14 @@ local function send(player,s)
 		while #ranking>4 do table.remove(ranking) end
 	end
 	-- Encounter descriptors in world space for this player's arena (drawing only).
-	local origin=world.arenas[s.biome].origin
 	local clockNow=arenaClock()
 	local gate,run
 	if trialMode then
 		gate=trialGate(s,now); run=trialRun(s,now)
 	else
-		gate=Encounters.gate(clockNow,s.biome)
-		if gate.visible then gate.position=origin+Vector3.new(gate.x,0.3,gate.z) end
-		run=Encounters.stampede(clockNow,s.biome,currentRemix)
-		if run.visible then
-			run.fromPosition=origin+Vector3.new(run.from.x,0.3,run.from.z); run.toPosition=origin+Vector3.new(run.to.x,0.3,run.to.z)
-		end
+		-- Spark Gate and the legacy Stampede Run lane are cut (WP-08 adds Bloom Burst and
+		-- the route Stampede); nothing legacy is drawn in the slice.
+		gate={visible=false}; run={visible=false}
 	end
 	local goldens={}
 	for _,c in pairs(herd) do
@@ -820,7 +819,7 @@ startTrial=function(player,s)
 	for k,spot in ipairs(plan.spawns) do
 		if species[spot.species] then
 			local spark=spawnTrialSpark(player,s,species[spot.species],spot,{trialPlan=true,seed=(k*3.7)%20,heading=(k*1.31)%(math.pi*2)})
-			if spark then spark.model:SetAttribute("TrialSlot",k) end
+			if spark then spark.trialSlot=k end
 		end
 	end
 	feedback(player,"Round",string.format("DAILY STAMPEDE! Same course for everyone today • %ds",Trial.RunSeconds),nil,nil,{trial=true,cycleStart=true})
@@ -931,71 +930,57 @@ local function updateTrial(player,s,now)
 	end
 end
 -- END DAILY STAMPEDE
--- options (all server-owned): def, position, golden, extra (no respawn on catch),
--- runner={direction,speed,untilT}, expiresAt.
-spawnCreature=function(biome,index,starterPlayer,options)
-	options=options or {}
-	local defs={}
-	local biomeDef=Config.Biomes[biome]
-	for _,def in ipairs(Config.Creatures) do
-		if (biomeDef and def.biome==biomeDef.id) or def.biome==biome then table.insert(defs,def) end
-	end
-	if #defs==0 then defs=Config.Creatures end
-	local def=options.def or defs[((index or 1)-1)%#defs+1]
-	local arena=world.arenas[biome]
-	local angle=random:NextNumber(0,math.pi*2)
-	local radius=random:NextNumber(10,43)
-	local offset=Rules.herdSpawn(angle,radius)
-	local position=arena.origin+Vector3.new(offset.x,offset.y,offset.z)
-	-- Finite owner-specific starters are separate from the 54 normal herd slots.
-	if starterPlayer then position=arena.origin+Vector3.new((index-2)*4,2.2,30) end
-	if options.position then position=options.position end
-	-- Golden models are fully gilded before they replicate, so clients see the
-	-- final appearance (and reduced-motion masking) from the first frame.
-	local model=World.creature(def,if options.golden then nil else creaturesFolder)
-	if options.golden then World.gild(model); model.Parent=creaturesFolder end
+-- Creatures are server DATA only (WP-06): no Instances. Clients build models
+-- from HerdNet v2 packets (CreatureKit). Data-driven arenas spawn pods through
+-- Habitat; Herd steps each species' state machine at the 10 Hz heartbeat.
+local herdCtx={} -- [biome]={habitat,blockers,boundary,clampInside,def}
+local function makeCreature(biome,def,x,z,extras)
+	extras=extras or {}
 	nextCreatureId+=1
-	model.Name="Spark_"..nextCreatureId
-	model:SetAttribute("CreatureId",nextCreatureId); model:SetAttribute("Species",def.id)
-	if options.trialOwner then
-		-- Owner-only like starters: other clients mask it (StarterOwnerId), and the
-		-- owner's aim preview accepts it (Trial). The server enforces capture.
-		model:SetAttribute("StarterOwnerId",options.trialOwner); model:SetAttribute("Trial",true)
-	end
-	if starterPlayer then
-		model:SetAttribute("StarterOwnerId",starterPlayer.UserId)
-		-- One compact cue introduces the group without covering all three silhouettes.
-		-- Index 1 also exists for returning players with only one starter remaining.
-		if index==1 then
-			local cue=Instance.new("BillboardGui")
-			cue.Name="FirstCatchCue"; cue.Size=UDim2.fromOffset(100,26); cue.StudsOffset=Vector3.new(0,3.3,0)
-			cue.MaxDistance=38; cue.LightInfluence=0; cue.Parent=model.PrimaryPart
-			local title=Instance.new("TextLabel")
-			title.Size=UDim2.fromScale(1,1); title.BackgroundColor3=Color3.fromRGB(28,35,66)
-			title.BackgroundTransparency=.12; title.TextColor3=Color3.fromRGB(255,219,90)
-			title.BorderSizePixel=0; title.TextSize=12; title.Font=Enum.Font.GothamBold
-			title.Text="FIRST CATCH"; title.Parent=cue
-			local corner=Instance.new("UICorner"); corner.CornerRadius=UDim.new(0,8); corner.Parent=title
-		end
-	end
-	model:PivotTo(CFrame.new(position))
-	if options.golden then model:SetAttribute("Golden",true) end
-	herd[nextCreatureId]={id=nextCreatureId,def=def,model=model,biome=biome,
-		position=position,home=position,beginner=starterPlayer~=nil or options.beginner==true,starterOwner=starterPlayer and starterPlayer.UserId,
-		heading=if options.runner then math.atan2(options.runner.direction.Z,options.runner.direction.X) else (options.heading or angle),
-		seed=options.seed or random:NextNumber(0,20),claimed=false,index=index,
-		golden=options.golden==true,extra=options.extra==true,runner=options.runner,expiresAt=options.expiresAt,
-		trialOwner=options.trialOwner,trialPlan=options.trialPlan==true}
-	return herd[nextCreatureId]
+	local arena=world.arenas[biome]
+	local c={id=nextCreatureId,def=def,biome=biome,x=x,z=z,heading=extras.heading or random:NextNumber(0,math.pi*2),
+		state=if def.behavior=="percher" then "perched" else "graze",stateAt=arenaClock(),height=0,catchable=true,speed=0,
+		home=extras.home or {x=x,z=z,r=6},podId=extras.podId,flock=extras.flock,slot=extras.slot,perches=extras.perches,
+		seed=random:NextNumber(0,20),claimed=false,history={},golden=extras.golden==true,extra=extras.extra==true,
+		starter=extras.starterOwner~=nil,starterOwner=extras.starterOwner,expiresAt=extras.expiresAt,
+		behavior=extras.behavior,feedUntil=extras.feedUntil,behaviorAfter=extras.behaviorAfter,
+		route=extras.route,routeSpeed=extras.routeSpeed,lane=extras.lane,lag=extras.lag,event=extras.event}
+	c.position=arena.origin+Vector3.new(x,GroundMap.height(arena.ground,x,z),z)
+	herd[c.id]=c
+	return c
 end
+-- Legacy entry point (trial, scatter) kept for compatibility: data-only creature.
+spawnCreature=function(biome,_index,starterPlayer,options)
+	options=options or {}
+	local arena=world.arenas[biome]
+	local def=DesignCreatures.byId[(options.def and options.def.id) or "pip"] or DesignCreatures.byId.pip
+	local position=options.position or arena.origin
+	local c=makeCreature(biome,def,position.X-arena.origin.X,position.Z-arena.origin.Z,{
+		golden=options.golden,extra=true,expiresAt=options.expiresAt,starterOwner=starterPlayer and starterPlayer.UserId})
+	c.trialOwner=options.trialOwner; c.trialPlan=options.trialPlan==true
+	return c
+end
+-- Starter Pips (existing finite allowance): a private trio on the south lawn,
+-- owner-only (other clients never receive them), tethered near home.
+local STARTER_HOME={x=-12,z=48}
 issueStarters=function(player,s)
 	local allowance=Rules.issueStarters(s,s.profile.totalBanked)
 	s.starterRemaining=allowance
-	for index=1,allowance do spawnCreature(s.biome,index,player) end
+	local def=DesignCreatures.byId.pip
+	for index=1,allowance do
+		local a=index*2.1
+		makeCreature(s.biome,def,STARTER_HOME.x+math.cos(a)*2.2,STARTER_HOME.z+math.sin(a)*2.2,{starterOwner=player.UserId,
+			home={x=STARTER_HOME.x,z=STARTER_HOME.z,r=3},podId="starter:"..player.UserId})
+	end
 end
-for biome=1,SHARED_ARENAS do
-	for index=1,18 do spawnCreature(biome,index) end
-	task.wait()
+for biome,arena in ipairs(world.arenas) do
+	if arena.dataDriven and biome<=SHARED_ARENAS then
+		local boundary,clampInside=Herd.boundsTools(arena.bounds)
+		local ctx={def=arena.def,blockers=arena.obstacles,boundary=boundary,clampInside=clampInside,
+			habitat=Habitat.new(arena.def,DesignCreatures,DesignTuning.density,biome*7919)}
+		herdCtx[biome]=ctx
+		Habitat.seed(ctx.habitat,arenaClock(),function(def,x,z,extras) return makeCreature(biome,def,x,z,extras) end)
+	end
 end
 
 -- BEGIN CATCH TRANSACTIONS (extracted by tests/test_spark_gameplay_integration.py)
@@ -1011,12 +996,10 @@ local function take(player,s,creature,kept)
 	s.roundCatches=(s.roundCatches or 0)+1; s.active=true
 	if creature.starterOwner then s.starterRemaining=math.max(0,(s.starterRemaining or 0)-1) end
 	if kept then table.insert(s.carry,if creature.golden then "*"..creature.def.id else creature.def.id) end
-	if creature.model then creature.model:Destroy() end
+	creature.gone=true
 	herd[creature.id]=nil
 	metric(player,s,"first_catch")
-	if not creature.starterOwner and not creature.extra then
-		task.delay(2,function() if not lifecycle.closing then spawnCreature(creature.biome,creature.index) end end)
-	end
+	-- Pod creatures respawn through Habitat once their whole pod is gone.
 end
 -- Recently caught creatures stay resolvable for 1 s so a second, simultaneous loop
 -- over the same creature earns its owner an ASSIST instead of nothing.
@@ -1288,6 +1271,28 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 		if root and humanoid and humanoid.Health>0 and s.motion and DashBucket.take(s.dash,now) then
 			s.motion.dashStarted=now; s.motion.dashUntil=now+DesignTuning.dash.duration+0.12
 			s.lastDashAt=now
+			-- Boop (01 section 3): creatures within boopRadius of the dash line are shoved
+			-- sideways and startled (a Cubloom flock scatters for 3 s).
+			local look=humanoid.MoveDirection
+			if look.Magnitude<0.1 then look=root.CFrame.LookVector end
+			local dir=Vector3.new(look.X,0,look.Z)
+			if dir.Magnitude>0.01 and herdCtx[s.biome] then
+				dir=dir.Unit
+				local origin=world.arenas[s.biome].origin
+				local ox,oz=root.Position.X-origin.X,root.Position.Z-origin.Z
+				local reach,radius=DesignTuning.dash.distance+2,DesignTuning.dash.boopRadius
+				for _,c in pairs(herd) do
+					if c.biome==s.biome and not c.claimed and (not c.starterOwner or c.starterOwner==player.UserId) then
+						local rx,rz=c.x-ox,c.z-oz
+						local along=rx*dir.X+rz*dir.Z
+						local side=rx*(-dir.Z)+rz*dir.X
+						if along>-2 and along<reach and math.abs(side)<=radius then
+							local sign=if side>=0 then 1 else -1
+							Herd.boop(c,arenaClock(),-dir.Z*sign,dir.X*sign)
+						end
+					end
+				end
+			end
 			metric(player,s,"first_action"); feedback(player,"Dash","WHOOSH!")
 		else
 			s.exploit.dashRefused=(s.exploit.dashRefused or 0)+1
@@ -1507,7 +1512,114 @@ Players.PlayerAdded:Connect(join)
 for _,player in ipairs(Players:GetPlayers()) do task.spawn(join,player) end
 
 local accumulator,networkAt=0,0
-local goldenCycle,runKey,surplusNext={},{},{}
+-- Round beat speed scale (events.json roundBeats) at a shared-cycle time.
+local function beatAt(clock)
+	local c=Cycle.at(clock)
+	local beat=DesignEvents.roundBeats[1]
+	if c.phase=="Play" then
+		for _,b in ipairs(DesignEvents.roundBeats) do if c.t>=b.start then beat=b end end
+	end
+	return beat,c
+end
+local herdTick=0
+local CODES=Herd.CODES
+local function playersIn(biome)
+	local list={}
+	for player,s in pairs(sessions) do
+		if s.ready and s.biome==biome and (s.phase=="Playing" or s.phase=="Warmup") then
+			local root=rootOf(player)
+			if root and Rules.validPosition(xyz(root.Position)) then
+				local origin=world.arenas[biome].origin
+				table.insert(list,{x=root.Position.X-origin.X,z=root.Position.Z-origin.Z,id=player.UserId})
+			end
+		end
+	end
+	return list
+end
+local function removeCreature(c)
+	c.claimed=true; c.gone=true
+	herd[c.id]=nil
+end
+function stepHerd(step,herdNow,_now)
+	herdTick+=1
+	local beat=beatAt(herdNow)
+	for biome,ctx in pairs(herdCtx) do
+		local arena=world.arenas[biome]
+		local players=playersIn(biome)
+		Habitat.step(ctx.habitat,herdNow,players,function(def,x,z,extras) return makeCreature(biome,def,x,z,extras) end)
+		local pods=table.clone(ctx.habitat.podMembers)
+		local starterPods={}
+		for _,c in pairs(herd) do
+			if c.biome==biome and c.starterOwner then
+				starterPods[c.podId]=starterPods[c.podId] or {}
+				table.insert(starterPods[c.podId],c)
+			end
+		end
+		for id,members in pairs(starterPods) do pods[id]=members end
+		local shared={players=players,blockers=ctx.blockers,boundary=ctx.boundary,clampInside=ctx.clampInside,
+			pods=pods,speedScale=beat.speedScale}
+		local owners={}
+		for _,p in ipairs(players) do
+			owners[p.id]={players={p},blockers=ctx.blockers,boundary=ctx.boundary,clampInside=ctx.clampInside,pods=pods,speedScale=1}
+		end
+		local glow={}
+		for _,c in pairs(herd) do
+			if c.biome~=biome or c.claimed then continue end
+			if (c.expiresAt and herdNow>c.expiresAt) or c.finished then removeCreature(c); continue end
+			local cctx=shared
+			if c.starterOwner then cctx=owners[c.starterOwner] or {players={},blockers=ctx.blockers,boundary=ctx.boundary,
+				clampInside=ctx.clampInside,pods=pods,speedScale=1} end
+			Herd.step(c,cctx,step,herdNow)
+			local g=GroundMap.height(arena.ground,c.x,c.z)
+			c.g=g
+			c.position=arena.origin+Vector3.new(c.x,g+(c.height or 0),c.z)
+			-- 0.5 s history at the snapshot ticks for lag-compensated loop resolution.
+			LoopService.pushHistory(c.history,herdNow,c.x,c.z,g,c.catchable~=false)
+			if c.glowPerch and c.perches then glow[c.perches[c.glowPerch].id]=true end
+		end
+		-- Flutterwink landing telegraph: the target perch glows 1.5 s early.
+		if arena.model then
+			for _,perch in ipairs(ctx.habitat.perches) do
+				local model=arena.model:FindFirstChild(perch.id)
+				if model and (model:GetAttribute("Glow")==true)~=(glow[perch.id]==true) then model:SetAttribute("Glow",glow[perch.id]==true) end
+			end
+		end
+	end
+end
+-- HerdNet v2 broadcast: one packet list per player (shared creatures plus that
+-- player's own private starters). Grazing creatures with nobody within 40 studs
+-- go in every third packet.
+function broadcastHerd(herdNow)
+	for player,s in pairs(sessions) do
+		local ctx=s.ready and herdCtx[s.biome]
+		if not ctx or player.Parent~=Players then continue end
+		local arena=world.arenas[s.biome]
+		local players=playersIn(s.biome)
+		local entries={}
+		for _,c in pairs(herd) do
+			if c.biome~=s.biome or c.claimed then continue end
+			if c.starterOwner and c.starterOwner~=player.UserId then continue end
+			if c.trialOwner and c.trialOwner~=player.UserId then continue end
+			if c.state=="graze" and not c.starterOwner then
+				local near=false
+				for _,p in ipairs(players) do if (p.x-c.x)^2+(p.z-c.z)^2<1600 then near=true; break end end
+				if not near and (herdTick+c.id)%3~=0 then continue end
+			end
+			local flags=0
+			if c.state=="flee" or c.state=="scatter" or c.state=="charging" then flags+=HerdNet.Flags.fleeing end
+			if c.state=="dazed" then flags+=HerdNet.Flags.dazed end
+			if c.golden then flags+=HerdNet.Flags.golden end
+			if c.state=="charging" then flags+=HerdNet.Flags.runner end
+			if c.state=="alert" or c.state=="crouch" or c.state=="lean" then flags+=HerdNet.Flags.startled end
+			if c.trialOwner then flags+=HerdNet.Flags.trial end
+			if c.starterOwner then flags+=HerdNet.Flags.private end
+			table.insert(entries,{id=c.id,x=c.x,z=c.z,heading=c.heading or 0,flags=flags,species=c.def.id,
+				state=CODES[c.state] or 0,height=c.height or 0})
+		end
+		for _,packet in ipairs(HerdNet.pack(s.biome,herdNow,entries)) do HerdFeed:FireClient(player,packet) end
+		if arena then s.herdArena=s.biome end
+	end
+end
 local podiumCycle={}
 RunService.Heartbeat:Connect(function(dt)
 	if lifecycle.closing then return end
@@ -1585,99 +1697,10 @@ RunService.Heartbeat:Connect(function(dt)
 			if not arena.bankRings and accepted and roundPlaying(s,now) and (root.Position-arena.bank).Magnitude<10 then bank(player,s,false) end
 		end
 	end
-	local centroids={}
-	-- Herd centroids per arena; each Daily Stampede course herds around its own owner's Sparks.
-	local function centroidKey(c) return if c.trialOwner then "t"..c.trialOwner else c.biome end
-	for _,c in pairs(herd) do
-		if c.starterOwner then continue end
-		local key=centroidKey(c)
-		local center=centroids[key] or {sum=Vector3.zero,count=0}
-		center.sum+=c.position; center.count+=1; centroids[key]=center
-	end
-	local events,gates={},{}
 	local clockNow=arenaClock()
-	for biome=1,SHARED_ARENAS do
-		events[biome]=arenaEvent(biome)
-		gates[biome]=Encounters.gate(clockNow,biome)
-		-- Shared encounters spawn only when someone is actively playing this arena.
-		local present=0
-		for _,s in pairs(sessions) do if s.ready and s.biome==biome and roundPlaying(s,now) then present+=1 end end
-		-- Herd density scales with active players (+5 Sparks each beyond the
-		-- first) so co-op never starves anyone. Surplus Sparks are temporary
-		-- extras: they never respawn on catch and expire after 45s unless needed.
-		-- Weekly Remix "Big Herd": +6 temporary Sparks per arena while anyone plays it.
-		local bigHerd=currentRemix.extraSparks or 0
-		if (present>1 or (present>0 and bigHerd>0)) and now>=(surplusNext[biome] or 0) then
-			local alive=0
-			for _,c in pairs(herd) do
-				if c.biome==biome and not c.starterOwner and not c.runner and not c.golden and not c.scattered and not c.trialOwner then alive+=1 end
-			end
-			if alive<18+bigHerd+5*(present-1) then
-				surplusNext[biome]=now+0.5
-				local offset=Rules.herdSpawn(random:NextNumber(0,math.pi*2),random:NextNumber(12,40))
-				local pool={}
-				for _,candidate in ipairs(Config.Creatures) do
-					if candidate.biome==biome or candidate.biome==Config.Biomes[biome].id then table.insert(pool,candidate) end
-				end
-				spawnCreature(biome,nil,nil,{def=pool[random:NextInteger(1,#pool)],extra=true,expiresAt=now+45,
-					position=world.arenas[biome].origin+Vector3.new(offset.x,offset.y,offset.z)})
-			end
-		end
-		local gold=Encounters.golden(clockNow,biome,present,currentRemix)
-		if gold.spawn and present>0 and goldenCycle[biome]~=gold.cycle then
-			goldenCycle[biome]=gold.cycle
-			-- Earned randomness only: any of this arena's species may appear gilded,
-			-- building a 12-species Gilded collection over many rounds.
-			local pool={}
-			for _,candidate in ipairs(Config.Creatures) do
-				if candidate.biome==biome or candidate.biome==Config.Biomes[biome].id then table.insert(pool,candidate) end
-			end
-			for _=1,gold.count do
-				local def=if #pool>0 then pool[random:NextInteger(1,#pool)] else species[Config.GoldenSpecies[biome]]
-				local offset=Rules.herdSpawn(random:NextNumber(0,math.pi*2),random:NextNumber(14,36))
-				spawnCreature(biome,nil,nil,{def=def,golden=true,extra=true,expiresAt=now+gold.expiresIn,
-					position=world.arenas[biome].origin+Vector3.new(offset.x,offset.y,offset.z)})
-			end
-			for player,s in pairs(sessions) do
-				if s.ready and s.biome==biome and roundPlaying(s,now) then
-					feedback(player,"Event",if gold.count>1 then "GOLDEN SPARKS! Catch one for +250 style" else "GOLDEN SPARK! Catch it for +250 style")
-				end
-			end
-		end
-		local fall=Encounters.starfall(clockNow,biome,nil,currentRemix)
-		if fall.visible and present>0 then
-			starfalls[biome]=starfalls[biome] or {}
-			stepStarfall(starfalls[biome],fall,biome,nil,random,now,function(position,dazed)
-				for player,s in pairs(sessions) do
-					if s.ready and s.biome==biome and roundPlaying(s,now) then
-						feedback(player,"Starfall",if dazed>0 then string.format("STARFALL! %d Spark%s dazed • STARSTRUCK +30",dazed,if dazed==1 then "" else "s") else "STARFALL!",nil,position,{dazed=dazed})
-					end
-				end
-			end)
-		end
-		local run=Encounters.stampede(clockNow,biome,currentRemix)
-		if run.active and present>0 then
-			local key=run.cycle..":"..run.run
-			if runKey[biome]~=key then
-				runKey[biome]=key
-				local origin=world.arenas[biome].origin
-				local from=origin+Vector3.new(run.from.x,2.2,run.from.z)
-				local to=origin+Vector3.new(run.to.x,2.2,run.to.z)
-				local direction=(to-from).Unit
-				local side=Vector3.new(-direction.Z,0,direction.X)
-				local speedRun=Encounters.runSpeed()
-				for n=1,Encounters.RunCount do
-					local lag=(n-1)*2.2
-					local position=from-direction*lag+side*((n%3)-1)*2.4
-					spawnCreature(biome,nil,nil,{def=runnerSpecies[biome] or species.ziptail,extra=true,position=position,
-						runner={direction=direction,speed=speedRun,untilT=now+(to-from).Magnitude/speedRun+lag/speedRun+0.2}})
-				end
-				for player,s in pairs(sessions) do
-					if s.ready and s.biome==biome and roundPlaying(s,now) then feedback(player,"Event","STAMPEDE RUN! Dash through the lane") end
-				end
-			end
-		end
-	end
+	local herdNow=clockNow
+	-- Herd (WP-06): Habitat respawns, then each creature's species state machine.
+	stepHerd(step,herdNow,now)
 	-- Shared buzzer passed: build each arena's positive podium from this cycle's rounds.
 	local cycleNow=Cycle.at(clockNow)
 	if cycleNow.index~=remixCycle and cycleNow.phase=="Intermission" or remixCycle<0 then
@@ -1705,169 +1728,7 @@ RunService.Heartbeat:Connect(function(dt)
 			end
 		end
 	end
-	local gateCatches={}
-	local trialGates={}
-	for player,s in pairs(sessions) do
-		if s.ready and s.mode=="trial" then trialGates[player.UserId]=trialGate(s,now) end
-	end
-	for id,c in pairs(herd) do
-		local arena=world.arenas[c.biome]
-		-- Encounter extras leave cleanly: runners at lane end, goldens at cycle end.
-		if (c.expiresAt and now>c.expiresAt) or (c.runner and now>c.runner.untilT) then
-			c.claimed=true; c.model:Destroy(); herd[id]=nil
-			continue
-		end
-		if c.runner then
-			c.position+=c.runner.direction*c.runner.speed*step
-			local bob=Vector3.new(c.position.X,2.2+math.abs(math.sin((now+c.seed)*9))*0.6,c.position.Z)
-			c.renderPosition=bob
-			continue
-		end
-		-- Starfall daze: the Spark stops and spins (client pose from the HerdNet flag).
-		if c.dazedUntil and now<c.dazedUntil then c.fleeing=false; continue end
-		local time=now+c.seed
-		local direction=Vector3.new(math.cos(c.heading),0,math.sin(c.heading))
-		local nearest,dist,nearestId=nil,26,nil
-		local event=events[c.biome] or TRIAL_EVENT
-		local eventScale=if c.beginner then .55 else event.speedScale
-		local turnScale=if c.beginner then 1 else event.turnScale
-		if c.golden then eventScale*=1.35 end
-		for player,s in pairs(sessions) do
-			if s.ready and s.phase=="Playing" and s.biome==c.biome and (not c.starterOwner or c.starterOwner==player.UserId)
-				and (not c.trialOwner or c.trialOwner==player.UserId) then
-				local root=rootOf(player)
-				if root and Rules.validPosition(xyz(root.Position)) then
-					local d=(root.Position-c.position).Magnitude
-					if d<dist then nearest=root.Position; dist=d; nearestId=player.UserId end
-				end
-			end
-		end
-		local center=centroids[centroidKey(c)]
-		if c.def.behavior=="herd" and center then
-			local toHerd=center.sum/center.count-c.position; toHerd=Vector3.new(toHerd.X,0,toHerd.Z)
-			if toHerd.Magnitude>7 then direction=direction:Lerp(toHerd.Unit,math.min(1,step*1.5)) end
-		elseif c.def.behavior=="wander" then
-			c.heading+=math.sin(time*.55)*step*.9*turnScale
-			direction=Vector3.new(math.cos(c.heading),0,math.sin(c.heading))
-			eventScale*=.75+.15*math.sin(time*.8)
-		end
-		local awareness=if c.golden then 26 elseif c.def.behavior=="wander" then 8 elseif c.def.behavior=="herd" then 15 else 26
-		-- Gate herding: a Spark spooked into fleeing remembers who pushed it (4s).
-		-- Wander/herd types spook within 14 studs for herding even if they barely flee.
-		if nearestId and dist<math.max(awareness,14) and (not c.starterOwner or c.trialOwner) then
-			if c.spookedBy~=nearestId then c.assistBy=c.spookedBy; c.assistAt=c.spookedAt end
-			c.spookedBy=nearestId; c.spookedAt=now
-		end
-		local fleeing=nearest~=nil and dist>0.1 and dist<awareness
-		if fleeing and not c.fleeing then c.startledUntil=now+0.6 end
-		c.fleeing=fleeing
-		if nearest and dist>0.1 and dist<awareness then
-			local away=Vector3.new(c.position.X-nearest.X,0,c.position.Z-nearest.Z)
-			if away.Magnitude>0.1 then
-				local flee=away.Unit
-				if c.def.behavior=="zigzag" then flee=(flee+Vector3.new(math.sin(time*3*turnScale)*0.6,0,math.cos(time*3*turnScale)*0.6)).Unit end
-				direction=direction:Lerp(flee,math.min(1,step*3))
-			end
-		else c.heading+=math.sin(time*0.6)*step*0.7*turnScale end
-		local delta=c.position-arena.origin
-		local flat=Vector3.new(delta.X,0,delta.Z)
-		if flat.Magnitude>48 then direction=-flat.Unit end
-		if not c.starterOwner and (c.position-arena.bank).Magnitude<32 then
-			direction=direction+Vector3.new(0,0,-2)
-		end
-		if c.beginner then
-			local toHome=c.home-c.position; toHome=Vector3.new(toHome.X,0,toHome.Z)
-			if toHome.Magnitude>.65 then direction=toHome.Unit end
-		end
-		-- Per-arena obstacles (World/Encounters.Obstacles): steer early, keep a 2.5-stud body margin.
-		for _,o in ipairs(arena.obstacles) do
-			local away=Vector3.new(c.position.X-(arena.origin.X+o.x),0,c.position.Z-(arena.origin.Z+o.z))
-			local steer=o.r+5.5
-			if away.Magnitude<steer and away.Magnitude>.01 then direction=direction+away.Unit*(steer-away.Magnitude) end
-		end
-		if direction.Magnitude<0.01 then direction=Vector3.new(0,0,1) else direction=direction.Unit end
-		c.heading=math.atan2(direction.Z,direction.X)
-		local pace=c.def.speed*eventScale
-		c.position+=direction*pace*step
-		if c.beginner then
-			local fromHome=Vector3.new(c.position.X-c.home.X,0,c.position.Z-c.home.Z)
-			if fromHome.Magnitude>.75 then c.position=c.home+fromHome.Unit*.75 end
-		end
-		for _,o in ipairs(arena.obstacles) do
-			local obstacleAt=arena.origin+Vector3.new(o.x,0,o.z)
-			local away=Vector3.new(c.position.X-obstacleAt.X,0,c.position.Z-obstacleAt.Z)
-			local margin=o.r+2.5
-			if away.Magnitude<margin then
-				local push=if away.Magnitude>.01 then away.Unit else Vector3.new(1,0,0)
-				c.position=obstacleAt+push*margin
-			end
-		end
-		if not c.starterOwner then
-			local safe=Rules.outsideBank(xyz(c.position),xyz(arena.bank))
-			c.position=Vector3.new(safe.x,safe.y,safe.z)
-		end
-		c.position=Vector3.new(c.position.X,2.2+math.sin(time*4)*0.35,c.position.Z)
-		-- Models are no longer moved on the server: HerdNet carries the pose.
-		local gate=if c.trialOwner then trialGates[c.trialOwner] else gates[c.biome]
-		if gate and gate.active and (not c.starterOwner or c.trialOwner) and not c.golden and not c.claimed and c.spookedBy and now-c.spookedAt<=4 then
-			local gateCenter=arena.origin+Vector3.new(gate.x,0,gate.z)
-			if Vector3.new(c.position.X-gateCenter.X,0,c.position.Z-gateCenter.Z).Magnitude<=gate.radius then
-				table.insert(gateCatches,c)
-			end
-		end
-	end
-	-- First-encounter coaching (D18): one line the first time each thing happens,
-	-- persisted in the profile so returning players are never lectured again.
-	for player,s in pairs(sessions) do
-		if s.ready and roundPlaying(s,now) and s.profile.totalBanked>=3 and s.mode~="trial" then
-			local gate=gates[s.biome]
-			local run=Encounters.stampede(clockNow,s.biome,currentRemix)
-			if gate.visible then hintOnce(player,s,"gate","SPARK GATE! Chase Sparks so they flee THROUGH the glowing ring") end
-			if run.visible then hintOnce(player,s,"stampede","STAMPEDE RUN! Stand by the lane and DASH through the fast herd") end
-			if Encounters.starfall(clockNow,s.biome,nil,currentRemix).visible then hintOnce(player,s,"starfall","AURORA STARFALL! Stars daze Sparks in the glowing circle • catch dazed Sparks for STARSTRUCK") end
-			if goldenCycle[s.biome]==Cycle.at(clockNow).index and Cycle.at(clockNow).finale then
-				hintOnce(player,s,"golden","GOLDEN SPARK! It's fast and worth triple glow • catch it before the buzzer")
-			end
-			if scoredRound(s,now) and s.endsAt-now<=15 and s.challenge and s.challenge.pendingBonus>0 then
-				hintOnce(player,s,"buzzer","15 SECONDS! Bank before the buzzer or your style bonus is lost")
-			end
-			local hazard=hazardFor(s,now)
-			if hazard.visible then hintOnce(player,s,"sweep","SWEEP INCOMING! Step out of the orange circle • hits scatter your parade") end
-			if s.challenge and s.challenge.chain>=2 then hintOnce(player,s,"chain","CHAIN! Keep catching within "..math.floor(stats(s).chainSeconds).."s to build x2, x3, x4") end
-		end
-	end
-	-- Broadcast one snapshot per arena to the players currently in it (10 Hz).
-	local packets={}
-	local herdClock=arenaClock()
-	for biome,arena in ipairs(world.arenas) do
-		local entries={}
-		for _,c in pairs(herd) do
-			if c.biome==biome and not c.claimed then
-				-- 0.5 s creature history at the snapshot ticks: loop claims are resolved
-				-- against where the creature was at the client's view clock.
-				c.history=c.history or {}
-				local hx,hz=c.position.X-arena.origin.X,c.position.Z-arena.origin.Z
-				LoopService.pushHistory(c.history,herdClock,hx,hz,GroundMap.height(arena.ground,hx,hz),c.catchable~=false)
-				local flags=0
-				if c.fleeing then flags+=HerdNet.Flags.fleeing end
-				if c.dazedUntil and now<c.dazedUntil then flags+=HerdNet.Flags.dazed end
-				if c.golden then flags+=HerdNet.Flags.golden end
-				if c.runner then flags+=HerdNet.Flags.runner end
-				if c.startledUntil and now<c.startledUntil then flags+=HerdNet.Flags.startled end
-				if c.trialOwner then flags+=HerdNet.Flags.trial end
-				table.insert(entries,{id=c.id,x=c.position.X-arena.origin.X,z=c.position.Z-arena.origin.Z,heading=c.heading or 0,flags=flags})
-			end
-		end
-		packets[biome]=HerdNet.pack(biome,now-arenaEpoch,entries)
-	end
-	for player,s in pairs(sessions) do
-		local list=s.ready and packets[s.herdArena or s.biome]
-		if list and player.Parent==Players then
-			for _,packet in ipairs(list) do HerdFeed:FireClient(player,packet) end
-		end
-	end
-	-- The Spark Gate is cut (replaced by Bloom Burst, WP-08): loops are the only catch.
-	table.clear(gateCatches)
+	broadcastHerd(herdNow)
 	if now-networkAt>=0.5 then
 		networkAt=now
 		for player,s in pairs(sessions) do send(player,s) end

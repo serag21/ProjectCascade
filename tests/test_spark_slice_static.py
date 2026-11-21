@@ -37,6 +37,9 @@ def main() -> int:
     checks += 1
     if re.search(r"local function capture\(|local function dashSweep\(", main_text):
         problems.append("Main: proximity capture or dash-through catching still exists")
+    checks += 1
+    if re.search(r"World\.creature\(|World\.gild\(", main_text):
+        problems.append("Main: the server must not build creature Instances (T-N2, WP-06)")
     for path in CLIENT:
         text = code(path)
         checks += 1
