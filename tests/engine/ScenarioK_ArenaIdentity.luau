@@ -18,10 +18,13 @@ for _, arena in ipairs(h.world:GetChildren()) do
 		end
 	end
 end
-check(layouts.meadow == "island" and layouts.canyon == "pillar" and layouts.aurora == "crystal" and layouts.trials == "island",
-	"Layouts: meadow islands, canyon pillars, aurora crystals, Trial Grounds islands")
-check(counts.meadow.SteeringIsland == 4 and counts.canyon.RockPillar == 6 and counts.aurora.CrystalPillar == 5 and counts.trials.SteeringIsland == 4,
-	"Obstacle counts 4 / 6 / 5 / 4")
+-- WP-05: the Meadow is built from design data (ScenarioM checks its features);
+-- Canyon, Aurora and the Trial Grounds keep the legacy layouts (worldLegacy).
+check(h.world.meadow:GetAttribute("DataDriven") == true and (counts.meadow.SteeringIsland or 0) == 0, "Meadow is data-driven")
+check(layouts.canyon == "pillar" and layouts.aurora == "crystal" and layouts.trials == "island",
+	"Layouts: canyon pillars, aurora crystals, Trial Grounds islands")
+check(counts.canyon.RockPillar == 6 and counts.aurora.CrystalPillar == 5 and counts.trials.SteeringIsland == 4,
+	"Obstacle counts 6 / 5 / 4")
 check((counts.canyon.SteeringIsland or 0) == 0 and (counts.aurora.SteeringIsland or 0) == 0, "Old islands removed from canyon and aurora")
 
 -- Unlock Aurora (90 banked) with bot rounds; signatures accrue from real catches.

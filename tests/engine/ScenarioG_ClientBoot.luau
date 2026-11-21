@@ -47,7 +47,7 @@ for _ = 1, 3 do
 	e.asClient(p, function() e.pressAction(captureAction) end)
 	e.advance(0.8)
 end
-h:walkTo(p, Harness.Vector3.new(0, 3, 40), 6)
+h:walkTo(p, Harness.Vector3.new(0, 3, 58), 6)
 e.advance(1)
 h:assertClean("client session")
 s = h:state(p)

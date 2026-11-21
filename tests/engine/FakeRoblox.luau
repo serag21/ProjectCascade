@@ -820,6 +820,13 @@ function Fake.new(options)
 	recs[workspace].props.CurrentCamera = camera
 	recs[workspace].props.Gravity = 196.2
 	engine.workspace = workspace
+	-- Terrain: fills are recorded (count + materials), never simulated.
+	local terrain, terrainRec = makeInstance("Terrain", true)
+	terrainRec.props.Name = "Terrain"
+	setParent(terrainRec, workspace)
+	recs[workspace].props.Terrain = terrain
+	engine.terrain = terrain
+	engine.terrainOps = {count = 0, materials = {}}
 	for _, name in ipairs({"Players", "ReplicatedStorage", "ServerScriptService", "ServerStorage", "Lighting", "StarterGui",
 		"StarterPack", "StarterPlayer", "SoundService", "RunService", "Debris", "TweenService", "HttpService",
 		"DataStoreService", "UserInputService", "ContextActionService", "GuiService", "AnalyticsService", "BadgeService",
@@ -1178,6 +1185,22 @@ function Fake.new(options)
 		WorldToViewportPoint = function(_, v) return DT.Vector3.new(640, 360, v.Z), true end,
 		WorldToScreenPoint = function(_, v) return DT.Vector3.new(640, 360, v.Z), true end,
 	}
+	local function terrainOp(kind)
+		return function(_, a, b, c, d)
+			engine.terrainOps.count += 1
+			local material = if kind == "FillBlock" or kind == "FillWedge" then c elseif kind == "FillBall" then c elseif kind == "FillCylinder" then d else nil
+			if typeof(material) ~= "EnumItem" or rawget(material, "EnumType")._name ~= "Material" then
+				error("Terrain:" .. kind .. " expects a Material", 2)
+			end
+			local key = tostring(material)
+			engine.terrainOps.materials[key] = (engine.terrainOps.materials[key] or 0) + 1
+		end
+	end
+	classMethods.Terrain = {
+		FillBlock = terrainOp("FillBlock"), FillBall = terrainOp("FillBall"),
+		FillCylinder = terrainOp("FillCylinder"), FillWedge = terrainOp("FillWedge"),
+		Clear = function() engine.terrainOps.count = 0; engine.terrainOps.materials = {} end,
+	}
 	classMethods.Workspace = {
 		GetServerTimeNow = function() return engine.baseTime + engine.now end,
 		Raycast = function() return nil end,
@@ -1417,6 +1440,20 @@ function Fake.new(options)
 		end)
 		threadContext[co] = ctx
 		resume(co)
+	end
+	-- Test helper: require a mounted module (path relative to game/) in the server context.
+	function engine.requireSource(path)
+		local parts = string.split(path, "/")
+		local serviceName = table.remove(parts, 1)
+		local node = getService(serviceName)
+		if serviceName == "StarterPlayer" then table.remove(parts, 1); node = starterPlayerScripts end
+		local last = string.gsub(table.remove(parts), "%.luau$", "")
+		table.insert(parts, last)
+		for _, name in ipairs(parts) do
+			node = findChild(recs[node], name)
+			if not node then error("requireSource: missing " .. path, 2) end
+		end
+		return loadModule(node, serverContext)
 	end
 	function engine.startServer()
 		local list = {}

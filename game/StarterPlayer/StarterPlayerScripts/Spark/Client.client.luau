@@ -29,6 +29,9 @@ local Podium=require(script.Parent:WaitForChild("Podium"))
 local CreatureView=require(script.Parent:WaitForChild("CreatureView"))
 local HerdNet=require(Shared:WaitForChild("HerdNet"))
 local Cosmetics=require(Shared:WaitForChild("Cosmetics"))
+local Decor=require(script.Parent:WaitForChild("Decor"))
+local GroundMap=require(Shared:WaitForChild("GroundMap"))
+local DesignArenas=require(Shared:WaitForChild("Design"):WaitForChild("Arenas"))
 local remotes=Shared:WaitForChild("Remotes")
 local Action=remotes:WaitForChild("Action")
 local State=remotes:WaitForChild("State")
@@ -1065,6 +1068,21 @@ RunService.RenderStepped:Connect(function(dt)
 			bankGuide.Text=direction.."  "..math.floor((root.Position-latest.bankPosition).Magnitude).." studs"
 		end
 	end
+end)
+-- Client-only arena dressing, lighting profile and occluder fade (WP-05).
+task.spawn(function()
+	local worldRoot=workspace:WaitForChild("SparkWorld",60)
+	local arenaModel=worldRoot and worldRoot:WaitForChild("meadow",60)
+	local def=DesignArenas.meadow
+	if not arenaModel or not def or not arenaModel:GetAttribute("DataDriven") then return end
+	Decor.start({def=def,origin=Vector3.new(0,0,0),GroundMap=GroundMap,arenaModel=arenaModel,
+		reducedMotion=cachedProfile~=nil and cachedProfile.settings.reducedMotion==true,
+		getPhase=function() return latest and latest.event end,
+		getTarget=function()
+			local character=player.Character
+			local root=character and character:FindFirstChild("HumanoidRootPart")
+			return root and root.Position+Vector3.new(0,1.5,0)
+		end})
 end)
 Action:FireServer("Ready")
 -- Ready is idempotent; retries cover a slow server-world build without a dead HUD.

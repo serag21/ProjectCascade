@@ -26,14 +26,17 @@ function Rules.movement(state, position, now, limits)
 	local elapsed=math.clamp(now-state.at,0,0.75)
 	local start=now-elapsed
 	local dashTime=if state.dashStarted and state.dashUntil then math.max(0,math.min(now,state.dashUntil)-math.max(start,state.dashStarted)) else 0
-	local refill=limits.speed*elapsed+math.max(0,65-limits.speed)*dashTime
+	-- Dash budget: the burst above walk speed at the tuned server peak (Tuning.dash.serverBudgetPeakSpeed).
+	local refill=limits.speed*elapsed+math.max(0,(limits.dashPeak or 65)-limits.speed)*dashTime
 	state.credit=math.min(limits.burst or 10,(state.credit or 0)+refill)
 	state.at=now
 	local dx,dz=position.x-limits.origin.x,position.z-limits.origin.z
 	local reason
-	if dx*dx+dz*dz > limits.radius*limits.radius then reason="Arena bounds"
-	elseif position.y < limits.minY or position.y > limits.maxY then reason="Height bounds"
-	else
+	if limits.bounds then
+		if not Rules.insideBounds(limits.bounds,dx,dz,limits.boundsMargin or 0) then reason="Arena bounds" end
+	elseif dx*dx+dz*dz > limits.radius*limits.radius then reason="Arena bounds" end
+	if not reason and (position.y < limits.minY or position.y > limits.maxY) then reason="Height bounds" end
+	if not reason then
 		local x,z=position.x-state.position.x,position.z-state.position.z
 		local distance=math.sqrt(x*x+z*z)
 		if distance>state.credit+0.001 then reason="Implausible approach"
@@ -42,6 +45,27 @@ function Rules.movement(state, position, now, limits)
 	if reason then state.blockedUntil=now+1.5; return false,reason end
 	state.position={x=position.x,y=position.y,z=position.z}
 	return true, "Accepted"
+end
+
+-- Arena bounds ring ({{x, z}, ...}, arena-relative): inside, or within `margin`
+-- studs of the ring (the hedge is a wall; a body pressed against it is legal).
+function Rules.insideBounds(bounds, x, z, margin)
+	if not Rules.finite(x) or not Rules.finite(z) then return false end
+	local inside=false
+	local n=#bounds
+	local best=math.huge
+	for i=1,n do
+		local a,b=bounds[i],bounds[i%n+1]
+		if (a[2]>z)~=(b[2]>z) and x<(b[1]-a[1])*(z-a[2])/(b[2]-a[2])+a[1] then inside=not inside end
+		if margin>0 then
+			local dx,dz=b[1]-a[1],b[2]-a[2]
+			local l2=dx*dx+dz*dz
+			local u=if l2==0 then 0 else math.clamp(((x-a[1])*dx+(z-a[2])*dz)/l2,0,1)
+			local qx,qz=a[1]+dx*u-x,a[2]+dz*u-z
+			best=math.min(best,math.sqrt(qx*qx+qz*qz))
+		end
+	end
+	return inside or best<=margin
 end
 
 function Rules.allow(bucket, key, now, interval)

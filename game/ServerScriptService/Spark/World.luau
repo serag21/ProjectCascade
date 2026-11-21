@@ -1,9 +1,17 @@
 --!strict
--- Deterministic, original primitive art. Git owns this scene; never edits Terrain.
+-- Deterministic, original primitive art. Git owns this scene. Data-driven arenas
+-- (WorldKit, WP-05) carve Terrain only inside their own region at server start;
+-- arenas listed in Design.Tuning.features.worldLegacy keep the legacy builder.
 local World = {}
 -- Shared, pure obstacle layouts (Encounters.Obstacles): the same data drives art,
 -- herd avoidance, Daily Stampede placement and every encounter clearance test.
-local Encounters = require(game:GetService("ReplicatedStorage"):WaitForChild("Spark"):WaitForChild("Encounters"))
+local SharedFolder = game:GetService("ReplicatedStorage"):WaitForChild("Spark")
+local Encounters = require(SharedFolder:WaitForChild("Encounters"))
+local GroundMap = require(SharedFolder:WaitForChild("GroundMap"))
+local DesignFolder = SharedFolder:WaitForChild("Design")
+local DesignTuning = require(DesignFolder:WaitForChild("Tuning"))
+local DesignArenas = require(DesignFolder:WaitForChild("Arenas"))
+local WorldKit = require(script.Parent:WaitForChild("WorldKit"))
 
 local WHITE = Color3.fromRGB(255, 249, 231)
 local INK = Color3.fromRGB(27, 36, 64)
@@ -329,18 +337,36 @@ function World.build(config: any)
 	creatures.Name = "Creatures"
 	creatures.Parent = root
 	local arenas = {}
+	local features = DesignTuning.features
+	local legacy = {}
+	for _, id in ipairs(features.worldLegacy or {}) do legacy[id] = true end
+	local terrain = workspace:FindFirstChildOfClass("Terrain")
 	for index, biome in ipairs(config.Biomes) do
-		table.insert(arenas, buildArena(root, biome, index))
+		local def = DesignArenas[biome.id]
+		if def and not legacy[biome.id] then
+			local started = os.clock()
+			local entry = WorldKit.buildArena(root, def, index, Vector3.new((index - 1) * 300, 0, 0), {
+				terrain = if features.worldPartsOnly then nil else terrain, partsOnly = features.worldPartsOnly == true})
+			entry.buildSeconds = os.clock() - started
+			entry.ground = GroundMap.build(def)
+			table.insert(arenas, entry)
+		else
+			local entry = buildArena(root, biome, index)
+			entry.ground = GroundMap.flat(biome.id)
+			table.insert(arenas, entry)
+		end
+		GroundMap.set(index, arenas[index].ground)
 		task.wait()
 	end
 	local lighting = game:GetService("Lighting")
-	lighting.ClockTime = 14
-	lighting.Brightness = 2.5
-	lighting.Ambient = Color3.fromRGB(158, 163, 195)
-	lighting.OutdoorAmbient = Color3.fromRGB(178, 192, 213)
+	local look = DesignArenas.meadow and DesignArenas.meadow.lighting
+	lighting.ClockTime = if look then look.clockTime else 14
+	lighting.Brightness = if look then look.brightness else 2.5
+	lighting.Ambient = if look then rgb(look.ambient) else Color3.fromRGB(158, 163, 195)
+	lighting.OutdoorAmbient = if look then rgb(look.outdoorAmbient) else Color3.fromRGB(178, 192, 213)
 	lighting.FogColor = Color3.fromRGB(186, 222, 245)
-	lighting.FogStart = 220
-	lighting.FogEnd = 480
+	lighting.FogStart = 260
+	lighting.FogEnd = 620
 	local atmosphere = lighting:FindFirstChild("SparkAtmosphere")
 	if not atmosphere then
 		local newAtmosphere = Instance.new("Atmosphere")
@@ -355,6 +381,47 @@ function World.build(config: any)
 	end
 	root.Parent = workspace
 	return {root = root, arenas = arenas, hub = Vector3.new(0, 3, 62), sharedArenas = #config.Biomes}
+end
+
+-- Studio-only evidence for GroundMap (WP-05): downward raycasts on a 4-stud grid
+-- inside the bounds, compared with GroundMap.height. Logs and records the result
+-- as arena attributes; never changes gameplay. Water is ignored by the rays.
+function World.verifyGround(entry: any, terrain: Instance?)
+	if not entry.dataDriven or not entry.ground then return nil end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	local include = {}
+	if terrain then table.insert(include, terrain) end
+	local partsGround = entry.model and entry.model:FindFirstChild("GroundParts")
+	if partsGround then table.insert(include, partsGround) end
+	params.FilterDescendantsInstances = include
+	params.IgnoreWater = true
+	local samples, misses, worst, over = 0, 0, 0, 0
+	local def, origin = entry.def, entry.origin
+	for x = -88, 88, GroundMap.CELL do
+		for z = -80, 80, GroundMap.CELL do
+			if GroundMap.inPolygon(def.bounds, x, z) then
+				local hit = workspace:Raycast(origin + Vector3.new(x, 60, z), Vector3.new(0, -100, 0), params)
+				if hit then
+					samples += 1
+					local deviation = math.abs((hit.Position.Y - origin.Y) - GroundMap.height(entry.ground, x, z))
+					if deviation > worst then worst = deviation end
+					if deviation > 0.5 then over += 1 end
+				else
+					misses += 1
+				end
+			end
+		end
+	end
+	if entry.model then
+		entry.model:SetAttribute("GroundMapSamples", samples)
+		entry.model:SetAttribute("GroundMapMisses", misses)
+		entry.model:SetAttribute("GroundMapMaxDeviation", worst)
+		entry.model:SetAttribute("GroundMapOverHalfStud", over)
+	end
+	print(string.format("[Spark] GroundMap %s: %d rays, %d misses, max deviation %.2f studs, %d over 0.5",
+		def.id, samples, misses, worst, over))
+	return {samples = samples, misses = misses, worst = worst, over = over}
 end
 
 function World.creature(def: any, parent: Instance): Model

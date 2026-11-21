@@ -15,7 +15,8 @@ check(s.cycle ~= nil and s.cycle.phase == "Play" and s.remaining > 0, "Shared cy
 check(s.startersRemaining == 3, "Three private starters")
 check(p:GetAttribute("SparkPhase") == "Playing", "Public phase attribute")
 local spawnPos = h:position(p)
-check((spawnPos - Vector3.new(0, 3, 38)).Magnitude < 0.01, "Teleported to arena spawn " .. tostring(spawnPos))
+-- Meadow spawn from design/fable/data/arenas/meadow.json (x=0, z=66), 3 studs above the ground.
+check(math.abs(spawnPos.X) < 0.01 and math.abs(spawnPos.Z - 66) < 0.01 and spawnPos.Y > 2 and spawnPos.Y < 4.5, "Teleported to arena spawn " .. tostring(spawnPos))
 local mine = function(m) return m:GetAttribute("StarterOwnerId") == p.UserId end
 check(#h:creatures(mine) == 3, "Three starter models owned by player")
 local joinedAt = e.now
@@ -27,7 +28,7 @@ s = h:state(p)
 check(s.carry == 3 and s.startersRemaining == 0, "Carrying 3, no starters left")
 check(p:GetAttribute("SparkParade") ~= "", "Parade attribute replicated")
 -- Walk to the bank gate; the heartbeat auto-banks within 10 studs.
-check(h:walkTo(p, Vector3.new(0, 3, 40), 6), "Reached bank")
+check(h:walkTo(p, Vector3.new(0, 3, 58), 6), "Reached bank")
 e.advance(0.5)
 s = h:state(p)
 check(s.carry == 0 and s.profile.totalBanked == 3, "Banked three (carry=" .. s.carry .. ", banked=" .. s.profile.totalBanked .. ")")

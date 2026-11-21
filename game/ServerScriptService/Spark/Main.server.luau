@@ -21,6 +21,8 @@ local HerdNet = require(Shared.HerdNet)
 local Cosmetics = require(Shared.Cosmetics)
 local Trial = require(Shared.Trial)
 local Remix = require(Shared.Remix)
+local Design = Shared:WaitForChild("Design")
+local DesignTuning = require(Design.Tuning)
 local World = require(script.Parent.World)
 local Persistence = require(script.Parent.Persistence)
 local Services = require(script.Parent.Services)
@@ -46,6 +48,14 @@ local Action, State, Feedback = remote("Action"), remote("State"), remote("Feedb
 local HerdFeed = Instance.new("UnreliableRemoteEvent")
 HerdFeed.Name = "HerdNet"; HerdFeed.Parent = remotes
 local world = World.build(Config)
+if RunService:IsStudio() then
+	-- WP-05 evidence: compare GroundMap with real raycasts once, after Terrain settles.
+	task.delay(3,function()
+		for _,entry in ipairs(world.arenas) do
+			if entry.dataDriven then pcall(World.verifyGround,entry,workspace:FindFirstChildOfClass("Terrain")) end
+		end
+	end)
+end
 -- Daily Stampede (D16, plan §6.4): a private Trial Grounds arena beyond the shared
 -- ones. Its look follows the boot day's biome; the course itself always follows
 -- the current UTC day (Trial.plan), so gameplay never goes stale on long servers.
@@ -540,7 +550,7 @@ local function teleport(player,s)
 	if root then
 		stopDash(root)
 		local arena=world.arenas[s.biome]
-		root.CFrame=CFrame.lookAt(arena.spawn,arena.origin+Vector3.new(0,3,0))
+		root.CFrame=CFrame.lookAt(arena.spawn,arena.spawnLook or arena.origin+Vector3.new(0,3,0))
 		root.AssemblyLinearVelocity=Vector3.zero
 		s.motion={position=xyz(root.Position),at=os.clock(),credit=10,blockedUntil=0}
 		s.startPos=root.Position
@@ -553,8 +563,12 @@ local function validApproach(player,s)
 	if not root or not humanoid or humanoid.Health<=0 or not s.motion then return false end
 	local arena=world.arenas[s.biome]
 	local now=os.clock()
+	-- Data-driven arenas validate against their bounds ring (bounce caps reach ~22
+	-- studs above a 7-stud hill); legacy arenas keep the 78-stud circle.
 	local valid,reason=Rules.movement(s.motion,xyz(root.Position),now,{origin=xyz(arena.origin),radius=78,
-		minY=arena.origin.Y-4,maxY=arena.origin.Y+24,speed=speed(s)+2,burst=10})
+		bounds=arena.bounds,boundsMargin=4,
+		minY=arena.origin.Y-4,maxY=arena.origin.Y+(arena.maxYOffset or 24),speed=speed(s)+2,burst=10,
+		dashPeak=DesignTuning.dash.serverBudgetPeakSpeed})
 	s.suspiciousUntil=s.motion.blockedUntil or 0
 	if not valid and s.mode=="trial" and s.trial then s.trial.rejections+=1 end
 	if not valid and s.exploit then s.exploit.movement+=1 end
