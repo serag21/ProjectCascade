@@ -285,6 +285,42 @@ function Decor.start(options)
 	local windmill = arenaModel:FindFirstChild("windmill")
 	local sails = windmill and windmill:FindFirstChild("Sails")
 	local sailPivot = sails and sails:GetPivot()
+	-- Bloom buds (WP-08): the server sets Bloom = "swell" | "open" | "closed";
+	-- open rotates the six petals 70 degrees outward; swell pulses the core.
+	local buds = {}
+	for _, feature in ipairs(arenaModel:GetChildren()) do
+		if feature:GetAttribute("FeatureType") == "bloom_bud" then
+			local petals = {}
+			for _, item in ipairs(feature:GetChildren()) do
+				if item.Name == "Petal" then table.insert(petals, {part = item, rest = item.CFrame}) end
+			end
+			local core = feature:FindFirstChild("Core")
+			local bud = {model = feature, petals = petals, core = core}
+			table.insert(buds, bud)
+			local function apply()
+				local state = feature:GetAttribute("Bloom")
+				local base = feature:GetAttribute("Base")
+				for _, petal in ipairs(petals) do
+					if state == "open" and typeof(base) == "Vector3" then
+						local a = petal.part:GetAttribute("Angle") or 0
+						local hinge = base + Vector3.new(math.cos(a) * 1.2, 2.5, math.sin(a) * 1.2)
+						-- Tilt outward about the tangent axis at the petal's hinge.
+						local tangent = Vector3.new(-math.sin(a), 0, math.cos(a))
+						petal.part.CFrame = CFrame.new(hinge) * CFrame.fromAxisAngle(tangent, -math.rad(70)) * CFrame.new(-hinge) * petal.rest
+					else
+						petal.part.CFrame = petal.rest
+					end
+				end
+			end
+			feature:GetAttributeChangedSignal("Bloom"):Connect(apply)
+		end
+	end
+	local perches = {}
+	for _, feature in ipairs(arenaModel:GetChildren()) do
+		if feature:GetAttribute("FeatureType") == "perch_flower" then
+			table.insert(perches, {model = feature, glow = feature:FindFirstChild("PerchGlow")})
+		end
+	end
 	local occluders = Decor.occluders(arenaModel)
 	local faded = {}
 	local angle, fadeAt = 0, 0
@@ -293,6 +329,17 @@ function Decor.start(options)
 			local fast = options.getPhase and options.getPhase() == "STAMPEDE"
 			angle += dt * (if fast then 1.6 else 0.63) -- 6 rpm, faster during STAMPEDE
 			sails:PivotTo(sailPivot * CFrame.Angles(0, 0, angle))
+		end
+		for _, bud in ipairs(buds) do
+			if bud.core then
+				local swelling = bud.model:GetAttribute("Bloom") == "swell"
+				bud.core.Transparency = if swelling and not options.reducedMotion then 0.25 + 0.25 * math.sin(os.clock() * 8) else 0
+			end
+		end
+		-- Flutterwink landing telegraph: the target perch glows (server attribute).
+		for _, perch in ipairs(perches) do
+			local glow = perch.model:GetAttribute("Glow") == true
+			if perch.glow then perch.glow.Transparency = if glow then 0 else 0.6 end
 		end
 		fadeAt += dt
 		if fadeAt >= 0.1 then

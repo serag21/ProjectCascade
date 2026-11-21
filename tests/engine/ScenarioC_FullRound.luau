@@ -36,11 +36,12 @@ for k, v in pairs(kinds) do table.insert(summary, k .. "=" .. v) end
 table.sort(summary)
 print("INFO feedback kinds: " .. table.concat(summary, " "))
 -- Results phase: loadout/heat changes are allowed; then replay.
-local silver = s.profile.records.meadow[1] >= 400
+-- Checkpoint 1 slice: Heat and perks are off ("heat_and_perks"), so every Heat
+-- request is refused regardless of medals (the Silver rule returns in stage 2).
 h:send(p, "Heat", 3); e.advance(0.2)
-check(h:state(p).profile.heat == 0, "Heat 3 refused without Silver at heat 1/2")
+check(h:state(p).profile.heat == 0, "Heat 3 refused")
 h:send(p, "Heat", 1); e.advance(0.2)
-check(h:state(p).profile.heat == (if silver then 1 else 0), "Heat 1 follows the Silver rule")
+check(h:state(p).profile.heat == 0, "Heat 1 refused in the slice")
 h:send(p, "Heat", 0); e.advance(0.2)
 check(h:state(p).profile.heat == 0, "Heat back to 0")
 check(h:awaitPlaying({p}, 12), "Next shared round auto-starts after the intermission")

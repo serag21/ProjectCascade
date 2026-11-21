@@ -276,6 +276,7 @@ coach = Coach.new({hud = hud, loopFx = loopFx, data = function() return latest e
 
 -- Server state ----------------------------------------------------------------------
 local lastBeat = nil
+local rumble = nil -- stampede_rumble loop during the telegraph
 State.OnClientEvent:Connect(function(data)
 	if type(data) ~= "table" then return end
 	if type(data.profile) == "table" then cachedProfile = data.profile end
@@ -323,9 +324,21 @@ Feedback.OnClientEvent:Connect(function(data)
 		hud.toast(data.text, now)
 		if extra.cycleStart then sfx.play("round_go") end
 	elseif data.kind == "Event" then
-		hud.toast(data.text, now)
-		if extra.event == "bloom_burst" then sfx.play(if extra.open then "bloom_open" else "bloom_chime") end
-		if extra.event == "stampede" and extra.horn then sfx.play("stampede_horn") end
+		if data.text and data.text ~= "" then hud.toast(data.text, now) end
+		if extra.event == "bloom_burst" then
+			sfx.play(if extra.open then "bloom_open" else "bloom_chime")
+			if not extra.open and typeof(extra.position) == "Vector3" then
+				loopFx.telegraph(extra.position + Vector3.new(0, 0, 6), extra.radius or 7, extra.seconds or 5, Color3.fromRGB(255, 160, 196))
+			end
+		elseif extra.event == "stampede" then
+			if extra.telegraph and type(extra.route) == "table" then
+				loopFx.route(extra.route, (extra.seconds or 6) + (extra.duration or 14))
+				if rumble then rumble.stop() end
+				rumble = sfx.loop("stampede_rumble")
+				task.delay(extra.seconds or 6, function() if rumble then rumble.stop(); rumble = nil end end)
+			end
+			if extra.horn then sfx.play("stampede_horn") end
+		end
 	elseif data.kind == "Hint" then
 		hud.hint(data.text, now)
 	elseif data.kind == "Results" or data.kind == "Quest" or data.kind == "Assist" or data.kind == "Error" then

@@ -215,6 +215,37 @@ function LoopFx.new(ctx)
 		slot.shrink = false
 		return slot
 	end
+	-- Stampede route telegraph: marching chevron Beams along the route (no parts).
+	local routeHost = hostPart("StampedeRoute", Vector3.new(0.2, 0.2, 0.2))
+	local routeAttachments, routeBeams = {}, {}
+	for i = 1, 16 do
+		local a = Instance.new("Attachment"); a.Parent = routeHost; routeAttachments[i] = a
+	end
+	for i = 1, 15 do
+		local beam = Instance.new("Beam")
+		beam.Attachment0, beam.Attachment1 = routeAttachments[i], routeAttachments[i + 1]
+		beam.Width0, beam.Width1 = 3, 3; beam.FaceCamera = false; beam.LightEmission = 0.8
+		beam.Color = ColorSequence.new(Color3.fromRGB(255, 214, 72)); beam.Transparency = NumberSequence.new(0.35)
+		beam.TextureSpeed = 2; beam.TextureLength = 6; beam.Enabled = false; beam.Parent = routeHost
+		routeBeams[i] = beam
+	end
+	local routeUntil = 0
+	function self.route(points, seconds)
+		local origin = ctx.origin()
+		for i, a in ipairs(routeAttachments) do
+			local p = points[math.min(i, #points)]
+			a.WorldPosition = origin + Vector3.new(p[1], ctx.groundY(p[1], p[2]) + 0.3, p[2])
+		end
+		for i, beam in ipairs(routeBeams) do beam.Enabled = i < #points end
+		routeUntil = os.clock() + seconds
+	end
+	RunService.Heartbeat:Connect(function()
+		if routeUntil > 0 and os.clock() >= routeUntil then
+			routeUntil = 0
+			for _, beam in ipairs(routeBeams) do beam.Enabled = false end
+		end
+	end)
+
 	function self.hopRing(position)
 		local slot = self.telegraph(position, 3, 0.5, Color3.fromRGB(255, 132, 177))
 		slot.shrink = true

@@ -70,7 +70,7 @@ local function measure(seconds)
 	return worst
 end
 
-local ROUND_CREDIT_MIN = 5 -- re-measured after WP-08 events (see INFO line)
+local ROUND_CREDIT_MIN = 8 -- 4 greedy bots; measured min 10/20 after WP-08 events (see INFO line)
 local samples, peakHerd, network = {}, 0, nil
 for cycle = 1, 20 do
 	check(h:awaitPlaying(players, 130), "Cycle " .. cycle .. ": all four in the shared round")

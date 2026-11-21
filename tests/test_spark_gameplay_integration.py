@@ -75,6 +75,7 @@ local function statsFor(s)
 end
 local function stats(s) if not s.stats then s.stats=statsFor(s) end return s.stats end
 local herd={}
+local bloomSets={}
 local lifecycle={closing=false}
 local rallies={ArenaRally.new(0)}
 local sessions={}

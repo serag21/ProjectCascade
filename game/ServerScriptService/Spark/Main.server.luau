@@ -27,6 +27,7 @@ local Design = Shared:WaitForChild("Design")
 local DesignTuning = require(Design.Tuning)
 local Slice = require(Design.Slice)
 local DesignCreatures = require(Design.Creatures)
+local DesignArenas = require(Design.Arenas)
 local LoopService = require(script.Parent.LoopService)
 local Habitat = require(script.Parent.Habitat)
 local LOOP_T = Loop.tuning(DesignTuning)
@@ -285,7 +286,8 @@ local function clearTrial(userId)
 		if c.trialOwner==userId then c.claimed=true; c.gone=true; herd[id]=nil end
 	end
 end
-local issueStarters,spawnCreature,stepHerd,broadcastHerd
+local issueStarters,spawnCreature,stepHerd,broadcastHerd,stepEvents
+local bloomSets={} -- [biome] = set of Bloom Burst creature ids this cycle (FULL BLOOM +40)
 local clearPersonal,onRoundRecorded
 local settleTrial,startTrial,leaveTrial
 -- The trial arena has one constant rhythm: no shared phase shifts, no intermission.
@@ -1063,8 +1065,9 @@ local function handleLoop(player,s,claim,now,serverArea)
 	local tight=#info>0 and Loop.isTight(#info,serverArea,LOOP_T,soloTight)
 	local snap=LoopService.snap(loops,s.lastDashAt,claim)
 	local finale=scoredRound(s,now) and s.endsAt-now<=Cycle.FinaleSeconds
-	local style=if #info==8 and s.bloomIds and (function()
-		for _,entry in ipairs(info) do if not s.bloomIds[entry.creature.id] then return false end end
+	local bloomIds=bloomSets[s.biome]
+	local style=if #info==8 and bloomIds and (function()
+		for _,entry in ipairs(info) do if not bloomIds[entry.creature.id] then return false end end
 		return true end)() then 40 else 0
 	local ok
 	ok,result=Challenge.loop(s.challenge,now,{catches=catches,snap=snap,tight=tight,pinch=false,
@@ -1562,6 +1565,112 @@ local function removeCreature(c)
 	c.claimed=true; c.gone=true
 	herd[c.id]=nil
 end
+-- EVENTS (WP-08): Bloom Burst at 30 s and the route Stampede at 55 s on the
+-- shared arena clock (events.json), for data-driven arenas with someone playing.
+local eventState={} -- [biome] = {cycle, warned, opened, closed, stampedeWarned, horned, ran}
+local EV_BLOOM=DesignEvents.byId.bloom_burst
+local EV_STAMPEDE=DesignEvents.byId.stampede
+local function arenaPlayers(biome)
+	local list={}
+	for player,s in pairs(sessions) do
+		if s.ready and s.biome==biome and s.phase=="Playing" and player.Parent==Players then table.insert(list,player) end
+	end
+	return list
+end
+local function liveCount(biome)
+	local n=0
+	for _,c in pairs(herd) do if c.biome==biome and not c.claimed and not c.starterOwner then n+=1 end end
+	return n
+end
+-- Pure-ish schedule for a cycle: which bud and which route (rotating per cycle).
+local function eventPlan(biome,cycle)
+	local def=world.arenas[biome].def
+	local anchors,routes={},{}
+	for _,a in ipairs(def.eventAnchors or {}) do if a.event=="bloom_burst" then table.insert(anchors,a) end end
+	for _,r in ipairs(def.routes or {}) do if r.kind=="stampede" then table.insert(routes,r) end end
+	local anchor=anchors[(cycle%math.max(1,#anchors))+1]
+	return {bud=anchor and DesignArenas.feature(def,anchor.feature),
+		route=routes[(cycle%math.max(1,#routes))+1]}
+end
+function stepEvents(herdNow)
+	local c=Cycle.at(herdNow)
+	for biome,ctx in pairs(herdCtx) do
+		local players=arenaPlayers(biome)
+		local st=eventState[biome]
+		if not st or st.cycle~=c.index then
+			st={cycle=c.index}; eventState[biome]=st
+			bloomSets[biome]=nil
+		end
+		if #players==0 or c.phase~="Play" then continue end
+		local plan=eventPlan(biome,c.index)
+		local arena=world.arenas[biome]
+		local model=arena.model and plan.bud and arena.model:FindFirstChild(plan.bud.id)
+		local function tell(text,extra)
+			extra.at=c.t -- shared-cycle time the event fired (evidence for T-E1)
+			for _,player in ipairs(players) do feedback(player,"Event",text,nil,nil,extra) end
+		end
+		-- Bloom Burst: telegraph (swell + chime) from telegraphAt, opens at start.
+		if plan.bud and Slice.on("bloom_burst") then
+			local budAt=arena.origin+Vector3.new(plan.bud.x,GroundMap.height(arena.ground,plan.bud.x,plan.bud.z),plan.bud.z)
+			if c.t>=EV_BLOOM.telegraphAt and not st.warned then
+				st.warned=true
+				if model then model:SetAttribute("Bloom","swell") end
+				tell("BLOOM BURST! Get to the glowing bud",{event="bloom_burst",position=budAt,radius=7,
+					seconds=EV_BLOOM.start-EV_BLOOM.telegraphAt})
+			end
+			if c.t>=EV_BLOOM.start and not st.opened then
+				st.opened=true
+				if model then model:SetAttribute("Bloom","open") end
+				local room=math.max(0,DesignTuning.density.eventLiveCapPerArena-liveCount(biome))
+				local cx,cz=plan.bud.x,plan.bud.z+6 -- the 7-stud feeding cluster at the bud's base
+				local ids={}
+				local spawnList={"pip","pip","pip","pip","pip","cubloom","cubloom","cubloom"}
+				for i,id in ipairs(spawnList) do
+					if i>room then break end
+					local a=i*math.pi*2/#spawnList
+					local def=DesignCreatures.byId[id]
+					local cr=makeCreature(biome,def,cx+math.cos(a)*2.8,cz+math.sin(a)*2.8,{extra=true,event="bloom_burst",
+						home={x=cx,z=cz,r=3.5},behavior="feeder",feedUntil=herdNow+6,
+						behaviorAfter=Herd.species[if id=="cubloom" then "clump" else def.behavior],
+						expiresAt=herdNow+EV_BLOOM.duration+8})
+					ids[cr.id]=true
+				end
+				bloomSets[biome]=ids
+				tell("The bud bursts open! Ring the whole cluster",{event="bloom_burst",open=true,position=budAt})
+			end
+			if c.t>=EV_BLOOM.start+EV_BLOOM.duration and not st.closed then
+				st.closed=true
+				if model then model:SetAttribute("Bloom","closed") end
+			end
+		end
+		-- Stampede: route telegraph at telegraphAt, horn 2 s before, the herd charges at start.
+		if plan.route and Slice.on("stampede") then
+			if c.t>=EV_STAMPEDE.telegraphAt and not st.stampedeWarned then
+				st.stampedeWarned=true
+				tell("STAMPEDE incoming! Lay a ring across the glowing route",{event="stampede",route=plan.route.points,
+					telegraph=true,seconds=EV_STAMPEDE.start-EV_STAMPEDE.telegraphAt,duration=EV_STAMPEDE.duration})
+			end
+			if c.t>=EV_STAMPEDE.start-2 and not st.horned then
+				st.horned=true
+				tell("",{event="stampede",horn=true})
+			end
+			if c.t>=EV_STAMPEDE.start and not st.ran then
+				st.ran=true
+				local want=math.min(18,12+2*#players)
+				local n=math.min(want,math.max(0,DesignTuning.density.eventLiveCapPerArena-liveCount(biome)))
+				local kinds={"pip","bunvolt","cubloom"}
+				for i=1,n do
+					local def=DesignCreatures.byId[kinds[(i-1)%#kinds+1]]
+					local first=plan.route.points[1]
+					makeCreature(biome,def,first[1],first[2],{extra=true,event="stampede",behavior="runner",
+						route=plan.route.points,routeSpeed=26,lane=((i-1)%3-1)*2.5,lag=math.floor((i-1)/3)*2.5,
+						expiresAt=herdNow+EV_STAMPEDE.duration+6})
+				end
+				tell("STAMPEDE!",{event="stampede",run=true})
+			end
+		end
+	end
+end
 function stepHerd(step,herdNow,_now)
 	herdTick+=1
 	local beat=beatAt(herdNow)
@@ -1662,11 +1771,10 @@ RunService.Heartbeat:Connect(function(dt)
 			else beginRound(player,s,Cycle.fullRound(arenaClock())) end
 		end
 		if scoredRound(s,now) and s.mode~="trial" then
-			local event=arenaEvent(s.biome)
-			if s.eventPhase~=nil and s.eventPhase~=event.phase and s.profile.totalBanked>=3 then
-				feedback(player,"Round",event.name.." • Read the herd's new rhythm")
-			end
-			s.eventPhase=event.phase
+			-- Round beats (events.json): GRAZE / GATHER / STAMPEDE / GOLDEN FINALE.
+			local beat=beatAt(arenaClock())
+			if s.eventPhase~=nil and s.eventPhase~=beat.name then feedback(player,"Round",beat.name) end
+			s.eventPhase=beat.name
 		end
 		local root,humanoid=rootOf(player)
 		if root and humanoid then
@@ -1722,6 +1830,7 @@ RunService.Heartbeat:Connect(function(dt)
 	local clockNow=arenaClock()
 	local herdNow=clockNow
 	-- Herd (WP-06): Habitat respawns, then each creature's species state machine.
+	stepEvents(herdNow)
 	stepHerd(step,herdNow,now)
 	-- Shared buzzer passed: build each arena's positive podium from this cycle's rounds.
 	local cycleNow=Cycle.at(clockNow)
