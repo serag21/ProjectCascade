@@ -1324,6 +1324,9 @@ function Fake.new(options)
 			ColorSequence = DT.ColorSequence, ColorSequenceKeypoint = DT.ColorSequenceKeypoint,
 			NumberSequence = DT.NumberSequence, NumberSequenceKeypoint = DT.NumberSequenceKeypoint,
 			NumberRange = DT.NumberRange, TweenInfo = DT.TweenInfo, Rect = DT.Rect, BrickColor = DT.BrickColor,
+			-- RaycastParams: a plain record (the fake Workspace:Raycast never hits).
+			RaycastParams = {new = function() return {FilterType = EnumGlobal.RaycastFilterType.Exclude,
+				FilterDescendantsInstances = {}, IgnoreWater = false, CollisionGroup = "Default", RespectCanCollide = false} end},
 			PhysicalProperties = DT.PhysicalProperties, Font = DT.Font, Random = DT.Random,
 			DateTime = {now = function() return {UnixTimestamp = engine.baseTime + math.floor(engine.now), UnixTimestampMillis = math.floor((engine.baseTime + engine.now) * 1000)} end},
 			Enum = EnumGlobal, task = task, typeof = typeof, os = virtualOs,

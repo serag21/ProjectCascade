@@ -164,31 +164,119 @@ function Harness.nearest(h, position, filter)
 	return best, bestDistance
 end
 
--- Chase the nearest eligible creature and press Capture when close and facing.
-function Harness.chaseAndCatch(h, player, filter, seconds)
-	local started = h.engine.now
-	while h.engine.now - started < (seconds or 8) do
-		local here = h:position(player)
-		local target = h:nearest(here, filter)
-		if not target then h.engine.advance(0.2); continue end
-		local goal = target:GetPivot().Position
-		h.engine.walkToward(player, goal, 21, 1 / 30)
-		h.engine.step(1 / 30)
-		if (h:position(player) - goal).Magnitude < 3.5 then
-			local carry = (h:state(player) or {}).carry or 0
-			h:send(player, "Capture")
-			h.engine.advance(0.1)
-			local after = (h:state(player) or {}).carry or 0
-			if after > carry then return true end
-			h.engine.advance(0.6)
+-- Loop tools (WP-04): the harness plays the client's role with the REAL Loop
+-- module: a local ribbon from the bot's positions, tryClose with the live head,
+-- and the same claim payload the client sends (polygon, kind, viewClock).
+function Harness.loopKit(h)
+	if not h.Loop then
+		h.Loop = h.engine.requireSource("ReplicatedStorage/Spark/Loop.luau")
+		h.DesignTuning = h.engine.requireSource("ReplicatedStorage/Spark/Design/Tuning.luau")
+		h.LoopT = h.Loop.tuning(h.DesignTuning)
+	end
+	return h.Loop, h.LoopT
+end
+-- The herd clock a client would be rendering (latest snapshot - 0.1 s).
+function Harness.viewClock(h, arena)
+	h:collect()
+	local packet = h.latestHerd and h.latestHerd[arena or 1]
+	local decoded = packet and Harness.decodeHerd(packet)
+	return if decoded then decoded.clock - 0.1 else 0
+end
+-- Per-bot ribbon state.
+function Harness.ribbonFor(h, player)
+	h.ribbons = h.ribbons or {}
+	local Loop = h:loopKit()
+	if not h.ribbons[player] then h.ribbons[player] = {ribbon = Loop.new(), claims = 0} end
+	return h.ribbons[player]
+end
+-- Feed the current position into the bot's ribbon; on closure send the claim.
+-- Returns the polygon when a claim was sent.
+function Harness.ribbonStep(h, player, arena)
+	local Loop, T = h:loopKit()
+	local r = h:ribbonFor(player)
+	local pos = h:position(player)
+	local origin = Harness.Vector3.new(((arena or 1) - 1) * 300, 0, 0)
+	local x, z = pos.X - origin.X, pos.Z - origin.Z
+	local now = h.engine.now
+	Loop.push(r.ribbon, x, z, now, T, 0)
+	local poly, kind = Loop.tryClose(r.ribbon, T, {x = x, z = z, t = now, g = 0})
+	if poly then
+		r.claims += 1
+		h:send(player, "Loop", {poly = Loop.encode(poly), kind = kind, viewClock = h:viewClock(arena)})
+		r.ribbon = Loop.new()
+		Loop.push(r.ribbon, x, z, now, T, 0)
+		return poly
+	end
+	return nil
+end
+-- Walk a circle of `radius` around `center` (world Vector3) for up to `turns`,
+-- drawing the ribbon; stops at the first closure. -> polygon or nil.
+function Harness.ringAround(h, player, center, radius, options)
+	options = options or {}
+	local e = h.engine
+	local here = h:position(player)
+	local angle = math.atan2(here.Z - center.Z, here.X - center.X)
+	local start = center + Harness.Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+	h:walkTo(player, Harness.Vector3.new(start.X, 3, start.Z), 6, options.speed or 21)
+	h:ribbonFor(player).ribbon = h.Loop.new()
+	local speed, dt = options.speed or 21, 1 / 30
+	local swept = 0
+	while swept < (options.turns or 1.3) * math.pi * 2 do
+		local step = speed * dt / radius
+		angle += step * (options.direction or 1); swept += step
+		local target = center + Harness.Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+		e.walkToward(player, Harness.Vector3.new(target.X, 3, target.Z), speed * 1.05, dt)
+		e.step(dt)
+		local poly = h:ribbonStep(player, options.arena)
+		if poly then
+			e.advance(options.settle or 0.45)
+			return poly
 		end
 	end
-	return false
+	return nil
+end
+-- Two players walk the same ring from opposite sides; each sends its claim as
+-- soon as its own ribbon closes. -> polygonA, polygonB (either may be nil).
+function Harness.pairRing(h, a, b, centre, radius, arena)
+	local e = h.engine
+	local Loop = h:loopKit()
+	h:walkTo(a, Harness.Vector3.new(centre.X + radius, 3, centre.Z), 6)
+	h:walkTo(b, Harness.Vector3.new(centre.X - radius, 3, centre.Z), 6)
+	h:ribbonFor(a).ribbon = Loop.new(); h:ribbonFor(b).ribbon = Loop.new()
+	local angleA, angleB, dt = 0, math.pi, 1 / 30
+	local sentA, sentB
+	for _ = 1, 200 do
+		angleA += 21 * dt / radius; angleB += 21 * dt / radius
+		e.walkToward(a, Harness.Vector3.new(centre.X + math.cos(angleA) * radius, 3, centre.Z + math.sin(angleA) * radius), 22, dt)
+		e.walkToward(b, Harness.Vector3.new(centre.X + math.cos(angleB) * radius, 3, centre.Z + math.sin(angleB) * radius), 22, dt)
+		e.step(dt)
+		if not sentA then sentA = h:ribbonStep(a, arena or 1) end
+		if not sentB then sentB = h:ribbonStep(b, arena or 1) end
+		if sentA and sentB then break end
+	end
+	return sentA, sentB
 end
 
--- Scripted (non-human) bot: chase the nearest catchable Spark in the player's
--- arena, press Capture when close, Dash toward mid-range targets, bank when
--- the parade is large or the buzzer is near. Runs until Results or timeout.
+-- Loop results (feedback kind "Loop") received since index `from`.
+function Harness.loopResults(h, player, from)
+	local list = {}
+	for index, f in ipairs(h:feedbackOf(player, "Loop")) do
+		if index > (from or 0) then table.insert(list, f) end
+	end
+	return list
+end
+-- Run through a bank ring (world position of its centre).
+function Harness.runThroughRing(h, player, ring, options)
+	options = options or {}
+	local approach = ring + Harness.Vector3.new(0, 0, options.from or 6)
+	h:walkTo(player, Harness.Vector3.new(approach.X, 3, approach.Z), 8)
+	return h:walkTo(player, Harness.Vector3.new(ring.X, 3, ring.Z - (options.from or 6)), 4)
+end
+
+-- Scripted (non-human) bot (WP-04 loop version): approach the nearest catchable
+-- Spark, walk a ring around it (real Loop ribbon + claims), dash occasionally,
+-- and bank by running through the arena's bank ring when the parade is large or
+-- the buzzer is near. Runs until Results or timeout. Not human timing.
 function Harness.playRound(h, player, options)
 	return h:playRounds({player}, options)[player]
 end
@@ -196,11 +284,14 @@ end
 function Harness.playRounds(h, playerList, options)
 	options = options or {}
 	local e = h.engine
+	h:loopKit()
 	local bots = {}
 	for _, player in ipairs(playerList) do
-		bots[player] = {captures = 0, dashes = 0, banks = 0, attempts = 0, lastCapture = -10, lastDash = -10, done = false}
+		bots[player] = {captures = 0, dashes = 0, banks = 0, attempts = 0, loops = 0, lastDash = -10, done = false, mode = "seek"}
 	end
+	local radius = options.radius or 5.5
 	local deadline = e.now + (options.timeout or 120)
+	local dt = 1 / 30
 	while e.now < deadline do
 		local active = false
 		for _, player in ipairs(playerList) do
@@ -216,20 +307,33 @@ function Harness.playRounds(h, playerList, options)
 			local here = h:position(player)
 			local bank = s.bankPosition
 			local goal
-			if s.carry > 0 and (s.carry >= math.min(options.bankAt or 6, s.capacity) or s.remaining <= 14) then
-				goal = Harness.Vector3.new(bank.X, 3, bank.Z - 3)
+			local wantBank = s.carry > 0 and (s.carry >= math.min(options.bankAt or 6, s.capacity) or s.remaining <= 14)
+			if wantBank and bot.mode ~= "bank2" then
+				-- Approach from the south side, then run north through the ring.
+				if bot.mode ~= "bank" then bot.mode = "bank" end
+				goal = Harness.Vector3.new(bank.X, 3, bank.Z + 7)
+				if (Harness.Vector3.new(here.X, 0, here.Z) - Harness.Vector3.new(goal.X, 0, goal.Z)).Magnitude < 1.5 then bot.mode = "bank2" end
+			elseif bot.mode == "bank2" then
+				goal = Harness.Vector3.new(bank.X, 3, bank.Z - 7)
+				if s.carry == 0 or (Harness.Vector3.new(here.X, 0, here.Z) - Harness.Vector3.new(goal.X, 0, goal.Z)).Magnitude < 1.5 then bot.mode = "seek" end
+			elseif bot.mode == "circle" then
+				bot.angle += 21 * dt / radius; bot.swept += 21 * dt / radius
+				goal = bot.center + Harness.Vector3.new(math.cos(bot.angle) * radius, 0, math.sin(bot.angle) * radius)
+				if bot.swept > math.pi * 2 * 1.6 then bot.mode = "seek" end
 			else
 				local target = h:nearest(here, function(m)
 					local owner = m:GetAttribute("StarterOwnerId")
 					local position = m:GetPivot().Position
-					return (owner == nil or owner == player.UserId) and math.abs(position.X - origin.X) < 60
+					return (owner == nil or owner == player.UserId) and math.abs(position.X - origin.X) < 90
 				end)
 				if target then
 					goal = target:GetPivot().Position
-					local distance = (goal - here).Magnitude
-					if distance < 3.5 and e.now - bot.lastCapture > 0.7 then
-						h:send(player, "Capture"); bot.lastCapture = e.now; bot.attempts += 1
-					elseif distance > 7 and distance < 14 and e.now - bot.lastDash > (s.dashCooldown or 3) + 0.1 and options.dash ~= false then
+					local distance = (Harness.Vector3.new(goal.X - here.X, 0, goal.Z - here.Z)).Magnitude
+					if distance <= radius + 0.5 then
+						bot.mode = "circle"; bot.center = Harness.Vector3.new(goal.X, 0, goal.Z)
+						bot.angle = math.atan2(here.Z - goal.Z, here.X - goal.X); bot.swept = 0
+						h:ribbonFor(player).ribbon = h.Loop.new(); bot.attempts += 1
+					elseif distance > 9 and distance < 16 and e.now - bot.lastDash > 2.6 and options.dash ~= false then
 						h:send(player, "Dash"); bot.lastDash = e.now; bot.dashes += 1
 					end
 				else
@@ -237,7 +341,7 @@ function Harness.playRounds(h, playerList, options)
 				end
 			end
 			bot.wasCarry = s.carry
-			e.walkToward(player, Harness.Vector3.new(goal.X, 3, goal.Z), options.speed or 21, 1 / 30)
+			e.walkToward(player, Harness.Vector3.new(goal.X, 3, goal.Z), options.speed or 21, dt)
 		end
 		if not active then
 			if options.debug then
@@ -248,10 +352,16 @@ function Harness.playRounds(h, playerList, options)
 			end
 			break
 		end
-		e.step(1 / 30)
+		e.step(dt)
 		for _, player in ipairs(playerList) do
 			local bot = bots[player]
 			local s = player.Parent and h:state(player)
+			if s and s.phase == "Playing" and bot.mode ~= "bank" and bot.mode ~= "bank2" then
+				if h:ribbonStep(player, s.biome) then
+					bot.loops += 1
+					if bot.mode == "circle" then bot.mode = "seek" end
+				end
+			end
 			if s and bot.wasCarry then
 				if s.carry > bot.wasCarry then bot.captures += s.carry - bot.wasCarry end
 				if bot.wasCarry > 0 and s.carry == 0 and s.phase == "Playing" then bot.banks += 1 end
@@ -260,6 +370,21 @@ function Harness.playRounds(h, playerList, options)
 		end
 	end
 	return bots
+end
+
+-- Loop version of the old chase-and-catch: ring the nearest eligible creature.
+function Harness.chaseAndCatch(h, player, filter, seconds)
+	local started = h.engine.now
+	while h.engine.now - started < (seconds or 8) do
+		local here = h:position(player)
+		local target = h:nearest(here, filter)
+		if not target then h.engine.advance(0.2); continue end
+		local carry = (h:state(player) or {}).carry or 0
+		h:ringAround(player, target:GetPivot().Position, 5.5)
+		h.engine.advance(0.3)
+		if ((h:state(player) or {}).carry or 0) > carry then return true end
+	end
+	return false
 end
 
 -- Synchronized cycles: rounds auto-start at the next shared cycle boundary.

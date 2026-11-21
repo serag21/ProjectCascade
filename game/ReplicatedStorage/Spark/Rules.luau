@@ -99,9 +99,13 @@ function Rules.outsideBank(position, bank)
 	return {x=position.x,y=position.y,z=bank.z-28}
 end
 
-function Rules.canCapture(player, creature, now, radius, capacity)
+-- kind "loop" (WP-04): containment was already proved by the loop claim, so the
+-- distance test is skipped, and a full parade still catches (overflow scores at
+-- half value and is released) instead of refusing.
+function Rules.canCapture(player, creature, now, radius, capacity, kind)
 	if player.phase ~= "Playing" or player.ready ~= true then return false, "Not playing" end
-	if player.carry >= capacity then return false, "Bank your parade first" end
+	local loop = kind == "loop"
+	if not loop and player.carry >= capacity then return false, "Bank your parade first" end
 	if creature.claimed then return false, "Already caught" end
 	-- Daily Stampede: trial Sparks belong to one runner; trial runners catch only their own.
 	if creature.trialOwner~=nil and creature.trialOwner~=player.userId then return false, "Another player's Daily Stampede" end
@@ -113,6 +117,7 @@ function Rules.canCapture(player, creature, now, radius, capacity)
 	if player.biome ~= creature.biome then return false, "Different arena" end
 	if not Rules.finite(now) or not Rules.finite(radius) or radius <= 0 then return false, "Invalid" end
 	if player.suspiciousUntil and now < player.suspiciousUntil then return false, "Movement settling" end
+	if loop then return true, "Caught" end
 	local distance = Rules.distance(player.position, creature.position)
 	if not Rules.finite(distance) or distance > radius then return false, "Move closer" end
 	return true, "Caught"

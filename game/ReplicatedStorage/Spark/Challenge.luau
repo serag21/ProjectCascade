@@ -1,6 +1,11 @@
 -- Pure round mastery scoring. Call only after server capture ownership/range checks.
 -- Skill score is separate from glow/collection: mistakes never remove saved progress.
 local Challenge = {}
+-- Loop scoring (WP-04) is shared with the client payout preview: Loop.scoreLoop.
+local Loop = if script then require(script.Parent.Loop) else require("./Loop")
+local DesignTuning = if script then require(script.Parent.Design.Tuning) else require("./Design/Tuning")
+local LOOP_T = Loop.tuning(DesignTuning)
+Challenge.LoopTuning = LOOP_T
 -- Main enforces .65s. Leave a small timing margin here because its authorization
 -- and this score transaction are sampled at different instants on the server.
 local CHAIN_SECONDS, CAPTURE_INTERVAL, MAX_SCORE = 6, 0.60, 1000000
@@ -107,7 +112,10 @@ function Challenge.new(roundIndex,previousBestRun,rawRules)
 		lastCapture=nil,seen={},goalComplete=false,finished=false,
 		checkpoints={},checkpointElapsed=0,previousBest=Challenge.sanitizeBestRun(previousBestRun),
 		rules=rulesFrom(rawRules),multiCatches=0,bestMulti=0,herded=0,assists=0,pops=0,zaps=0,golden=0,
-		buzzerLost=0,scattered=0,finaleBanks=0,bestBank=0,signatures=0,starstruck=0}
+		buzzerLost=0,scattered=0,finaleBanks=0,bestBank=0,signatures=0,starstruck=0,
+		-- Loop model (WP-04): links replace the per-catch chain count.
+		loopMode=false,links=0,chainUntil=-math.huge,chainSpan=LOOP_T.chainWindow,loops=0,bestLoop=0,
+		roundups=0,pinches=0,medleys=0,loopPoints=0,bankPoints=0,styleBonus=0}
 end
 
 -- Main samples before heartbeat transactions, and again after final auto-bank/finish.
@@ -144,6 +152,7 @@ end
 function Challenge.snapshot(state, now)
 	local at=if finite(now) then math.max(now,state.lastEvent) else state.lastEvent
 	local chain=if state.finished then 0 else activeChain(state,at)
+	local loopLive=state.loopMode and not state.finished and at<=state.chainUntil
 	local personalBest={target=state.previousBest.score}
 	if state.previousBest.score>0 then
 		for _,boundary in ipairs(CHECKPOINTS) do
@@ -157,9 +166,15 @@ function Challenge.snapshot(state, now)
 	end
 	return {score=state.score,pending=state.pendingBase+state.pendingBonus,
 		checkpoints=copyCheckpoints(state.checkpoints),personalBest=personalBest,
-		pendingBonus=state.pendingBonus,chain=chain,multiplier=multiplier(chain,state.rules.maxMultiplier,state.rules.chainStep),
-		chainSeconds=if chain>0 then math.max(0,state.rules.chainSeconds-(at-state.lastCatch)) else 0,
-		chainWindow=state.rules.chainSeconds,maxMultiplier=state.rules.maxMultiplier,
+		pendingBonus=state.pendingBonus,
+		chain=if state.loopMode then (if loopLive then state.links else 0) else chain,
+		multiplier=if state.loopMode then (if loopLive then Loop.chainMult(state.links,LOOP_T) else 1)
+			else multiplier(chain,state.rules.maxMultiplier,state.rules.chainStep),
+		chainSeconds=if state.loopMode then (if loopLive then math.max(0,state.chainUntil-at) else 0)
+			elseif chain>0 then math.max(0,state.rules.chainSeconds-(at-state.lastCatch)) else 0,
+		chainWindow=if state.loopMode then state.chainSpan else state.rules.chainSeconds,maxMultiplier=state.rules.maxMultiplier,
+		links=state.links,loops=state.loops,bestLoop=state.bestLoop,roundups=state.roundups,medleys=state.medleys,
+		pinches=state.pinches,loopPoints=state.loopPoints,bankPoints=state.bankPoints,
 		scoreMultiplier=state.rules.scoreMultiplier,pendingCount=state.pendingCount,
 		multiCatches=state.multiCatches,bestMulti=state.bestMulti,herded=state.herded,assists=state.assists,
 		pops=state.pops,zaps=state.zaps,golden=state.golden,buzzerLost=state.buzzerLost,
@@ -242,6 +257,104 @@ function Challenge.capture(state, now, catch)
 		multiplier=factor,starter=false,signature=signature,starstruck=starstruck}
 end
 
+-- A validated loop (WP-04). Everything here comes from the server: catches in pop
+-- order with their base values, techniques decided from server data (SNAP from
+-- server arrival times, TIGHT from the server-reconstructed area, MEDLEY from the
+-- caught set). Loop points score immediately; carried creatures bank later.
+-- loop = {catches = {{captureId, value, signature, species, golden, dazed, starter}},
+--   snap, tight, pinch, speciesCount, finale, carried, style}
+local TECH_ORDER={"SNAP","TIGHT","PINCH","MEDLEY"}
+function Challenge.loop(state, now, loop)
+	if state.finished then return false,"Round finished" end
+	if not clockValid(state,now) or type(loop)~="table" or type(loop.catches)~="table" then return false,"Invalid loop" end
+	local catches=loop.catches
+	if #catches>30 then return false,"Invalid loop" end
+	local carried=loop.carried
+	if not finite(carried) or carried<0 or carried%1~=0 or carried>64 then return false,"Invalid loop" end
+	local values,seenHere={},{}
+	for _,c in ipairs(catches) do
+		if type(c)~="table" or not finite(c.value) or c.value<0 or c.value>100 then return false,"Invalid loop" end
+		local id=c.captureId
+		if id==nil or state.seen[id] or seenHere[id] then return false,"Duplicate capture" end
+		if c.signature~=nil and not SIGNATURES[c.signature] then return false,"Invalid signature" end
+		seenHere[id]=true
+		table.insert(values,c.value)
+	end
+	if state.loops>=512 then return false,"Round loop limit" end
+	state.lastEvent=now; state.loopMode=true
+	local n=#catches
+	if n==0 then
+		-- Empty loop: no points, chain untouched (links and window stay).
+		return true,{points=0,techs={},links=state.links,multiplier=if now<=state.chainUntil then Loop.chainMult(state.links,LOOP_T) else 1,
+			sizeMultiplier=1,kept=0,overflow=0,perCatch={}}
+	end
+	for id in pairs(seenHere) do state.seen[id]=true end
+	if now>state.chainUntil then state.links=0 end
+	local techs={}
+	local flags={SNAP=loop.snap==true,TIGHT=loop.tight==true,PINCH=loop.pinch==true,MEDLEY=(tonumber(loop.speciesCount) or 0)>=3}
+	for _,name in ipairs(TECH_ORDER) do if flags[name] then table.insert(techs,name) end end
+	local result=Loop.scoreLoop(values,techs,state.links,LOOP_T,loop.finale==true,carried)
+	state.links=result.links
+	state.chainSpan=Loop.chainWindow(n,LOOP_T); state.chainUntil=now+state.chainSpan
+	local style=if finite(loop.style) and loop.style>0 and loop.style<=200 then math.floor(loop.style) else 0
+	local points=result.points+style
+	local applied=math.min(points,MAX_SCORE-state.score)
+	state.score+=applied; state.loopPoints+=result.points; state.styleBonus+=style
+	state.loops+=1; state.bestLoop=math.max(state.bestLoop,n)
+	if n>=5 then state.roundups+=1 end
+	if flags.PINCH then state.pinches+=1 end
+	if flags.MEDLEY then state.medleys+=1 end
+	if flags.TIGHT then state.precision+=n end
+	if flags.SNAP then state.dashCatches+=n end
+	state.captures+=n; state.pendingCount+=result.kept
+	state.chain=state.links; state.lastCatch=now
+	if Loop.chainMult(state.links,LOOP_T)>1 then state.bestChain=math.max(state.bestChain,state.links) end
+	local perCatch={}
+	for index,c in ipairs(catches) do
+		-- Species signatures map onto loop techniques: DASH->SNAP, PRECISE->TIGHT,
+		-- TOGETHER->ROUNDUP (3+), RHYTHM->ON RHYTHM (x2 or better).
+		local hit=(c.signature=="DASH" and flags.SNAP) or (c.signature=="PRECISE" and flags.TIGHT)
+			or (c.signature=="TOGETHER" and n>=3) or (c.signature=="RHYTHM" and result.multiplier>=2) or false
+		if hit then state.signatures+=1 end
+		if c.golden then state.golden+=1 end
+		if c.dazed then state.starstruck+=1 end
+		perCatch[index]={captureId=c.captureId,signatureHit=hit,kept=index<=result.kept}
+	end
+	if not state.goalComplete and progress(state)>=state.goal.target then state.goalComplete=true end
+	return true,{points=applied,techs=techs,links=result.links,multiplier=result.multiplier,
+		sizeMultiplier=Loop.sizeMult(n,LOOP_T),kept=result.kept,overflow=result.overflow,perCatch=perCatch,style=style}
+end
+
+-- Loop-model bank (run-through bank rings): carried base values x the bank tier,
+-- added to the score at once; refreshes an active chain window. automatic=true
+-- (buzzer) banks at x1.0.
+local function loopBank(state, now, options)
+	local values=options.values
+	if type(values)~="table" or #values>64 then return 0,1 end
+	local clean={}
+	for _,v in ipairs(values) do if finite(v) and v>=0 and v<=100 then table.insert(clean,v) end end
+	if #clean==0 then return 0,1 end
+	local points,mult
+	if options.automatic then
+		points,mult=0,1
+		for _,v in ipairs(clean) do points+=v end
+		points=math.floor(points+0.5)
+	else
+		points,mult=Loop.bankPoints(clean,LOOP_T)
+	end
+	if options.finale and not options.automatic then state.finaleBanks+=1 end
+	state.bestHaul=math.max(state.bestHaul,#clean)
+	local applied=math.min(points,MAX_SCORE-state.score)
+	state.score+=applied; state.bankPoints+=applied
+	state.bestBank=math.max(state.bestBank,applied)
+	state.pendingCount=0; state.pendingBase=0; state.pendingBonus=0
+	if not options.automatic and now<=state.chainUntil then
+		state.chainSpan=LOOP_T.chainWindow; state.chainUntil=now+LOOP_T.chainWindow
+	end
+	if not state.goalComplete and progress(state)>=state.goal.target then state.goalComplete=true end
+	return applied,mult
+end
+
 -- Non-catch skill events. A pop refreshes an active chain's timer without
 -- extending its length; an assist rewards flanking a teammate's herded Spark.
 function Challenge.award(state, now, kind)
@@ -292,6 +405,11 @@ end
 function Challenge.miss(state, now, _reason)
 	if state.finished or not clockValid(state,now) then return false,0 end
 	if _reason=="zap" then state.zaps=math.min(1000000,state.zaps+1) end
+	if state.loopMode then
+		-- Loop model: the chain expires only by time; a correction or respawn costs nothing.
+		state.lastEvent=now; state.misses=math.min(1000000,state.misses+1)
+		return true,0
+	end
 	state.lastEvent=now; state.chain=0; state.lastCatch=nil
 	local lost=state.pendingBonus
 	state.pendingBonus=0; state.lostBonus=math.min(MAX_SCORE,state.lostBonus+lost)
@@ -300,9 +418,11 @@ function Challenge.miss(state, now, _reason)
 end
 
 -- options.finale: server says this bank is in the round's final 25 seconds.
+-- options.values (loop model): base values of the carried parade -> points, multiplier.
 function Challenge.bank(state, now, options)
 	if state.finished or not clockValid(state,now) then return 0 end
 	state.lastEvent=now
+	if type(options)=="table" and options.values~=nil then return loopBank(state,now,options) end
 	if state.pendingCount==0 then
 		-- Pops/assists can leave style with no carried Spark; it waits for a haul.
 		return 0
@@ -327,7 +447,7 @@ end
 function Challenge.finish(state, now)
 	if state.finished then return Challenge.snapshot(state,now) end
 	if not clockValid(state,now) then return Challenge.snapshot(state) end
-	Challenge.bank(state,now)
+	if not state.loopMode then Challenge.bank(state,now) end
 	state.finished=true; state.chain=0; state.lastCatch=nil
 	return Challenge.snapshot(state,now)
 end

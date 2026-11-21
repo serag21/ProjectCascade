@@ -31,23 +31,45 @@ for name in pairs(e.boundActions) do table.insert(actions, name) end
 table.sort(actions)
 print("INFO bound actions: " .. table.concat(actions, ", "))
 check(#actions >= 3, "Gameplay actions bound")
--- Drive a short session: walk to starters and use the client's own bindings.
-local captureAction
+-- Drive a short session end to end with the REAL client modules: the client's own
+-- Ribbon draws from the character position every frame, closes with
+-- Loop.tryClose and sends the claim; the bot only walks a circle (WP-03/04).
+local dashAction
 for name, binding in pairs(e.boundActions) do
 	for _, input in ipairs(binding.inputs) do
-		if tostring(input) == "Enum.KeyCode.E" then captureAction = name end
+		if tostring(input) == "Enum.KeyCode.E" then dashAction = name end
 	end
 end
-check(captureAction ~= nil, "A binding uses KeyCode.E for catch")
+check(dashAction == "SparkDash", "KeyCode.E is bound to dash, not catch (" .. tostring(dashAction) .. ")")
+local catchBinding = false
+for name in pairs(e.boundActions) do if string.find(string.lower(name), "capture", 1, true) then catchBinding = true end end
+check(not catchBinding, "No catch binding exists")
 local mine = function(m) return m:GetAttribute("StarterOwnerId") == p.UserId end
-for _ = 1, 3 do
-	local target = h:nearest(h:position(p), mine)
-	if not target then break end
-	h:walkTo(p, target:GetPivot().Position, 4)
-	e.asClient(p, function() e.pressAction(captureAction) end)
-	e.advance(0.8)
+local centre = Harness.Vector3.new(0, 0, 0)
+local starters = h:creatures(mine)
+check(#starters == 3, "three starters")
+for _, m in ipairs(starters) do centre += m:GetPivot().Position / #starters end
+local radius = 6
+h:walkTo(p, Harness.Vector3.new(centre.X + radius, 3, centre.Z), 6)
+local angle, dt = 0, 1 / 30
+for _ = 1, 120 do
+	angle += 21 * dt / radius
+	e.walkToward(p, Harness.Vector3.new(centre.X + math.cos(angle) * radius, 3, centre.Z + math.sin(angle) * radius), 22, dt)
+	e.step(dt)
+	if (h:state(p).carry or 0) >= 3 then break end
 end
-h:walkTo(p, Harness.Vector3.new(0, 3, 58), 6)
+e.advance(0.6)
+s = h:state(p)
+check(s.carry == 3, "The client's own ribbon caught the starter pod (" .. s.carry .. ")")
+local claims = 0
+for _, entry in ipairs(e.remoteLog) do
+	if entry.remote == "Action" and entry.args and entry.args[1] == "Loop" then claims += 1 end
+end
+-- Dash through the client's own binding (motion is client-side; server budgets it).
+e.asClient(p, function() e.pressAction(dashAction) end)
+e.advance(0.3)
+local ring = s.bankPosition
+h:runThroughRing(p, ring)
 e.advance(1)
 h:assertClean("client session")
 s = h:state(p)
@@ -76,31 +98,14 @@ h:playRound(p, {timeout = 125})
 e.advance(2)
 h:assertClean("client full round")
 check(h:state(p).phase == "Results", "Results reached with client attached")
--- Daily Stampede with the client attached: unlock (round 2), run the trial
--- (arena 4 herd packets, trial HUD/results), then LEAVE through the client's button.
--- (The button smoke above pressed SIT OUT; PLAY clears it.)
+-- Daily Stampede is off in the Checkpoint 1 slice (tuning.features.trialEnabled
+-- = false, WP-04 until WP-15): a start request is refused and changes nothing.
 h:send(p, "Play"); e.advance(0.3)
 check(h:awaitPlaying({p}, 20), "Round 2 starts (" .. tostring(h:state(p).phase) .. ")")
 h:playRound(p, {timeout = 125})
 e.advance(1)
-check(h:state(p).profile.rounds >= 2 and h:state(p).trial.available == true, "Trial unlocked with client attached")
 h:send(p, "Trial", "start"); e.advance(1)
-check(h:state(p).mode == "trial", "Trial run started")
-h:playRound(p, {timeout = 80})
-e.advance(1.5)
-h:assertClean("client trial run")
-local r = h:state(p)
-check(r.phase == "Results" and r.lastResult and r.lastResult.trial, "Trial results reached with client attached")
-local leave, title
-for _, d in ipairs(p.PlayerGui:GetDescendants()) do
-	if d.Name == "TrialLeaveButton" then leave = d end
-	if d.Name == "Title" and d:IsA("TextLabel") and d.Parent and d.Parent.Name == "Results" then title = d.Text end
-end
-check(leave ~= nil and leave.Visible, "Trial results show LEAVE")
-print("INFO client trial results title: " .. tostring(title))
-e.asClient(p, function() e.fire(e.eventSignal(leave, "Activated")) end)
-e.advance(1)
-h:assertClean("client trial leave")
-check(h:state(p).mode == "cycle" and h:state(p).biome == 1, "Client LEAVE returns to the shared cycle")
+check(h:state(p).mode ~= "trial", "Daily Stampede stays off in the slice")
+h:assertClean("client round 2")
 h:report("client-boot")
 print("PASS ScenarioG_ClientBoot: " .. Harness.count() .. " checks")

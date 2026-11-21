@@ -9,6 +9,28 @@ local h = Harness.boot({studio = false})
 local e = h.engine
 local TRIAL_X = 900
 
+-- Checkpoint 1 slice: the Daily Stampede is off (tuning.features.trialEnabled =
+-- false) from WP-04 until WP-15, which re-keys it for loop scoring with a new
+-- board key. While off, a start request must change nothing; the full run below
+-- is kept for WP-15 and the pure Trial module stays covered by SparkTrial.spec.
+local Tuning = e.requireSource("ReplicatedStorage/Spark/Design/Tuning.luau")
+if not Tuning.features.trialEnabled then
+	local p = h:join(9200)
+	check(h:awaitPlaying({p}, 130), "player reaches a scored round")
+	h:playRounds({p}, {timeout = 125})
+	check(h:awaitPlaying({p}, 20), "second round")
+	h:playRounds({p}, {timeout = 125})
+	e.step(0.5)
+	local banked = h:state(p).profile.totalBanked
+	h:send(p, "Trial", "start"); e.step(0.5)
+	check(h:state(p).mode ~= "trial" and h:state(p).biome == 1, "Daily Stampede start is refused while trialEnabled is false")
+	check(h:state(p).profile.totalBanked == banked, "a refused start changes nothing")
+	h:assertClean("trial off")
+	h:report("daily-stampede-off")
+	print("PASS ScenarioJ_DailyStampede (slice: Daily Stampede off until WP-15): " .. Harness.count() .. " checks")
+	return
+end
+
 local p1, p2 = h:join(9201), h:join(9202)
 check(h:awaitPlaying({p1, p2}, 130), "Both players reach a scored round")
 local first = h:state(p1)

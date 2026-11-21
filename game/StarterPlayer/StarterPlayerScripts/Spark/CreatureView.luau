@@ -591,6 +591,11 @@ function CreatureView.new(ctx)
 	local frame = {renderClock = 0, camX = 0, camY = 0, camZ = 0, haveCamera = false, reduced = false,
 		fullR2 = 0, blinkR2 = 0, distantR2 = 0, farInterval = CreatureView.FarInterval}
 
+	-- The herd clock currently being rendered (server arena-clock seconds). Loop
+	-- claims send it as viewClock so the server resolves against what was seen.
+	function self.renderClock()
+		return frame.renderClock
+	end
 	-- Call once per RenderStepped with now = os.clock(). One PivotTo per visible
 	-- model per frame at most; no allocations beyond CFrame/Vector3 values.
 	function self.render(now)

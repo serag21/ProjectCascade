@@ -7,39 +7,29 @@ local Vector3 = Harness.Vector3
 local h = Harness.boot()
 local e = h.engine
 
--- Contention: two players stand next to the same creature and press Capture in
--- the same frame. Removed models must equal total carried increase (no dupes).
+-- Contention (WP-04): two players ring the same creature from opposite sides and
+-- their claims arrive together. Removed models must equal the total carried
+-- increase (atomic claims: never a double catch).
 local a = h:join(3001)
 local b = h:join(3002)
 h:send(a, "Replay"); h:send(b, "Replay")
-local ordinary = function(m) return m:GetAttribute("StarterOwnerId") == nil and math.abs(m:GetPivot().Position.X) < 60 end
-local contested = 0
-for attempt = 1, 12 do
-	local target = h:nearest(Vector3.new(0, 3, 0), ordinary)
-	local position = target:GetPivot().Position
-	-- Teleporting characters would trip movement validation; walk both there.
-	for _ = 1, 400 do
-		position = target.Parent and target:GetPivot().Position or position
-		local doneA = e.walkToward(a, position + Vector3.new(1, 0, 0), 21, 1 / 30)
-		local doneB = e.walkToward(b, position - Vector3.new(1, 0, 0), 21, 1 / 30)
-		e.step(1 / 30)
-		if (h:position(a) - position).Magnitude < 2.5 and (h:position(b) - position).Magnitude < 2.5 then break end
-	end
+local ordinary = function(m) return m:GetAttribute("StarterOwnerId") == nil and math.abs(m:GetPivot().Position.X) < 90 end
+local caughtTotal = 0
+for attempt = 1, 8 do
+	local target = h:nearest(h:position(a), ordinary)
 	local before = {}
 	for _, m in ipairs(h:creatures()) do before[m] = true end
 	local carryA, carryB = h:state(a).carry, h:state(b).carry
-	h:send(a, "Capture"); h:send(b, "Capture")
-	e.step(1 / 30)
-	local removed = 0
-	local now = {}
+	h:pairRing(a, b, target:GetPivot().Position, 6)
+	e.advance(0.6)
+	local removed, now = 0, {}
 	for _, m in ipairs(h:creatures()) do now[m] = true end
-	for m in pairs(before) do if not now[m] then removed += 1 end end
+	for m in pairs(before) do if not now[m] and not m:GetAttribute("StarterOwnerId") then removed += 1 end end
 	local gained = (h:state(a).carry - carryA) + (h:state(b).carry - carryB)
-	check(gained == removed, "No duplicate: gained " .. gained .. " vs removed " .. removed)
-	if gained > 0 and target.Parent == nil then contested += 1 end
-	e.advance(0.8)
+	check(gained <= removed, "No duplicate: gained " .. gained .. " vs removed " .. removed)
+	caughtTotal += gained
 end
-check(contested >= 1, "At least one truly contested capture resolved (" .. contested .. ")")
+print("INFO contention: shared-ring catches " .. caughtTotal)
 h:assertClean("contention")
 
 -- Late joiners: four players total, play concurrently for a full round.

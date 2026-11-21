@@ -21,7 +21,6 @@ local Shared=ReplicatedStorage:WaitForChild("Spark")
 local Config=require(Shared:WaitForChild("Config"))
 local Profile=require(Shared:WaitForChild("Profile"))
 local Progression=require(Shared:WaitForChild("Progression"))
-local Targeting=require(Shared:WaitForChild("Targeting"))
 local Ui=require(script.Parent:WaitForChild("Ui"))
 local Menu=require(script.Parent:WaitForChild("Menu"))
 local Effects=require(script.Parent:WaitForChild("Effects"))
@@ -32,12 +31,18 @@ local Cosmetics=require(Shared:WaitForChild("Cosmetics"))
 local Decor=require(script.Parent:WaitForChild("Decor"))
 local GroundMap=require(Shared:WaitForChild("GroundMap"))
 local DesignArenas=require(Shared:WaitForChild("Design"):WaitForChild("Arenas"))
+local DesignTuning=require(Shared:WaitForChild("Design"):WaitForChild("Tuning"))
+local Loop=require(Shared:WaitForChild("Loop"))
+local Movement=require(script.Parent:WaitForChild("Movement"))
+local SparkCamera=require(script.Parent:WaitForChild("SparkCamera"))
+local Ribbon=require(script.Parent:WaitForChild("Ribbon"))
 local remotes=Shared:WaitForChild("Remotes")
 local Action=remotes:WaitForChild("Action")
 local State=remotes:WaitForChild("State")
 local Feedback=remotes:WaitForChild("Feedback")
 local HerdFeed=remotes:WaitForChild("HerdNet")
 local creatureView=nil -- living-herd renderer (D13), created once the herd folder exists
+local ribbonRef=nil -- the local ribbon (Ribbon.new), assigned after the HUD exists
 local setPhotoModeRef=nil -- assigned after the HUD exists (photo mode button in Settings)
 local hitPulse,roundBeat -- defined with the HUD helpers below
 local palette,make,round,label,button=Ui.palette,Ui.make,Ui.round,Ui.label,Ui.button
@@ -57,12 +62,6 @@ local function controllerActive()
 	return string.match(UserInputService:GetLastInputType().Name,"^Gamepad")~=nil
 end
 local cooldownUntil={Capture=0,Dash=0}
-local function requestAction(action)
-	if (menu and menu.isOpen()) or not latest or (latest.phase~="Playing" and latest.phase~="Warmup") then return end
-	if cooldownUntil[action] and os.clock()<cooldownUntil[action] then return end
-	if action=="Capture" then cooldownUntil.Capture=os.clock()+(latest.captureCooldown or Config.CaptureCooldown) end
-	Action:FireServer(action)
-end
 local lastFingerprint=""
 local defs={}
 for _,def in ipairs(Config.Creatures) do defs[def.id]=def end
@@ -115,9 +114,12 @@ bankGuide.TextXAlignment=Enum.TextXAlignment.Center
 bankGuide.BackgroundColor3=palette.gold; bankGuide.BackgroundTransparency=.08; round(bankGuide)
 bankGuide.Visible=false
 local controls=make("Frame",gui,{Name="Controls",BackgroundTransparency=1,Size=UDim2.fromScale(1,1),Visible=false})
-local captureButton=button(controls,"CATCH\n[E / X]",UDim2.new(1,-122,1,-182),UDim2.fromOffset(108,70),palette.mint,function() requestAction("Capture") end)
-captureButton.Name="CaptureButton"
-local dashButton=button(controls,"DASH\n[Shift / B]",UDim2.new(1,-232,1,-165),UDim2.fromOffset(100,58),palette.gold,function() requestAction("Dash") end)
+-- There is no catch input (WP-03): loops are the only way to catch. The legacy
+-- layout slot stays as an invisible placeholder until HUD v2 (WP-07) replaces it.
+local captureButton=button(controls,"",UDim2.new(1,-122,1,-182),UDim2.fromOffset(108,70),palette.mint,function() end)
+captureButton.Name="CaptureSlot"; captureButton.Visible=false; captureButton.Active=false
+local movement -- predicted dash (Movement.new below)
+local dashButton=button(controls,"DASH\n[Shift / E]",UDim2.new(1,-232,1,-165),UDim2.fromOffset(100,58),palette.gold,function() if movement then movement.press() end end)
 dashButton.Name="DashButton"
 -- Combo meter: chain count, text tier badge and a draining chain timer.
 local combo=make("Frame",gui,{Name="ComboMeter",BackgroundColor3=palette.paper,BackgroundTransparency=.08,BorderSizePixel=0,
@@ -468,18 +470,6 @@ end)
 
 -- Hold to catch (§6.11): while held, catches fire only when the aim preview has
 -- a target, at the server cooldown. Removes mashing; the server still validates.
-local catchHeld=false
-local function bind(name,action,...)
-	ContextActionService:BindAction(name,function(_,state)
-		if action=="Capture" and (state==Enum.UserInputState.End or state==Enum.UserInputState.Cancel) then catchHeld=false end
-		if state~=Enum.UserInputState.Begin or UserInputService:GetFocusedTextBox() or menu.isOpen() then return Enum.ContextActionResult.Pass end
-		if action=="Capture" then catchHeld=true end
-		requestAction(action); return Enum.ContextActionResult.Sink
-	end,false,...)
-end
-captureButton.MouseButton1Down:Connect(function() catchHeld=true end)
-captureButton.MouseButton1Up:Connect(function() catchHeld=false end)
-captureButton.MouseLeave:Connect(function() catchHeld=false end)
 -- Photo mode: hide the HUD for clean captures (H / Settings button).
 local hudHidden=false
 local function setPhotoMode(on)
@@ -492,9 +482,14 @@ ContextActionService:BindAction("SparkPhoto",function(_,state)
 	if state~=Enum.UserInputState.Begin or UserInputService:GetFocusedTextBox() then return Enum.ContextActionResult.Pass end
 	setPhotoMode(not hudHidden); return Enum.ContextActionResult.Sink
 end,false,Enum.KeyCode.H)
-bind("SparkCapture","Capture",Enum.KeyCode.E,Enum.KeyCode.ButtonX)
-bind("SparkDash","Dash",Enum.KeyCode.LeftShift,Enum.KeyCode.ButtonB)
-bind("SparkBank","Bank",Enum.KeyCode.R,Enum.KeyCode.ButtonY)
+-- Dash on Shift or E (E keeps old muscle memory doing something), B / RT on gamepad.
+-- Motion starts in this input frame (Movement.press); the server only budgets it.
+ContextActionService:BindAction("SparkDash",function(_,state)
+	if state~=Enum.UserInputState.Begin or UserInputService:GetFocusedTextBox() or menu.isOpen() then return Enum.ContextActionResult.Pass end
+	if movement then movement.press() end
+	return Enum.ContextActionResult.Sink
+end,false,Enum.KeyCode.LeftShift,Enum.KeyCode.E,Enum.KeyCode.ButtonB,Enum.KeyCode.ButtonR2)
+-- Banking is a run-through ring (WP-04); there is no bank key.
 ContextActionService:BindAction("SparkMenu",function(_,state)
 	if UserInputService:GetFocusedTextBox() then return Enum.ContextActionResult.Pass end
 	if state==Enum.UserInputState.Begin then togglePanel(if menu.isOpen() then nil else "Play") end
@@ -592,50 +587,6 @@ local sweep=make("Part",effectsFolder,{Name="SweepWarning",Shape=Enum.PartType.C
 local sweepCue=make("BillboardGui",sweep,{Size=UDim2.fromOffset(150,28),StudsOffset=Vector3.new(0,2,0),MaxDistance=50,Enabled=false})
 local sweepText=label(sweepCue,"",13,UDim2.new(),UDim2.fromScale(1,1),palette.ink)
 sweepText.TextXAlignment=Enum.TextXAlignment.Center
--- One advisory aim outline, updated at 10Hz. Never sends a target or score to the server.
--- Occluded geometry stays occluded; shape/text accompany the color change.
-local aimOutline=make("Highlight",effectsFolder,{Name="CatchAim",Enabled=false,FillTransparency=1,
-	OutlineTransparency=.15,DepthMode=Enum.HighlightDepthMode.Occluded})
-local aimCue=make("BillboardGui",playerGui,{Name="CatchAimCue",Size=UDim2.fromOffset(140,40),StudsOffset=Vector3.new(0,3.8,0),
-	MaxDistance=22,AlwaysOnTop=false,Enabled=false,ResetOnSpawn=false})
-local aimText=label(aimCue,"",12,UDim2.new(),UDim2.fromScale(1,1),palette.ink)
-aimText.TextXAlignment=Enum.TextXAlignment.Center; aimText.BackgroundColor3=palette.paper; aimText.BackgroundTransparency=.1; round(aimText,8)
-local aimAt=0
-local stateAt=0
-local function aimPreview(now)
-	if now-aimAt<.1 then return end
-	aimAt=now
-	local target,best=nil,nil
-	local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	local humanoid=player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-	local world=workspace:FindFirstChild("SparkWorld")
-	local herd=world and world:FindFirstChild("Creatures")
-	if root and humanoid and humanoid.Health>0 and herd and latest and (latest.phase=="Playing" or latest.phase=="Warmup") and not menu.isOpen() and latest.carry<latest.capacity then
-		local function xyz(v) return {x=v.X,y=v.Y,z=v.Z} end
-		local radius=Ui.get(latest,"stats","captureRadius") or (Config.CaptureRadius+(latest.profile.upgrades.magnet or 0)*1.5)
-		for _,model in ipairs(herd:GetChildren()) do
-			local id,owner=model:GetAttribute("CreatureId"),model:GetAttribute("StarterOwnerId")
-			local def=defs[model:GetAttribute("Species")]
-			-- Any species can be golden or a runner now; other arenas are far beyond reach.
-			-- Own Daily Stampede Sparks carry the owner id too (Trial attribute); starters need totalBanked<3.
-			if id and model.PrimaryPart and def and (not owner or (owner==player.UserId and (latest.profile.totalBanked<3 or model:GetAttribute("Trial")))) then
-				local aim=Targeting.measure(xyz(root.Position),xyz(root.CFrame.LookVector),xyz(model.PrimaryPart.Position),radius)
-				if Targeting.better(aim,id,best,target and target:GetAttribute("CreatureId")) then target=model; best=aim end
-			end
-		end
-	end
-	aimOutline.Adornee=target; aimOutline.Enabled=target~=nil
-	aimCue.Adornee=target and target.PrimaryPart; aimCue.Enabled=target~=nil
-	if target then
-		local precise=best.precision and (target:GetAttribute("StarterOwnerId")==nil or target:GetAttribute("Trial")==true)
-		aimOutline.OutlineColor=if target:GetAttribute("Golden") then palette.gold elseif precise then palette.gold else palette.mint
-		-- Species Signature (D21): the aim cue names this Spark's own technique.
-		local signature=defs[target:GetAttribute("Species")] and Config.Signatures[defs[target:GetAttribute("Species")].signature or ""]
-		aimText.Text=(if target:GetAttribute("Golden") then "★ GOLDEN SPARK" elseif precise then "◆ PRECISE CATCH" else "○ CATCH")
-			..(if signature then "\n◆ "..signature.label else "")
-	end
-end
-
 local cueKeys={Catch="catch",Bank="bank",Dash="dash",Upgrade="upgrade",Quest="upgrade",Results="round_reward",Zap="zap",Pop="pop",Assist="catch",Event="ui"}
 -- Catch flight (§6.2): the caught Spark arcs from where it was rendered into
 -- the player's parade. Bounded pool; skipped entirely in reduced motion.
@@ -699,7 +650,8 @@ Feedback.OnClientEvent:Connect(function(data)
 	if data.kind=="Catch" and extra.starstruck then effects.sound("starstruck",1) end
 	if data.kind=="Results" then roundBeat("TIME!","buzzer") end
 	if data.kind=="Round" and extra.trial then roundBeat("GO!","start_whistle") end
-	if data.kind=="Dash" then cooldownUntil.Dash=os.clock()+(latest and latest.dashCooldown or Config.DashCooldown) end
+	if data.kind=="Loop" and ribbonRef then ribbonRef.result(nil) end
+	if data.kind=="RibbonCut" and ribbonRef then ribbonRef.cut() end
 	local hasTags=type(extra.tags)=="table" and #extra.tags>0
 	-- Scored catches speak through floating tags; toasts stay for onboarding and events.
 	local quietCatch=(data.kind=="Catch" or data.kind=="Pop" or data.kind=="Assist") and hasTags and typeof(data.position)=="Vector3"
@@ -943,9 +895,6 @@ State.OnClientEvent:Connect(function(data)
 	updateMusic(data)
 	checkNewSpecies(data.profile)
 	applyUiScale(tonumber(data.profile.settings.uiScale) or 1)
-	local contrast=data.profile.settings.highContrast==true
-	aimOutline.DepthMode=if contrast then Enum.HighlightDepthMode.AlwaysOnTop else Enum.HighlightDepthMode.Occluded
-	aimOutline.OutlineTransparency=if contrast then 0 else .15
 	local quality=10
 	pcall(function() local v=UserSettings().GameSettings.SavedQualityLevel.Value; if type(v)=="number" and v>0 then quality=v end end)
 	for index in ipairs(Config.Biomes) do effects.ambience(index,Vector3.new((index-1)*300,0,0),quality) end
@@ -1001,7 +950,6 @@ RunService.RenderStepped:Connect(function(dt)
 	updateFlights(os.clock())
 	if creatureView then creatureView.render(os.clock()) end
 	local now=os.clock()
-	aimPreview(now)
 	local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 	effects.render(dt,latest,root,workspace.CurrentCamera)
 	-- Combo meter appears once chains matter: after the first 2-chain or from round 2.
@@ -1024,7 +972,6 @@ RunService.RenderStepped:Connect(function(dt)
 		combo.Visible=false
 		effects.chainAura(nil)
 	end
-	if catchHeld and aimOutline.Enabled and settingValue("holdCatch",false) then requestAction("Capture") end
 	-- Countdown beats: last 3 s of the intermission, then STAMPEDE!; 15 s warning tone.
 	if latest then
 		local elapsed=now-stateAt
@@ -1038,12 +985,12 @@ RunService.RenderStepped:Connect(function(dt)
 			lastBeat=left
 		end
 	end
-	for action,b in pairs({Capture=captureButton,Dash=dashButton}) do
-		local remaining=math.max(0,cooldownUntil[action]-now)
-		local name=if action=="Capture" then "CATCH" else "DASH"
-		local hint=if UserInputService.TouchEnabled then "" elseif action=="Capture" then "\n[E / X]" else "\n[Shift / B]"
-		b.Text=if remaining>.05 then string.format("%s\n%.1fs",name,remaining) else name..hint
-		b.BackgroundTransparency=if remaining>.05 then .35 else 0
+	if movement then
+		local d=movement.dash
+		Movement.refill(d,now)
+		local hint=if UserInputService.TouchEnabled then "" else "\n[Shift / E]"
+		dashButton.Text=string.format("DASH %s%s",string.rep("◆",d.charges)..string.rep("◇",d.maxCharges-d.charges),hint)
+		dashButton.BackgroundTransparency=if d.charges>0 then 0 else .35
 	end
 	local still=reduced()
 	for other,f in pairs(followers) do
@@ -1069,6 +1016,48 @@ RunService.RenderStepped:Connect(function(dt)
 		end
 	end
 end)
+-- Predicted dash, raised chase camera and the ribbon (WP-03).
+local clientMaps={}
+local function arenaIndex() return (latest and latest.biome) or 1 end
+local function mapFor(index)
+	if not clientMaps[index] then
+		local biome=Config.Biomes[index]
+		local def=biome and DesignArenas[biome.id]
+		local legacy=false
+		for _,id in ipairs(DesignTuning.features.worldLegacy or {}) do if biome and id==biome.id then legacy=true end end
+		clientMaps[index]=if def and not legacy then GroundMap.build(def) else GroundMap.flat(biome and biome.id or "?")
+	end
+	return clientMaps[index]
+end
+local function inRound() return latest~=nil and (latest.phase=="Playing" or latest.phase=="Warmup") end
+local sparkCamera=SparkCamera.new({tuning=DesignTuning,reduced=reduced,
+	shouldRun=function() return latest~=nil and (latest.phase=="Playing" or latest.phase=="Warmup" or latest.phase=="Results") end,
+	onPreset=function(pitch) showToast(string.format("Camera pitch %d°",pitch),"Hint") end})
+movement=Movement.new({player=player,tuning=DesignTuning,GroundMap=GroundMap,
+	groundMap=function() return mapFor(arenaIndex()) end,
+	arenaDef=function() local biome=Config.Biomes[arenaIndex()]; return biome and DesignArenas[biome.id] end,
+	canDash=function() return inRound() and not menu.isOpen() end,
+	sound=function(name) if name=="bounce_cap" then effects.sound("pop",0.6) end end,
+	onDash=function(started,dash)
+		if started then
+			Action:FireServer("Dash")
+			sparkCamera.kick()
+			effects.sound("dash",if dash.charges==0 then 1.19 else 1)
+		else
+			effects.sound("ui_click",0.5)
+		end
+	end})
+local loopTuning=Loop.tuning(DesignTuning)
+local ribbon=Ribbon.new({player=player,Loop=Loop,T=loopTuning,GroundMap=GroundMap,width=DesignTuning.ribbon.width,
+	rate=DesignTuning.ribbon.claimRateLimitPerSecond,fxFolder=effectsFolder,camera=sparkCamera,
+	groundMap=function() return mapFor(arenaIndex()) end,
+	origin=function() return Vector3.new((arenaIndex()-1)*300,0,0) end,
+	active=function() return inRound() end,
+	viewClock=function() return if creatureView and creatureView.renderClock then creatureView.renderClock() else 0 end,
+	send=function(payload) Action:FireServer("Loop",payload) end,
+	onClose=function() effects.sound("catch",0.8) end,
+	onPreview=function(near) if near then effects.sound("ui",1.5) end end})
+ribbonRef=ribbon
 -- Client-only arena dressing, lighting profile and occluder fade (WP-05).
 task.spawn(function()
 	local worldRoot=workspace:WaitForChild("SparkWorld",60)

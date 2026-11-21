@@ -134,4 +134,61 @@ do
 		check(final.score>=lastScore and final.pending==0,"Finalization safely banks remaining points")
 	end
 end
+
+-- WP-04: Challenge.loop reproduces every scoring vector (data/test_vectors.json)
+-- and the loop-model bank tiers; techniques are flags from the server, never names.
+do
+	local V=require("./vectors/loop_vectors")
+	local LOOP_T=Challenge.LoopTuning
+	local loopChecks=0
+	for _,v in ipairs(V.scoring) do
+		local s=Challenge.new(1)
+		s.links=v.linksBefore; s.chainUntil=if v.linksBefore>0 then 100 else -math.huge
+		s.loopMode=true; s.lastEvent=0
+		local catches={}
+		for i,value in ipairs(v.values) do catches[i]={captureId=v.name..i,value=value} end
+		local flags={}
+		for _,tech in ipairs(v.techs) do flags[tech]=true end
+		local ok,r=Challenge.loop(s,10,{catches=catches,snap=flags.SNAP,tight=flags.TIGHT,pinch=flags.PINCH,
+			speciesCount=if flags.MEDLEY then 3 else 1,finale=v.finale,carried=v.carried})
+		check(ok,v.name)
+		equal(r.points,v.expect.points,v.name.." points"); equal(r.links,v.expect.links,v.name.." links")
+		equal(r.multiplier,v.expect.multiplier,v.name.." multiplier"); equal(r.kept,v.expect.kept,v.name.." kept")
+		equal(r.overflow,v.expect.overflow,v.name.." overflow")
+		equal(#r.techs,#v.techs,v.name.." technique count")
+		loopChecks+=1
+	end
+	-- Chain window per loop size; expiry resets links; empty loops leave the chain alone.
+	local s=Challenge.new(1)
+	local ok,r=Challenge.loop(s,1,{catches={{captureId="a",value=3},{captureId="b",value=3},{captureId="c",value=3}},carried=0})
+	check(ok); equal(r.points,29); equal(s.links,4)
+	equal(Challenge.snapshot(s,1).multiplier,2,"x2 after one pod")
+	check(math.abs(s.chainUntil-(1+LOOP_T.chainWindow+LOOP_T.chainWindowPer*2))<1e-9,"window 7 + 0.75 per extra creature")
+	ok,r=Challenge.loop(s,2,{catches={},carried=3})
+	check(ok and r.points==0 and s.links==4,"empty loop keeps the chain")
+	equal(Challenge.loop(s,3,{catches={{captureId="a",value=3}},carried=3}),false,"a creature id can only be caught once per round")
+	ok,r=Challenge.loop(s,30,{catches={{captureId="d",value=3}},carried=3})
+	check(ok and r.links==1 and r.multiplier==1,"expired chain restarts from zero links")
+	-- Bank tiers and the buzzer auto-bank at x1.0; a bank refreshes an active chain.
+	for _,v in ipairs(V.bank) do
+		local b=Challenge.new(1); b.loopMode=true
+		local points,mult=Challenge.bank(b,5,{values=v.values})
+		equal(points,v.expect.points,v.name); equal(mult,v.expect.multiplier,v.name.." multiplier")
+		equal(b.score,v.expect.points,v.name.." adds to score")
+	end
+	local b=Challenge.new(1)
+	Challenge.loop(b,1,{catches={{captureId="x",value=4},{captureId="y",value=4}},carried=0})
+	local before=b.chainUntil
+	Challenge.bank(b,2,{values={4,4,4,4}})
+	check(b.chainUntil>before-1e-9 and math.abs(b.chainUntil-(2+LOOP_T.chainWindow))<1e-9,"bank refreshes the active chain window")
+	local auto=Challenge.new(1); auto.loopMode=true
+	equal(Challenge.bank(auto,3,{values={4,4,4,4,4,4,4,4,4,4,4,4},automatic=true}),48,"buzzer auto-bank pays x1.0")
+	-- Malformed loops are refused.
+	local bad=Challenge.new(1)
+	equal(Challenge.loop(bad,1,{catches={{captureId="z",value=0/0}},carried=0}),false,"NaN value refused")
+	equal(Challenge.loop(bad,1,{catches={},carried=-1}),false,"negative carry refused")
+	equal(Challenge.loop(bad,1,{catches={{captureId="z",value=3,signature="CHEAT"}},carried=0}),false,"unknown signature refused")
+	print("SparkChallenge loop vectors: "..loopChecks.." scoring vectors")
+end
+
 print(string.format("PASS SparkChallenge: %d assertions (pure Luau, no Studio)",assertions))

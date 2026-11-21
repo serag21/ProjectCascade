@@ -4,13 +4,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local DataStoreService = game:GetService("DataStoreService")
 local HttpService = game:GetService("HttpService")
-local Debris = game:GetService("Debris")
 local Shared = ReplicatedStorage:WaitForChild("Spark")
 local Config = require(Shared.Config)
 local Profile = require(Shared.Profile)
 local Rules = require(Shared.Rules)
 local Challenge = require(Shared.Challenge)
-local Targeting = require(Shared.Targeting)
+local Loop = require(Shared.Loop)
+local GroundMap = require(Shared.GroundMap)
 local ArenaRally = require(Shared.ArenaRally)
 local ArenaEvents = require(Shared.ArenaEvents)
 local Loadout = require(Shared.Loadout)
@@ -23,6 +23,11 @@ local Trial = require(Shared.Trial)
 local Remix = require(Shared.Remix)
 local Design = Shared:WaitForChild("Design")
 local DesignTuning = require(Design.Tuning)
+local Slice = require(Design.Slice)
+local DesignCreatures = require(Design.Creatures)
+local LoopService = require(script.Parent.LoopService)
+local LOOP_T = Loop.tuning(DesignTuning)
+local loops = LoopService.new(Loop, LOOP_T, {rate = DesignTuning.ribbon.claimRateLimitPerSecond})
 local World = require(script.Parent.World)
 local Persistence = require(script.Parent.Persistence)
 local Services = require(script.Parent.Services)
@@ -139,6 +144,23 @@ function Lifecycle.leaseValid(deadline, now)
 	return type(deadline)=="number" and deadline<math.huge and deadline>now
 end
 -- END PURE LIFECYCLE
+-- BEGIN DASH BUCKET (server charge accounting for the client-predicted dash; WP-03)
+local DashBucket={}
+function DashBucket.new(charges,recharge) return {charges=charges,max=charges,recharge=recharge,nextAt=nil} end
+function DashBucket.refill(b,now)
+	while b.charges<b.max and b.nextAt and now>=b.nextAt do
+		b.charges+=1; b.nextAt=if b.charges<b.max then b.nextAt+b.recharge else nil
+	end
+end
+-- Small slack (0.15 s) so latency jitter never refuses an honest client's charge.
+function DashBucket.take(b,now)
+	DashBucket.refill(b,now+0.15)
+	if b.charges<=0 then return false end
+	b.charges-=1
+	if not b.nextAt then b.nextAt=now+b.recharge end
+	return true
+end
+-- END DASH BUCKET
 local lifecycle=Lifecycle.new()
 local podiums={} -- [biome]={cycle=index,awards={...}} computed at each shared buzzer
 local arenaEpoch=os.clock()
@@ -218,7 +240,18 @@ end
 -- mixes two remixes; it never applies to the normalized Daily Stampede.
 local currentRemix=Remix.current(os.time())
 local remixCycle=-1
-local function statsFor(s) return Remix.apply(Loadout.stats(s.profile.upgrades,s.profile.loadout,s.profile.heat),currentRemix) end
+-- Checkpoint 1 slice (Design.Slice): upgrades, perks, Heat and the weekly remix are
+-- off, so the feel under test is identical for everyone: fixed tuning values.
+local SLICE_FIXED=not Slice.on("upgrades")
+local function statsFor(s)
+	if SLICE_FIXED then
+		local st=Loadout.stats({},{},0)
+		st.capacity=DesignTuning.parade.capacity
+		st.medals=DesignTuning.scoring.medalsProvisional
+		return st
+	end
+	return Remix.apply(Loadout.stats(s.profile.upgrades,s.profile.loadout,s.profile.heat),currentRemix)
+end
 local function stats(s)
 	if not s.stats then s.stats=statsFor(s) end
 	return s.stats
@@ -273,6 +306,8 @@ end
 local function sweepsAllowed(s) return (s.roundsAtStart or 0)>=1 end
 local function staticsAllowed(s) return (s.roundsAtStart or 0)>=2 end
 local function hazardFor(s,now)
+	-- Sweeps are cut (events.json "cut"); the slice never shows them.
+	if not Slice.on("sweeps") then return {visible=false,active=false} end
 	return if s.mode~="trial" and scoredRound(s,now) and sweepsAllowed(s) and s.hazardStarted and s.challenge
 		then ArenaEvents.hazard(now-s.hazardStarted,s.challenge.difficulty,s.biome,stats(s).sweepWarning) else {visible=false,active=false}
 end
@@ -510,6 +545,8 @@ local function send(player,s)
 		rally=if trialMode then nil else ArenaRally.snapshot(rallies[s.biome],now,player.UserId),
 		remix=if changed(s,"remix",remixPrint,now) then Remix.describe(currentRemix,os.time()) else nil,
 		bankPosition=world.arenas[s.biome].bank,ready=s.ready,
+		dashCharges=(function() DashBucket.refill(s.dash,now); return s.dash.charges end)(),
+		dashNextIn=if s.dash.nextAt then math.max(0,s.dash.nextAt-now) else 0,
 		captureCooldown=st.captureCooldown,dashCooldown=dashCooldown(s),
 		cooldowns={capture=math.max(0,st.captureCooldown-(now-(s.buckets.capture or -math.huge))),
 			dash=math.max(0,dashCooldown(s)-(now-(s.buckets.dash or -math.huge)))},
@@ -539,20 +576,15 @@ local function hintOnce(player,s,id,text)
 	feedback(player,"Hint",text,nil,nil,{coach=id})
 	return true
 end
-local function stopDash(root)
-	for _,name in ipairs({"SparkDashVelocity","SparkDashAttachment"}) do
-		local item=root:FindFirstChild(name)
-		if item then item:Destroy() end
-	end
-end
 local function teleport(player,s)
 	local root,humanoid = rootOf(player)
 	if root then
-		stopDash(root)
 		local arena=world.arenas[s.biome]
 		root.CFrame=CFrame.lookAt(arena.spawn,arena.spawnLook or arena.origin+Vector3.new(0,3,0))
 		root.AssemblyLinearVelocity=Vector3.zero
 		s.motion={position=xyz(root.Position),at=os.clock(),credit=10,blockedUntil=0}
+		-- A server-authorised teleport is a path discontinuity: nothing before it can be claimed.
+		if s.loop then LoopService.reset(loops,s.loop,os.clock()) end
 		s.startPos=root.Position
 		s.suspiciousUntil=0
 	end
@@ -580,7 +612,6 @@ local function validApproach(player,s)
 			teleport(player,s)
 			s.motion.blockedUntil=now+1.5; s.suspiciousUntil=now+1.5
 		else
-			stopDash(root)
 			local safe=s.motion.position
 			root.CFrame=CFrame.new(safe.x,safe.y,safe.z)
 			root.AssemblyLinearVelocity=Vector3.zero
@@ -588,78 +619,56 @@ local function validApproach(player,s)
 	end
 	return valid and now>=s.suspiciousUntil
 end
+-- Banking (WP-04): run through a bank ring (LoopService.crossesRing on the server
+-- path) or the buzzer auto-bank. Bank points = carried base values x the bank
+-- tier (x1.0 at the buzzer), added to the round score; glow and album still
+-- accrue through Profile.bank (profile stays v3 in the slice).
 local function bank(player,s,automatic)
 	if not s.ready or #s.carry==0 then return end
-	if not automatic and not roundPlaying(s,os.clock()) then return end
-	local root = rootOf(player)
-	if not automatic and (not validApproach(player,s) or not root or (root.Position-world.arenas[s.biome].bank).Magnitude>12) then
-		feedback(player,"Hint","Follow BANK to save your parade"); return
-	end
+	local now=os.clock()
+	if not automatic and not roundPlaying(s,now) then return end
 	-- Clear ownership before any callback; no yields in reward transaction.
 	local catches=s.carry; s.carry={}
-	local ordinary=if s.challenge then s.challenge.pendingCount else 0
 	parade(player,s)
+	local values={}
+	for _,entry in ipairs(catches) do
+		local id=if string.sub(entry,1,1)=="*" then string.sub(entry,2) else entry
+		local def=species[id]
+		table.insert(values,if def then def.value else 0)
+	end
+	local warm=s.phase=="Warmup"
+	local finale=not automatic and not warm and s.endsAt~=nil and s.endsAt-now<=Cycle.FinaleSeconds
+	local points,mult=0,1
+	if s.challenge and not warm then
+		points,mult=Challenge.bank(s.challenge,now,{values=values,automatic=automatic,finale=finale})
+	end
+	local ring=s.bankRing; s.bankRing=nil
+	local ringPosition=world.arenas[s.biome].bank
+	for _,r in ipairs(world.arenas[s.biome].bankRings or {}) do if r.id==ring then ringPosition=r.position end end
 	if s.mode=="trial" then
-		-- Daily Stampede banks secure skill only: no glow, album, rally or bursts,
-		-- so unlimited retries can never become a glow farm (rewards: settleTrial).
-		local finaleTrial=not automatic and s.endsAt~=nil and s.endsAt-os.clock()<=Cycle.FinaleSeconds
-		local secured=if s.challenge then Challenge.bank(s.challenge,os.clock(),{finale=finaleTrial}) else 0
 		if not automatic then s.active=true end
-		feedback(player,"Bank",string.format("+%d skill secured%s",secured,if finaleTrial and secured>0 then " • FINALE x1.25" else ""),nil,nil,
-			{count=#catches,skill=secured,glow=0,newSpecies=0,trial=true,position=world.arenas[s.biome].bank})
+		feedback(player,"Bank",string.format("+%d banked",points),nil,nil,
+			{count=#catches,skill=points,glow=0,newSpecies=0,trial=true,position=ringPosition,ring=ring,multiplier=mult})
 		send(player,s)
 		return
 	end
-	local wasNew=s.profile.totalBanked<3
 	local reward,newSpecies=Profile.bank(s.profile,catches)
 	if s.profile.totalBanked>=3 then clearStarters(player.UserId) end
-	if wasNew and s.profile.totalBanked>=3 and not automatic and not s.profile.flags.seenHints.practice then
-		-- Dash practice line (§7): three slow Sparks in a row straight out from the
-		-- bank, so the first dash-through is guaranteed to be a MULTI catch.
-		local pool={}
-		for _,def in ipairs(Config.Creatures) do if def.biome==s.biome then table.insert(pool,def) end end
-		local origin=world.arenas[s.biome].origin
-		for n=1,3 do
-			spawnCreature(s.biome,nil,nil,{def=pool[(n-1)%#pool+1],extra=true,beginner=true,expiresAt=os.clock()+25,
-				position=origin+Vector3.new(0,2.2,13-(n-1)*4)})
-		end
-		hintOnce(player,s,"practice","DASH THROUGH THE LINE! Run at the three Sparks and press DASH (Shift / B)")
-	end
-	if s.profile.totalBanked>=3 and not s.hazardStarted then s.hazardStarted=os.clock() end
 	s.score+=reward
-	-- Final 25 seconds of the shared round: finale bank bonus (manual banks only).
-	local warm=s.phase=="Warmup"
-	local finale=not automatic and not warm and s.endsAt~=nil and s.endsAt-os.clock()<=Cycle.FinaleSeconds
-	local skillPoints=if s.challenge and not warm then Challenge.bank(s.challenge,os.clock(),{finale=finale}) else 0
 	if not automatic then s.active=true end
 	metric(player,s,"first_bank")
 	economy(player,s,"source",reward,"bank")
 	feedback(player,"Bank",if warm then string.format("+%d glow banked%s • warm-up",reward,if newSpecies>0 then " • NEW SPARK!" else "")
-		else string.format("+%d glow • %d skill secured%s%s",reward,skillPoints,
-		if finale and skillPoints>0 then " • FINALE x1.25" else "",if newSpecies>0 then " • NEW SPARK!" else ""),nil,nil,
-		{count=#catches,skill=skillPoints,glow=reward,newSpecies=newSpecies,position=world.arenas[s.biome].bank})
+		else string.format("+%d • x%s bank%s",points,tostring(mult),if newSpecies>0 then " • NEW SPARK!" else ""),nil,ringPosition,
+		{count=#catches,skill=points,points=points,glow=reward,newSpecies=newSpecies,position=ringPosition,ring=ring,multiplier=mult,
+			automatic=automatic==true})
 	Lifecycle.markDirty(s)
 	if not automatic and #catches>0 then
 		-- Everyone in the arena sees this player's Bank Burst celebration.
 		local burst=Cosmetics.resolve("burst",s.profile.cosmetics.burst).id
 		for other,session in pairs(sessions) do
 			if session.ready and session.biome==s.biome and other.Parent==Players then
-				Feedback:FireClient(other,{kind="BankBurst",position=world.arenas[s.biome].bank,extra={burst=burst,userId=player.UserId,count=#catches}})
-			end
-		end
-	end
-	if not automatic and not warm and ordinary>0 then
-		local recipients=ArenaRally.deposit(rallies[s.biome],os.clock(),player.UserId,ordinary)
-		for _,userId in ipairs(recipients) do
-			for other,session in pairs(sessions) do
-				if other.UserId==userId and session.ready and session.biome==s.biome
-					and roundPlaying(session,os.clock()) and Lifecycle.leaseValid(persistence:leaseDeadline(userId),os.time()) then
-					local bonus=Profile.rewardRally(session.profile)
-					economy(other,session,"source",bonus,"rally")
-					session.score+=bonus; Lifecycle.markDirty(session)
-					feedback(other,"Quest","ARENA RALLY! +"..bonus.." glow • Every contribution helped")
-					send(other,session)
-				end
+				Feedback:FireClient(other,{kind="BankBurst",position=ringPosition,extra={burst=burst,userId=player.UserId,count=#catches}})
 			end
 		end
 	end
@@ -741,6 +750,8 @@ beginRound=function(player,s,plan)
 	s.started=now; s.endsAt=arenaEpoch+plan.endsAt; s.fullRound=plan.full==true; s.cycleIndex=plan.cycle
 	s.carry={}; s.score=0; s.buckets={}; s.roundCatches=0; s.active=false
 	s.roundsAtStart=s.profile.rounds
+	s.loop=s.loop or LoopService.session(); LoopService.reset(loops,s.loop,now)
+	s.lastDashAt=nil; s.bestLoopSize=0; s.lastLoopSize=0; s.bloomIds=nil
 	local biomeId=Config.Biomes[s.biome].id
 	local previous=s.profile.mastery.bestRuns[biomeId] or {score=s.profile.mastery.bestByBiome[biomeId] or 0}
 	-- Heat and loadout lock for the whole round; records are filed under this heat.
@@ -992,177 +1003,115 @@ local function sessionFor(userId)
 	for other,session in pairs(sessions) do if other.UserId==userId then return other,session end end
 	return nil,nil
 end
--- Flanking credit: the most recent *other* player who spooked this Spark within 4s.
-local function creditAssist(creature,catcherId,now)
-	for _,pair in ipairs({{creature.spookedBy,creature.spookedAt},{creature.assistBy,creature.assistAt}}) do
-		local userId,at=pair[1],pair[2]
-		if userId and userId~=catcherId and at and now-at<=4 then
-			local other,session=sessionFor(userId)
-			-- Credit only spooks from this session's current round (not a pre-rejoin session).
-			if other and session.ready and session.challenge and session.biome==creature.biome and roundPlaying(session,now)
-				and session.started and at>=session.started then
-				local ok,points=Challenge.award(session.challenge,now,"assist")
-				if ok then feedback(other,"Assist",string.format("ASSIST! +%d style for the flank",points),nil,creature.position,{tags={"ASSIST"},points=points}) end
-			end
-			return
-		end
-	end
-end
--- One atomic claim path for button, dash-through, herded and golden catches.
-local function claim(player,s,creature,kind,aim,multiIndex)
-	local now=os.clock()
-	creature.claimed=true -- atomic claim before effects and respawn scheduling
+-- Atomic take for one creature inside a validated loop (WP-04). Ownership moves
+-- before any effect or callback. Kept creatures join the parade; overflow ones
+-- score at half value (Loop.scoreLoop) and are released (respawn as normal).
+local function take(player,s,creature,kept)
+	creature.claimed=true
 	s.roundCatches=(s.roundCatches or 0)+1; s.active=true
 	if creature.starterOwner then s.starterRemaining=math.max(0,(s.starterRemaining or 0)-1) end
-	table.insert(s.carry,if creature.golden then "*"..creature.def.id else creature.def.id)
-	parade(player,s)
-	creature.model:Destroy(); herd[creature.id]=nil
+	if kept then table.insert(s.carry,if creature.golden then "*"..creature.def.id else creature.def.id) end
+	if creature.model then creature.model:Destroy() end
+	herd[creature.id]=nil
 	metric(player,s,"first_catch")
-	if kind=="dash" then metric(player,s,"first_dash_through") end
-	local scoredKind=if creature.golden then "golden" else kind
-	local _,skill=Challenge.capture(s.challenge,now,{
-		distance=if aim then aim.distance else 0,facing=if aim and aim.facing then aim.facing else 1,
-		dashAge=if s.motion and s.motion.dashStarted then now-s.motion.dashStarted else nil,
-		value=creature.def.value,starter=creature.starterOwner~=nil,captureId=creature.id,
-		kind=scoredKind,multiIndex=multiIndex,signature=creature.def.signature,
-		dazed=creature.dazedUntil~=nil and now<creature.dazedUntil})
-	local tags={}
-	local message="Caught "..creature.def.name.."!"
-	local scored=type(skill)=="table" and not skill.starter
-	if scored then
-		if skill.kind=="golden" then table.insert(tags,"GOLDEN") end
-		if skill.kind=="herd" then table.insert(tags,"HERDED") end
-		if skill.multi then table.insert(tags,"MULTI x"..multiIndex) elseif skill.dash then table.insert(tags,"DASH") end
-		if skill.precision then table.insert(tags,"PRECISE") end
-		if skill.starstruck then table.insert(tags,"STARSTRUCK") end
-		if skill.signature then
-			table.insert(tags,"SIGNATURE")
-			-- Album signature stars (D21) count outside the Daily Stampede (no collection farming there).
-			if s.mode~="trial" then
-				local star=Progression.recordSignature(s.profile,creature.def.id)
-				Lifecycle.markDirty(s)
-				if star then
-					feedback(player,"Quest",string.format("★ %s SIGNATURE STAR %d!",string.upper(creature.def.name),star),creature.def,creature.position,{signatureStar=star})
-					for _,id in ipairs(Progression.evaluateAchievements(s.profile)) do
-						local a=Progression.AchievementById[id]
-						if a then feedback(player,"Quest","ACHIEVEMENT • "..a.name) end
-					end
-				end
-			end
-			hintOnce(player,s,"signature","SIGNATURE CATCH! Each Spark has its own technique • check the ALBUM for stars")
-		end
-		message=string.format("+%d skill • %sx%d",skill.points,if #tags>0 then table.concat(tags," • ").." • " else "",skill.multiplier)
-	end
-	feedback(player,"Catch",message,creature.def,creature.position,{tags=tags,points=if scored then skill.points else 0,
-		chain=if scored then skill.chain else 0,multiplier=if scored then skill.multiplier else 1,golden=creature.golden,
-		creatureId=creature.id,species=creature.def.id,signature=scored and skill.signature or nil,starstruck=scored and skill.starstruck or nil})
-	if creature.golden or kind=="herd" then creditAssist(creature,player.UserId,now)
-	elseif creature.spookedBy and creature.spookedBy~=player.UserId and creature.spookedAt and now-creature.spookedAt<=1.5 then
-		-- Contested catch (D25): the player who was chasing it within 8 studs gets a
-		-- small ASSIST, so "stealing" a chased Spark becomes teamwork.
-		local other,session=sessionFor(creature.spookedBy)
-		local otherRoot=other and rootOf(other)
-		if other and session.ready and session.challenge and session.biome==creature.biome and scoredRound(session,now)
-			and session.started and creature.spookedAt>=session.started and otherRoot
-			and (otherRoot.Position-creature.position).Magnitude<=8 then
-			local ok,points=Challenge.award(session.challenge,now,"contest")
-			if ok then feedback(other,"Assist",string.format("ASSIST! +%d style • teamwork",points),nil,creature.position,{tags={"ASSIST"},points=points}) end
-		end
-	end
-	if creature.trialPlan and s.trial then
-		-- Seeded respawn sequence: the k-th replacement is identical for everyone today.
-		local tr=s.trial
-		tr.serial+=1
-		local k=tr.serial
-		task.delay(0.8,function()
-			if lifecycle.closing or s.trial~=tr or s.mode~="trial" or not scoredRound(s,os.clock()) then return end
-			local spot=Trial.respawn(tr.plan,k)
-			if spot and species[spot.species] then
-				spawnCreature(TRIAL_ARENA,nil,nil,{def=species[spot.species],extra=true,trialOwner=player.UserId,trialPlan=true,
-					seed=(k*7.31)%20,heading=(k*2.17)%(math.pi*2),
-					position=world.arenas[TRIAL_ARENA].origin+Vector3.new(spot.x,2.2,spot.z)})
-			end
-		end)
-	end
-	if creature.golden and not creature.trialOwner then
-		for other,session in pairs(sessions) do
-			if other~=player and session.ready and session.biome==creature.biome then
-				feedback(other,"Event",player.DisplayName.." caught a GOLDEN SPARK!")
-			end
-		end
-	end
 	if not creature.starterOwner and not creature.extra then
 		task.delay(2,function() if not lifecycle.closing then spawnCreature(creature.biome,creature.index) end end)
 	end
-	return skill
 end
-
-local function capture(player,s)
-	local now=os.clock()
-	if not roundPlaying(s,now) then return end
-	if now<(s.hazardUntil or 0) then return end
-	local st=stats(s)
-	if not Rules.allow(s.buckets,"capture",now,st.captureCooldown) then return end
-	if not validApproach(player,s) then return end
-	local root,humanoid=rootOf(player)
-	if not root or not humanoid or humanoid.Health<=0 then return end
-	metric(player,s,"first_action")
-	local radius=st.captureRadius
-	local nearest,best=nil,nil
-	for _,creature in pairs(herd) do
-		local allowed=Rules.canCapture({phase=if roundPlaying(s,now) then "Playing" else s.phase,ready=s.ready,carry=#s.carry,biome=s.biome,userId=player.UserId,totalBanked=s.profile.totalBanked,
-			position=xyz(root.Position),suspiciousUntil=s.suspiciousUntil,mode=s.mode},
-			{claimed=creature.claimed,biome=creature.biome,starterOwner=creature.starterOwner,trialOwner=creature.trialOwner,position=xyz(creature.position)},now,radius,capacity(s))
-		local aim=if allowed then Targeting.measure(xyz(root.Position),xyz(root.CFrame.LookVector),xyz(creature.position),radius) else nil
-		if Targeting.better(aim,creature.id,best,nearest and nearest.id) then
-			nearest=creature; best=aim
+-- Recently caught creatures stay resolvable for 1 s so a second, simultaneous loop
+-- over the same creature earns its owner an ASSIST instead of nothing.
+local recentCatches={}
+local function creditContest(otherPlayer,session,now,position)
+	if not session.ready or not session.challenge or not scoredRound(session,now) then return end
+	local ok,points=Challenge.award(session.challenge,now,"contest")
+	if ok then feedback(otherPlayer,"Assist",string.format("ASSIST! +%d style • teamwork",points),nil,position,{tags={"ASSIST"},points=points}) end
+end
+-- Candidate creatures for a player's loop: same arena, unclaimed, owner rules.
+local function loopCandidates(player,s)
+	local list,byId={},{}
+	for _,c in pairs(herd) do
+		if c.history and #c.history>0 and not c.claimed then
+			local allowed=Rules.canCapture({phase="Playing",ready=s.ready,carry=0,biome=s.biome,userId=player.UserId,
+				totalBanked=s.profile.totalBanked,position={x=0,y=0,z=0},suspiciousUntil=0,mode=s.mode},
+				{claimed=c.claimed,biome=c.biome,starterOwner=c.starterOwner,trialOwner=c.trialOwner,position={x=0,y=0,z=0}},
+				os.clock(),1,1,"loop")
+			if allowed then table.insert(list,{id=c.id,history=c.history}); byId[c.id]=c end
 		end
 	end
-	if not nearest then
-		-- A full pack is a return-to-bank prompt, not a failed aiming attempt.
-		if #s.carry<capacity(s) and s.challenge then
-			Challenge.miss(s.challenge,now,"miss")
-			if st.missLock>0 then s.hazardUntil=now+st.missLock end
+	return list,byId
+end
+-- A validated loop: resolve, claim atomically in pop order, score once.
+local function handleLoop(player,s,claim,now,serverArea)
+	local herdNow=arenaClock()
+	local candidates,byId=loopCandidates(player,s)
+	local caught,escaped=LoopService.resolve(loops,claim,candidates,herdNow)
+	local origin=world.arenas[s.biome].origin
+	local cx,cz=Loop.centroid(claim.poly)
+	local centroid=origin+Vector3.new(cx,GroundMap.height(world.arenas[s.biome].ground,cx,cz)+3,cz)
+	-- Contest: a creature another player caught in the last second, inside this ring.
+	local contested=LoopService.contested(loops,recentCatches,claim,player.UserId,s.biome,now,herdNow)
+	local room=math.max(0,capacity(s)-#s.carry)
+	local catches,result,species,info={},{},{},{}
+	for _,id in ipairs(caught) do
+		local c=byId[id]
+		if c and not c.claimed then
+			table.insert(info,{creature=c,kept=#info<room})
+			table.insert(catches,{captureId=c.id,value=c.def.value,signature=c.def.signature,species=c.def.id,
+				golden=c.golden==true,dazed=c.dazedUntil~=nil and now<c.dazedUntil,starter=c.starterOwner~=nil})
+			species[c.def.id]=true
 		end
-		feedback(player,"Hint",if #s.carry>=capacity(s) then "Parade full! Follow BANK" else "Get closer and face a Spark")
-		send(player,s)
+	end
+	local speciesCount=0; for _ in pairs(species) do speciesCount+=1 end
+	local soloTight=if #info==1 then (DesignCreatures.byId[info[1].creature.def.id] or {}).soloTightArea else nil
+	local tight=#info>0 and Loop.isTight(#info,serverArea,LOOP_T,soloTight)
+	local snap=LoopService.snap(loops,s.lastDashAt,claim)
+	local finale=scoredRound(s,now) and s.endsAt-now<=Cycle.FinaleSeconds
+	local style=if #info==8 and s.bloomIds and (function()
+		for _,entry in ipairs(info) do if not s.bloomIds[entry.creature.id] then return false end end
+		return true end)() then 40 else 0
+	local ok
+	ok,result=Challenge.loop(s.challenge,now,{catches=catches,snap=snap,tight=tight,pinch=false,
+		speciesCount=speciesCount,finale=finale,carried=#s.carry,style=style})
+	if not ok then
+		s.exploit.loopRejected=(s.exploit.loopRejected or 0)+1
+		feedback(player,"Loop","",nil,centroid,{id=claim.id,caught={},escaped={},points=0,techs={},overflow=0,rejected=true})
 		return
 	end
-	claim(player,s,nearest,"normal",best,nil)
-	send(player,s)
-end
-
--- Dash-through: sparks within the dash path radius of the server-observed,
--- movement-validated segment are caught in path order, up to the perk limit.
-local function dashSweep(player,s,root,now)
-	local sweep=s.dashSweep
-	if not sweep then return 0 end
-	if now>sweep.untilT or not roundPlaying(s,now) then s.dashSweep=nil; return 0 end
-	local here=xyz(root.Position)
-	local from=sweep.last; sweep.last=here
-	if now<(s.hazardUntil or 0) then return 0 end
-	local st=stats(s)
-	local candidates={}
-	for _,creature in pairs(herd) do
-		local allowed=Rules.canCapture({phase=if roundPlaying(s,now) then "Playing" else s.phase,ready=s.ready,carry=#s.carry,biome=s.biome,userId=player.UserId,totalBanked=s.profile.totalBanked,
-			position=here,suspiciousUntil=s.suspiciousUntil,mode=s.mode},
-			{claimed=creature.claimed,biome=creature.biome,starterOwner=creature.starterOwner,trialOwner=creature.trialOwner,position=xyz(creature.position)},now,500,capacity(s))
-		local hit=if allowed then Targeting.sweep(from,here,xyz(creature.position),st.dashCatchRadius) else nil
-		if hit then table.insert(candidates,{creature=creature,hit=hit}) end
-	end
-	table.sort(candidates,function(a,b) return a.hit.t<b.hit.t or (a.hit.t==b.hit.t and a.creature.id<b.creature.id) end)
-	local caught=0
-	for _,candidate in ipairs(candidates) do
-		if sweep.caught>=st.dashCatchLimit or #s.carry>=capacity(s) then break end
-		if not candidate.creature.claimed then
-			sweep.caught+=1; caught+=1
-			claim(player,s,candidate.creature,"dash",{distance=candidate.hit.distance,facing=1},sweep.caught)
+	local caughtOut={}
+	for index,entry in ipairs(info) do
+		local c=entry.creature
+		recentCatches[c.id]={by=player.UserId,at=now,biome=c.biome,history=c.history}
+		table.insert(caughtOut,{creatureId=c.id,species=c.def.id,golden=c.golden==true,kept=entry.kept})
+		take(player,s,c,entry.kept)
+		local hit=result.perCatch[index] and result.perCatch[index].signatureHit
+		if hit and s.mode~="trial" then
+			local star=Progression.recordSignature(s.profile,c.def.id)
+			Lifecycle.markDirty(s)
+			if star then
+				feedback(player,"Quest",string.format("★ %s SIGNATURE STAR %d!",string.upper(c.def.name),star),c.def,centroid,{signatureStar=star})
+			end
 		end
 	end
-	if caught>0 then send(player,s) end
-	return caught
+	if #info>0 then
+		metric(player,s,"first_loop_catch")
+		s.lastLoopSize=#info
+		s.bestLoopSize=math.max(s.bestLoopSize or 0,#info)
+	end
+	-- Two loops over one creature: the first validated claim caught it; this
+	-- (second) claimant ringed it too and earns an ASSIST instead of nothing.
+	if contested then creditContest(player,s,now,centroid) end
+	parade(player,s)
+	if #info>0 and #info>=8 then
+		for other,session in pairs(sessions) do
+			if other~=player and session.ready and session.biome==s.biome then
+				feedback(other,"Event",player.DisplayName.." netted a STAMPEDE! ("..#info..")")
+			end
+		end
+	end
+	feedback(player,"Loop","",nil,centroid,{id=claim.id,caught=caughtOut,escaped=escaped,wraps={},points=result.points,
+		techs=result.techs,chain=result.links,multiplier=result.multiplier,overflow=result.overflow,size=#info,style=result.style})
+	send(player,s)
 end
-
 -- A zap or sweep hit: chain and carried bonus end, catching pauses briefly and
 -- up to N carried Sparks scatter back into the arena (recatchable by anyone).
 -- Saved glow, album and banked score are never touched.
@@ -1204,7 +1153,7 @@ local function hit(player,s,now,position,label)
 end
 clearPersonal=function(_player,s)
 	if s.statics then for _,static in pairs(s.statics) do if static.model then static.model:Destroy() end end end
-	s.statics={}; s.staticCount=0; s.staticNext=0; s.staticSerial=s.staticSerial or 0; s.dashSweep=nil
+	s.statics={}; s.staticCount=0; s.staticNext=0; s.staticSerial=s.staticSerial or 0
 end
 -- Personal statics: only the owner can be zapped by, or pop, their statics.
 local function updateStatics(player,s,root,now,step)
@@ -1292,6 +1241,13 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 		-- Rounds start automatically each cycle; Play clears Sit out.
 		s.sitOut=false; s.idleRounds=0
 		if s.phase=="SitOut" then startNow(player,s) else send(player,s) end
+	elseif action=="Trial" and not DesignTuning.features.trialEnabled then
+		-- Daily Stampede is off until WP-15 (its course and board assume capture scoring).
+		feedback(player,"Hint","The Daily Stampede returns in a later build"); send(player,s)
+	elseif (action=="Upgrade" and not Slice.on("upgrades")) or ((action=="Loadout" or action=="Heat") and not Slice.on("heat_and_perks"))
+		or (action=="Biome" and not Slice.on("arena_travel") and payload~=1) then
+		-- Checkpoint 1 slice: fixed tuning for everyone; Meadow only.
+		feedback(player,"Hint","Not available in this test build"); send(player,s)
 	elseif action=="Trial" and type(payload)=="string" and #payload<=8 then
 		if payload=="start" or payload=="retry" then startTrial(player,s)
 		elseif payload=="leave" then leaveTrial(player,s) end
@@ -1305,39 +1261,38 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 			s.phase="SitOut"
 		end
 		send(player,s)
-	elseif action=="Capture" then
+	elseif action=="Capture" or action=="Bank" then
+		-- Removed actions (WP-04): there is no catch button and banking is a
+		-- run-through ring. Ignored, not counted as malformed (old clients).
+	elseif action=="Loop" then
+		local now=os.clock()
+		if not roundPlaying(s,now) or now<(s.suspiciousUntil or 0) or not s.loop then
+			s.exploit.loopRejected=(s.exploit.loopRejected or 0)+1; return
+		end
+		local claim,reason=LoopService.receive(loops,s.loop,payload,now,arenaClock())
+		if not claim then
+			if reason=="malformed" then s.exploit.malformed+=1 else s.exploit.loopRejected=(s.exploit.loopRejected or 0)+1 end
+			return
+		end
 		s.active=true
-		capture(player,s)
+		metric(player,s,"first_action")
 	elseif action=="Dash" and roundPlaying(s,os.clock()) then
+		-- Client-predicted dash (WP-03): the client already moved its own character
+		-- on the input frame. The server never moves it; it grants a movement budget
+		-- window if its own charge bucket allows, and records the arrival time for
+		-- SNAP. A refused dash simply gets no extra budget (Rules.movement rejects
+		-- the surplus distance), and the true charge state goes back with send().
 		s.active=true
 		local root,humanoid=rootOf(player)
-		if validApproach(player,s) and root and humanoid and humanoid.Health>0 and Rules.allow(s.buckets,"dash",os.clock(),dashCooldown(s)) then
-			local direction=humanoid.MoveDirection
-			if not Rules.validPosition(xyz(direction)) then return end
-			if direction.Magnitude<0.1 then direction=root.CFrame.LookVector end
-			direction=Vector3.new(direction.X,0,direction.Z)
-			if direction.Magnitude<0.01 then return end
-			s.motion.dashStarted=os.clock(); s.motion.dashUntil=s.motion.dashStarted+0.35
-			-- A one-frame server velocity write is overwritten by client-owned
-			-- character simulation. Replicate a short planar actuator instead;
-			-- gravity/jumping stay free and collisions remain physical.
-			local attachment=Instance.new("Attachment")
-			attachment.Name="SparkDashAttachment"; attachment.Parent=root
-			local dash=Instance.new("LinearVelocity")
-			dash.Name="SparkDashVelocity"; dash.Attachment0=attachment
-			dash.RelativeTo=Enum.ActuatorRelativeTo.World
-			dash.VelocityConstraintMode=Enum.VelocityConstraintMode.Plane
-			dash.PrimaryTangentAxis=Vector3.xAxis; dash.SecondaryTangentAxis=Vector3.zAxis
-			dash.PlaneVelocity=Vector2.new(direction.Unit.X,direction.Unit.Z)*65
-			dash.ForceLimitsEnabled=true; dash.ForceLimitMode=Enum.ForceLimitMode.Magnitude
-			dash.MaxForce=root.AssemblyMass*2500; dash.Parent=root
-			Debris:AddItem(dash,0.28); Debris:AddItem(attachment,0.28)
-			-- The heartbeat sweeps the validated path for dash-through catches.
-			s.dashSweep={last=xyz(root.Position),untilT=s.motion.dashUntil+0.1,caught=0}
+		local now=os.clock()
+		if root and humanoid and humanoid.Health>0 and s.motion and DashBucket.take(s.dash,now) then
+			s.motion.dashStarted=now; s.motion.dashUntil=now+DesignTuning.dash.duration+0.12
+			s.lastDashAt=now
 			metric(player,s,"first_action"); feedback(player,"Dash","WHOOSH!")
+		else
+			s.exploit.dashRefused=(s.exploit.dashRefused or 0)+1
+			send(player,s)
 		end
-	elseif action=="Bank" and roundPlaying(s,os.clock()) and os.clock()>s.suspiciousUntil then
-		bank(player,s,false)
 	elseif action=="Upgrade" and type(payload)=="string" and #payload<=20 then
 		local ok,message=Profile.buy(s.profile,payload)
 		if ok then
@@ -1450,7 +1405,7 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 		if s.profile.totalBanked < Config.Biomes[payload].unlock then feedback(player,"Hint","Bank more Sparks to unlock this arena"); return end
 		clearPersonal(player,s)
 		s.biome=payload; s.challengeBiome=payload; teleport(player,s); send(player,s)
-	elseif action~="Capture" and action~="Dash" and action~="Bank" then
+	elseif action~="Dash" then
 		-- Unknown action or a known action with an invalid payload shape.
 		s.exploit.malformed+=1
 	end
@@ -1461,13 +1416,16 @@ local function join(player)
 	local s={profile=nil,ready=false,clientReady=false,phase="Loading",carry={},biome=1,score=0,
 		buckets={},transport={},metrics={},joined=os.clock(),saveStatus="Loading",suspiciousUntil=0,dirty=false,revision=0,persistedRevision=0,
 		-- Exploit telemetry (plan §6.12): counted per session, reported once at leave.
-		exploit={movement=0,rateLimited=0,malformed=0}}
+		exploit={movement=0,rateLimited=0,malformed=0,dashRefused=0},
+		dash=DashBucket.new(DesignTuning.dash.charges,DesignTuning.dash.rechargeSeconds),
+		loop=LoopService.session()}
 	if not Lifecycle.beginLoad(lifecycle,s) then
 		player:Kick("This server is closing. Please rejoin.")
 		return
 	end
 	sessions[player]=s
-	player.CameraMinZoomDistance=9; player.CameraMaxZoomDistance=27
+	-- SparkCamera drives a raised chase camera in rounds; Classic mode keeps 28..55.
+	player.CameraMinZoomDistance=28; player.CameraMaxZoomDistance=55
 	player.CharacterAdded:Connect(function(character)
 		local function group(item) if item:IsA("BasePart") then item.CollisionGroup=PLAYER_GROUP end end
 		for _,item in ipairs(character:GetDescendants()) do group(item) end
@@ -1580,11 +1538,34 @@ RunService.Heartbeat:Connect(function(dt)
 		if root and humanoid then
 			local arena=world.arenas[s.biome]
 			local accepted=validApproach(player,s)
-			if not accepted then s.dashSweep=nil end
 			if accepted and not s.active and s.startPos and roundPlaying(s,now) and (root.Position-s.startPos).Magnitude>10 then s.active=true end
+			if s.loop and accepted and roundPlaying(s,now) then
+				-- Server path (WP-04): accepted positions only, arena-relative, with the
+				-- ground level of the layer under the player (jumps/bounces keep g).
+				local rel=root.Position-arena.origin
+				local g=GroundMap.height(arena.ground,rel.X,rel.Z,rel.Y-2.5)
+				local previous=LoopService.record(loops,s.loop,rel.X,rel.Z,now,g)
+				-- Run-through bank rings: the path segment crossed a ring (radius 5).
+				if previous and #s.carry>0 then
+					for _,ring in ipairs(arena.bankRings or {}) do
+						if LoopService.crossesRing(previous.x,previous.z,rel.X,rel.Z,ring) then
+							s.bankRing=ring.id; bank(player,s,false); break
+						end
+					end
+				end
+				for _,claim in ipairs(LoopService.due(loops,s.loop,now)) do
+					local head={x=rel.X,z=rel.Z,t=now,g=g}
+					local ok,reason,serverArea=LoopService.validate(loops,s.loop,claim,now,arena.bounds,head)
+					if ok then
+						handleLoop(player,s,claim,now,serverArea)
+					else
+						s.exploit.loopRejected=(s.exploit.loopRejected or 0)+1
+						feedback(player,"Loop","",nil,nil,{caught={},escaped={},points=0,techs={},overflow=0,rejected=true,reason=reason})
+					end
+				end
+			end
 			if accepted and roundPlaying(s,now) then
-				dashSweep(player,s,root,now)
-				updateStatics(player,s,root,now,step)
+				if Slice.on("static_puff") then updateStatics(player,s,root,now,step) end
 				updateTrial(player,s,now)
 			elseif s.staticCount and s.staticCount>0 and not roundPlaying(s,now) then
 				clearPersonal(player,s)
@@ -1601,7 +1582,7 @@ RunService.Heartbeat:Connect(function(dt)
 					end
 				end
 			end
-			if accepted and roundPlaying(s,now) and (root.Position-arena.bank).Magnitude<10 then bank(player,s,false) end
+			if not arena.bankRings and accepted and roundPlaying(s,now) and (root.Position-arena.bank).Magnitude<10 then bank(player,s,false) end
 		end
 	end
 	local centroids={}
@@ -1857,10 +1838,16 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 	-- Broadcast one snapshot per arena to the players currently in it (10 Hz).
 	local packets={}
+	local herdClock=arenaClock()
 	for biome,arena in ipairs(world.arenas) do
 		local entries={}
 		for _,c in pairs(herd) do
 			if c.biome==biome and not c.claimed then
+				-- 0.5 s creature history at the snapshot ticks: loop claims are resolved
+				-- against where the creature was at the client's view clock.
+				c.history=c.history or {}
+				local hx,hz=c.position.X-arena.origin.X,c.position.Z-arena.origin.Z
+				LoopService.pushHistory(c.history,herdClock,hx,hz,GroundMap.height(arena.ground,hx,hz),c.catchable~=false)
 				local flags=0
 				if c.fleeing then flags+=HerdNet.Flags.fleeing end
 				if c.dazedUntil and now<c.dazedUntil then flags+=HerdNet.Flags.dazed end
@@ -1879,16 +1866,8 @@ RunService.Heartbeat:Connect(function(dt)
 			for _,packet in ipairs(list) do HerdFeed:FireClient(player,packet) end
 		end
 	end
-	-- Resolve gate herding after movement so herd iteration never mutates mid-step.
-	for _,c in ipairs(gateCatches) do
-		local herder,hs=sessionFor(c.spookedBy)
-		if herder and not c.claimed and hs.ready and hs.challenge and hs.biome==c.biome and roundPlaying(hs,now)
-			and hs.started and c.spookedAt>=hs.started
-			and #hs.carry<capacity(hs) and Lifecycle.leaseValid(persistence:leaseDeadline(herder.UserId),os.time()) then
-			claim(herder,hs,c,"herd",{distance=0,facing=1},nil)
-			send(herder,hs)
-		end
-	end
+	-- The Spark Gate is cut (replaced by Bloom Burst, WP-08): loops are the only catch.
+	table.clear(gateCatches)
 	if now-networkAt>=0.5 then
 		networkAt=now
 		for player,s in pairs(sessions) do send(player,s) end

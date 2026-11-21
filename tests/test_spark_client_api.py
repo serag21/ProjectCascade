@@ -16,11 +16,15 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 FILES = sorted((ROOT / "game/StarterPlayer/StarterPlayerScripts/Spark").glob("*.luau"))
 # Assignment targets that are Luau tables in our own code, not engine properties.
-OWN_TABLES = {"Effects", "Menu", "renderers", "cooldownUntil", "Ui", "self", "CreatureView", "Podium", "Hud", "Audio"}
+OWN_TABLES = {"Effects", "Menu", "renderers", "cooldownUntil", "Ui", "self", "CreatureView", "Podium", "Hud", "Audio",
+              "Decor", "Ribbon", "SparkCamera", "Movement", "CreatureKit", "Overlay", "Coach"}
 OWN_FIELDS = {
     "selected", "boardKind", "boardBiome", "tagNext", "tagSerial", "burstCount", "serial", "visible", "center",
     "target", "radius", "active", "Fill",
 }
+# RaycastParams / OverlapParams are datatypes, not classes in the dump.
+DATATYPE_FIELDS = {"FilterDescendantsInstances", "FilterType", "IgnoreWater", "CollisionGroup", "RespectCanCollide",
+                   "BruteForceAllSlow", "MaxParts"}
 
 
 def load(dump_path):
@@ -72,7 +76,7 @@ def main():
             if receiver in OWN_TABLES:
                 continue
             checks += 1
-            if name not in every_property and name not in OWN_FIELDS:
+            if name not in every_property and name not in OWN_FIELDS and name not in DATATYPE_FIELDS:
                 problems.append(f"{rel}: '.{name} =' is not a Roblox property")
         for svc in re.findall(r'GetService\("(\w+)"\)', text):
             checks += 1
