@@ -26,6 +26,7 @@ EXPECTED_KEYS = {
     # 2026-11 cue set
     "gate_open", "golden_spawn", "golden_catch", "stampede_rumble", "chain_tier", "countdown", "start_whistle",
     "buzzer", "rank_up", "ui_click", "ui_claim", "signature", "starstruck",
+    "loop_close", "loop_cinch", "loop_whiff", "ribbon_tick",
     # arena loops + finale layers
     "music_meadow", "music_meadow_finale", "music_canyon", "music_canyon_finale", "music_aurora",
     "music_aurora_finale",

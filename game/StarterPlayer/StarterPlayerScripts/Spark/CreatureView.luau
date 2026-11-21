@@ -471,6 +471,11 @@ function CreatureView.new(ctx)
 		end
 		creatures[id] = nil
 	end
+	-- "Nope" hop (0.35 s) for a creature that escaped a ring: makes the miss legible.
+	function self.nope(id, now)
+		local rec = creatures[id]
+		if rec then rec.nopeAt = now; rec.cinchedUntil = nil end
+	end
 	-- Freeze a creature in its cinched pose until the server result (or 0.8 s).
 	function self.cinch(id, untilT)
 		local rec = creatures[id]
@@ -542,6 +547,10 @@ function CreatureView.new(ctx)
 		local px, pz = origin.X + e.x, origin.Z + e.z
 		-- Client-built creatures stand on GroundMap ground (+ hop / flight height).
 		local baseY = origin.Y + (if ctx.groundAt then ctx.groundAt(e.x, e.z) else CreatureView.GroundY) + (e.height or 0)
+		if rec.nopeAt and now - rec.nopeAt < 0.35 then
+			local k = (now - rec.nopeAt) / 0.35
+			baseY += 10 * k * (1 - k) -- 2.5-stud peak
+		end
 		local flags = e.flags
 		local startled = hasFlag(flags, FLAG_STARTLED)
 		local rising = startled and not hasFlag(rec.lastFlags, FLAG_STARTLED)

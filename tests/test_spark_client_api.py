@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FILES = sorted((ROOT / "game/StarterPlayer/StarterPlayerScripts/Spark").glob("*.luau"))
 # Assignment targets that are Luau tables in our own code, not engine properties.
 OWN_TABLES = {"Effects", "Menu", "renderers", "cooldownUntil", "Ui", "self", "CreatureView", "Podium", "Hud", "Audio",
-              "Decor", "Ribbon", "SparkCamera", "Movement", "CreatureKit", "Overlay", "Coach"}
+              "Decor", "Ribbon", "SparkCamera", "Movement", "CreatureKit", "Overlay", "Coach", "LoopFx", "Sfx"}
 OWN_FIELDS = {
     "selected", "boardKind", "boardBiome", "tagNext", "tagSerial", "burstCount", "serial", "visible", "center",
     "target", "radius", "active", "Fill",

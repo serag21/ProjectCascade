@@ -260,7 +260,7 @@ local function stats(s)
 	return s.stats
 end
 local function capacity(s) return stats(s).capacity end
-local function speed(_s) return Config.WalkSpeed end
+local function speed(s) return s.walkOverride or DesignTuning.movement.walkSpeed end
 local function dashCooldown(s) return stats(s).dashCooldown end
 local function parade(player,s) player:SetAttribute("SparkParade",table.concat(s.carry,",")) end
 local function arenaClock() return os.clock()-arenaEpoch end
@@ -444,6 +444,7 @@ end
 -- State budget (plan §6.14: <= 2 KB per tick). While a round runs, the client needs
 -- only these mastery fields; the full snapshot (splits, counters) goes at results.
 local LEAN_MASTERY={"score","pending","chain","multiplier","chainSeconds","chainWindow","medal","precision","dashCatches",
+	"bestLoop","loops","links",
 	"multiCatches","herded","assists","pops","golden","bestChain","bestHaul","buzzerLost"}
 local function leanMastery(m)
 	local out={}
@@ -461,6 +462,16 @@ local function changed(s,key,fingerprint,now)
 	s.sentKeys[key]={print=fingerprint,at=now}
 	return true
 end
+-- Round beat speed scale (events.json roundBeats) at a shared-cycle time.
+local function beatAt(clock)
+	local c=Cycle.at(clock)
+	local beat=DesignEvents.roundBeats[1]
+	if c.phase=="Play" then
+		for _,b in ipairs(DesignEvents.roundBeats) do if c.t>=b.start then beat=b end end
+	end
+	return beat,c
+end
+local STARTER_HOME={x=-12,z=48} -- private starter trio home (south lawn)
 local function send(player,s)
 	if not s.profile or player.Parent~=Players then return end
 	local now=os.clock()
@@ -545,6 +556,10 @@ local function send(player,s)
 		remix=if changed(s,"remix",remixPrint,now) then Remix.describe(currentRemix,os.time()) else nil,
 		bankPosition=world.arenas[s.biome].bank,ready=s.ready,
 		dashCharges=(function() DashBucket.refill(s.dash,now); return s.dash.charges end)(),
+		-- Slice HUD: round beat name (events.json), claim deviation p99 (F8), starter ghost ring.
+		phaseName=if roundPlaying(s,now) then (beatAt(clockNow)).name else nil,
+		claimP99=if s.loop then LoopService.p99(s.loop.deviations) else 0,
+		starterCenter=if (s.starterRemaining or 0)>0 then STARTER_HOME else nil,
 		dashNextIn=if s.dash.nextAt then math.max(0,s.dash.nextAt-now) else 0,
 		captureCooldown=st.captureCooldown,dashCooldown=dashCooldown(s),
 		cooldowns={capture=math.max(0,st.captureCooldown-(now-(s.buckets.capture or -math.huge))),
@@ -599,7 +614,7 @@ local function validApproach(player,s)
 	local valid,reason=Rules.movement(s.motion,xyz(root.Position),now,{origin=xyz(arena.origin),radius=78,
 		bounds=arena.bounds,boundsMargin=4,
 		minY=arena.origin.Y-4,maxY=arena.origin.Y+(arena.maxYOffset or 24),speed=speed(s)+2,burst=10,
-		dashPeak=DesignTuning.dash.serverBudgetPeakSpeed})
+		dashPeak=DesignTuning.dash.serverBudgetPeakSpeed*math.max(1,s.dashScale or 1)})
 	s.suspiciousUntil=s.motion.blockedUntil or 0
 	if not valid and s.mode=="trial" and s.trial then s.trial.rejections+=1 end
 	if not valid and s.exploit then s.exploit.movement+=1 end
@@ -962,7 +977,6 @@ spawnCreature=function(biome,_index,starterPlayer,options)
 end
 -- Starter Pips (existing finite allowance): a private trio on the south lawn,
 -- owner-only (other clients never receive them), tethered near home.
-local STARTER_HOME={x=-12,z=48}
 issueStarters=function(player,s)
 	local allowance=Rules.issueStarters(s,s.profile.totalBanked)
 	s.starterRemaining=allowance
@@ -1091,7 +1105,9 @@ local function handleLoop(player,s,claim,now,serverArea)
 			end
 		end
 	end
-	feedback(player,"Loop","",nil,centroid,{id=claim.id,caught=caughtOut,escaped=escaped,wraps={},points=result.points,
+	local escapedSpecies={}
+	for _,id in ipairs(escaped) do local c=byId[id]; if c then table.insert(escapedSpecies,c.def.id) end end
+	feedback(player,"Loop","",nil,centroid,{id=claim.id,caught=caughtOut,escaped=escaped,escapedSpecies=escapedSpecies,wraps={},points=result.points,
 		techs=result.techs,chain=result.links,multiplier=result.multiplier,overflow=result.overflow,size=#info,style=result.style})
 	send(player,s)
 end
@@ -1259,6 +1275,21 @@ Action.OnServerEvent:Connect(function(player,action,payload)
 		end
 		s.active=true
 		metric(player,s,"first_action")
+	elseif action=="Tune" then
+		-- F9 tuning panel: Studio only, session only, clamped to Tuning.Ranges.
+		if not RunService:IsStudio() or type(payload)~="table" then s.exploit.malformed+=1; return end
+		local R=DesignTuning.Ranges
+		local function clamp(v,range) return if type(v)=="number" and v==v then math.clamp(v,range[1],range[2]) else nil end
+		local lifetime,snap=clamp(payload.lifetime,R.ribbon.lifetime),clamp(payload.snapRadius,R.ribbon.snapRadius)
+		if lifetime then LOOP_T.lifetime=lifetime end
+		if snap then LOOP_T.snapRadius=snap end
+		local walk=clamp(payload.walkSpeed,R.movement.walkSpeed)
+		if walk then
+			s.walkOverride=walk
+			local _,humanoid=rootOf(player); if humanoid then humanoid.WalkSpeed=walk end
+		end
+		local dashDistance=clamp(payload.dashDistance,R.dash.distance)
+		if dashDistance then s.dashScale=dashDistance/DesignTuning.dash.distance end
 	elseif action=="Dash" and roundPlaying(s,os.clock()) then
 		-- Client-predicted dash (WP-03): the client already moved its own character
 		-- on the input frame. The server never moves it; it grants a movement budget
@@ -1512,15 +1543,6 @@ Players.PlayerAdded:Connect(join)
 for _,player in ipairs(Players:GetPlayers()) do task.spawn(join,player) end
 
 local accumulator,networkAt=0,0
--- Round beat speed scale (events.json roundBeats) at a shared-cycle time.
-local function beatAt(clock)
-	local c=Cycle.at(clock)
-	local beat=DesignEvents.roundBeats[1]
-	if c.phase=="Play" then
-		for _,b in ipairs(DesignEvents.roundBeats) do if c.t>=b.start then beat=b end end
-	end
-	return beat,c
-end
 local herdTick=0
 local CODES=Herd.CODES
 local function playersIn(biome)

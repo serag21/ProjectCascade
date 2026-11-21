@@ -166,10 +166,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--luau", type=Path, default=ROOT / ".tools/luau/luau")
     args = parser.parse_args()
-    client = (CLIENT / "Client.client.luau").read_text(encoding="utf-8")
     failures = 0
-    failures += run(args.luau, block(client, "-- BEGIN PURE LAYOUT", "-- END PURE LAYOUT") + "\n" + LAYOUT_CHECKS, "layout") != 0
-    failures += run(args.luau, block(client, "-- BEGIN STARTER VISIBILITY", "-- END STARTER VISIBILITY") + "\n" + VISIBILITY_CHECKS, "visibility") != 0
+    # WP-07: the legacy HUD layout and starter-visibility blocks were removed with the
+    # old HUD (CATCH button, combo meter, objective panel; starters are no longer sent
+    # to other clients at all). HUD v2 layout is covered by tests/SparkHudLayout.spec.luau.
     ui = (CLIENT / "Ui.luau").read_text(encoding="utf-8")
     menu = (CLIENT / "Menu.luau").read_text(encoding="utf-8")
     geometry = re.search(r"(?s)(function Menu\.tabGeometry.*?\nend\n)", menu)

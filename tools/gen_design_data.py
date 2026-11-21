@@ -234,6 +234,12 @@ return Slice
 """
 
 
+def ui_module():
+    raw = strip(load("ui_layout.json"))
+    return header(["ui_layout.json"], "HUD v2 rects at three reference viewports (Hud.luau anchors them).") + \
+        "local UiLayout = " + lua(raw) + "\n\nreturn UiLayout\n"
+
+
 MODULES = {
     "Tuning.luau": tuning_module,
     "Creatures.luau": creatures_module,
@@ -241,6 +247,7 @@ MODULES = {
     "Arenas.luau": arenas_module,
     "Models.luau": models_module,
     "Slice.luau": slice_module,
+    "UiLayout.luau": ui_module,
 }
 
 

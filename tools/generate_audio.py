@@ -859,8 +859,75 @@ def cue_starstruck():
     return bus.ch[0]
 
 
+# ---- Checkpoint 1 slice loop cues (design/fable/11 section 5) ------------------
+def swept_noise(n, seed, f_start, f_end, tau):
+    """Seeded noise through a one-pole low-pass whose cutoff glides f_start -> f_end,
+    under an exponential decay envelope."""
+    out, y = [0.0] * n, 0.0
+    k = -1.0 / (tau * R)
+    for i, v in enumerate(noise(n, seed)):
+        f = f_start + (f_end - f_start) * (i / max(1, n - 1))
+        a = math.exp(-TAU * f / R)
+        y = (1 - a) * v + a * y
+        out[i] = y * math.exp(k * i)
+    return out
+
+
+def cue_loop_close():
+    # The "thwip": v_kick 180 -> 70 Hz (tau 0.05) + a noise hit sweeping 1.2 kHz -> 400 Hz, 0.09 s.
+    bus = cue_bus(0.18)
+    bus.add(v_kick(R, 0.16, 180.0, 70.0, 0.05, 0.05), 0.0, 0.9)
+    n = frames_for(0.09, R)
+    hit = filter_chain(onepole_hp(swept_noise(n, 4401, 1200.0, 400.0, 0.03), 300.0, R), lowpass4(3000.0, R), False)
+    bus.add(times(hit, env_shape(n, R, attack=0.001, release=0.02)), 0.0, 1.6)
+    return bus.ch[0]
+
+
+def cue_loop_cinch():
+    # High-passed noise rising 400 Hz -> 3 kHz with a sine glide 300 -> 900 Hz at -9 dB; 20 ms in, 40 ms out.
+    bus = cue_bus(0.30)
+    n = frames_for(0.30, R)
+    rise = [0.0] * n
+    y = 0.0
+    for i, v in enumerate(noise(n, 4402)):
+        f = 400.0 + 2600.0 * (i / (n - 1))
+        a = math.exp(-TAU * f / R)
+        y = (1 - a) * v + a * y
+        rise[i] = y
+    rise = filter_chain(onepole_hp(rise, 400.0, R), lowpass4(3200.0, R), False)
+    env = env_shape(n, R, attack=0.02, release=0.04)
+    bus.add(times(rise, env), 0.0, 1.2)
+    idx = phase_indices(n, R, 300.0, glide=(3.0, 0.30))
+    bus.add(times(lookup(wavetable("sine"), idx), env), 0.0, from_db(-9.0))
+    return bus.ch[0]
+
+
+def cue_loop_whiff():
+    # Low-passed (2 kHz) noise with exponential decay + a sine falling 500 -> 250 Hz at -12 dB.
+    bus = cue_bus(0.25)
+    n = frames_for(0.25, R)
+    fizz = filter_chain(noise(n, 4403), lowpass4(2000.0, R), False)
+    k = -1.0 / (0.06 * R)
+    bus.add(times([v * math.exp(k * i) for i, v in enumerate(fizz)], env_shape(n, R, attack=0.002, release=0.03)), 0.0, 1.0)
+    idx = phase_indices(n, R, 500.0, glide=(0.5, 0.25))
+    bus.add(times(lookup(wavetable("sine"), idx), env_shape(n, R, attack=0.004, tau=0.12, release=0.03)), 0.0, from_db(-12.0))
+    return bus.ch[0]
+
+
+def cue_ribbon_tick():
+    # Two v_bell notes, MIDI 84 then 88, 40 ms each, 60 ms apart.
+    bus = cue_bus(0.12)
+    bus.add(v_bell(R, midi(84), 0.04, 0.02, 0.5), 0.0, 0.8)
+    bus.add(v_bell(R, midi(88), 0.04, 0.02, 0.5), 0.06, 0.8)
+    return bus.ch[0]
+
+
 # key, file, purpose, max seconds, target peak dBFS, builder, high-pass Hz
 CUES = [
+    ("loop_close", "loop_close.wav", "Loop closes: kick thwip + swept noise hit", 1.0, -5.0, cue_loop_close, 40.0),
+    ("loop_cinch", "loop_cinch.wav", "Ring cinches: rising airy sweep + sine glide", 1.0, -8.0, cue_loop_cinch, 60.0),
+    ("loop_whiff", "loop_whiff.wav", "Empty loop: soft fizz + falling tone", 1.0, -9.0, cue_loop_whiff, 40.0),
+    ("ribbon_tick", "ribbon_tick.wav", "Ribbon about to close: two rising bell ticks", 1.0, -9.0, cue_ribbon_tick, 60.0),
     ("zap", "zap.wav", "Hazard zap: friendly descending wobble", 2.0, -5.0, cue_zap, 30.0),
     ("pop", "pop.wav", "Bubble/target pop", 2.0, -4.5, cue_pop, 30.0),
     ("gate_open", "gate_open.wav", "Spark Gate opens: rising bell arpeggio + airy swell", 2.0, -5.0, cue_gate_open, 30.0),

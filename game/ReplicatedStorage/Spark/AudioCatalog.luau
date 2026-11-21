@@ -40,6 +40,11 @@ return {
 	ui_claim={id="",file="ui_claim.wav",volume=0.30,duration=0.60,fallback="rbxasset://sounds/electronicpingshort.wav",fallbackVolume=0.22},
 	signature={id="",file="signature.wav",volume=0.28,duration=0.90},
 	starstruck={id="",file="starstruck.wav",volume=0.28,duration=1.00},
+	-- Checkpoint 1 loop cues (design/fable/11 section 5); fallbacks per data/slice.json cues.
+	loop_close={id="",file="loop_close.wav",volume=0.34,duration=0.18,fallback="rbxasset://sounds/electronicpingshort.wav",fallbackVolume=0.25,fallbackSpeed=0.8},
+	loop_cinch={id="",file="loop_cinch.wav",volume=0.24,duration=0.30},
+	loop_whiff={id="",file="loop_whiff.wav",volume=0.22,duration=0.25,fallback="rbxasset://sounds/button.wav",fallbackVolume=0.2,fallbackSpeed=0.6},
+	ribbon_tick={id="",file="ribbon_tick.wav",volume=0.20,duration=0.12,fallback="rbxasset://sounds/button.wav",fallbackVolume=0.18,fallbackSpeed=1.5},
 	-- Arena loops (22.05 kHz) + FINALE layers: same length/tempo, start together, fade the layer in.
 	music_meadow={id="",file="music_meadow.wav",volume=0.28,duration=17.143,looped=true,bpm=112,bars=8,finale="music_meadow_finale"},
 	music_meadow_finale={id="",file="music_meadow_finale.wav",volume=0.28,duration=17.143,looped=true,bpm=112,bars=8,layerOf="music_meadow"},

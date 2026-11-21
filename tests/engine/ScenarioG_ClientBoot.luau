@@ -107,5 +107,14 @@ e.advance(1)
 h:send(p, "Trial", "start"); e.advance(1)
 check(h:state(p).mode ~= "trial", "Daily Stampede stays off in the slice")
 h:assertClean("client round 2")
+-- T-FX1: effect parts are pooled; the whole SparkFx folder (every pool, visible or
+-- not) stays within the 80-part budget after a full session of loops and banks.
+local fx = e.workspace:FindFirstChild("SparkFx")
+local fxParts = 0
+if fx then for _, d in ipairs(fx:GetDescendants()) do if d:IsA("BasePart") then fxParts += 1 end end end
+check(fx ~= nil and fxParts <= 80, "Effect parts within budget (" .. fxParts .. " <= 80)")
+local creaturesFolder = e.workspace:FindFirstChild("SparkCreatures")
+check(creaturesFolder ~= nil and #creaturesFolder:GetChildren() > 0, "Client built creatures from HerdNet v2 (" .. (creaturesFolder and #creaturesFolder:GetChildren() or 0) .. ")")
+print("INFO client fx parts " .. fxParts)
 h:report("client-boot")
 print("PASS ScenarioG_ClientBoot: " .. Harness.count() .. " checks")
