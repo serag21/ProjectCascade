@@ -1,5 +1,9 @@
 # Game #1 — durable production log
 
+## Fable route stage 1: Meadow core-feel slice, Checkpoint 1 (2026-11-21)
+
+Branch `claude/meadow-stage1-checkpoint1` from `34780fb`. All eight stage-1 packages are implemented offline and committed: WP-01 `ef8b0dd`, WP-02 `a43812a`, WP-05 `40937b5`, WP-03 + WP-04 `b6dc2a6`, WP-06 `201e12f` (first integrated slice), WP-07 `e4b0db6`, WP-08 `3315f01`. Handoff, test ports and coverage changes: [GAME1_CHECKPOINT1.md](GAME1_CHECKPOINT1.md). Evidence: `docs/qa/latest-checks.json`. **Not run in Studio.** The next step is the owner's Checkpoint 1 playtest; stage 2 waits for it.
+
 Updated 2026-11-04 (cloud production session, branch `claude/awesome-brown-27rwqo`). **OFFLINE ONLY (cloud container, no Studio). SCHEDULING PAUSED. UNATTENDED STUDIO TESTS DISABLED. Not a release candidate. Commits NOT pushed: GitHub returned 403 for both git and the connector (issue SS-23).**
 
 ## Final production plan execution — 2026-11-05/06

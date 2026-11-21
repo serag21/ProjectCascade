@@ -1,8 +1,8 @@
 {
-  "updated_utc": "2026-11-06",
-  "session": "cloud production session (claude/awesome-brown-27rwqo)",
-  "branch": "claude/awesome-brown-27rwqo",
-  "push_status": "see git log; Phase 8 commit pushed and verified (this file is committed with it)",
+  "updated_utc": "2026-11-21",
+  "session": "cloud implementation session: Fable route stage 1 (claude/meadow-stage1-checkpoint1)",
+  "branch": "claude/meadow-stage1-checkpoint1",
+  "push_status": "pushed; see the handoff message for the verified remote tip SHA",
   "mode": "offline-only; no Studio; scheduling paused by owner; unattended tests disabled",
   "protected": {
     "archive_branch": "archive/cascade-pre-game1-pivot-20261024",
@@ -54,5 +54,20 @@
     "report": "docs/qa/latest-checks.json"
   },
   "plan": "FINAL_PRODUCTION_PLAN.md (v1, 2026-11-05)",
-  "continuation_point": "All cloud-feasible plan work is complete. Next work requires Studio results (V1-V12). Re-verify with `python3 tools/run_checks.py`."
+  "continuation_point": "All cloud-feasible plan work is complete. Next work requires Studio results (V1-V12). Re-verify with `python3 tools/run_checks.py`.",
+  "stage1_checkpoint1": {
+    "base": "34780fb (design pass 2; contains b1b62fd)",
+    "packages": {
+      "WP-01": "ef8b0dd",
+      "WP-02": "a43812a",
+      "WP-05": "40937b5",
+      "WP-03+WP-04": "b6dc2a6",
+      "WP-06": "201e12f (first integrated slice)",
+      "WP-07": "e4b0db6",
+      "WP-08": "3315f01"
+    },
+    "status": "awaiting owner Checkpoint 1 playtest (design/fable/09 section 3); stage 2 not started",
+    "handoff": "docs/GAME1_CHECKPOINT1.md",
+    "build_id": "printed by tools/build_studio_install.py and shown first in the Studio-only F8 overlay"
+  }
 }
