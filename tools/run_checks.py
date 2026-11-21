@@ -24,7 +24,8 @@ ROOT = Path(__file__).resolve().parents[1]
 def sources():
     files = sorted(list((ROOT / "game").rglob("*.luau")) + list((ROOT / "tests").rglob("*.luau"))
                    + list((ROOT / "tests").glob("*.py")) + list((ROOT / "tools").glob("*.py"))
-                   + list((ROOT / "tools").glob("*.luau")))
+                   + list((ROOT / "tools").glob("*.luau"))
+                   + list((ROOT / "design" / "fable" / "data").rglob("*.json")))
     return {p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
 
 
@@ -66,6 +67,8 @@ def main() -> int:
 
     for path in sorted((ROOT / "game").rglob("*.luau")):
         run("compile:" + path.relative_to(ROOT).as_posix(), [str(compiler), "--null", str(path)])
+    run("design-data-fresh", [sys.executable, "tools/gen_design_data.py", "--check"])
+    run("design-validate", [sys.executable, "design/fable/tools/validate.py", "--no-render"])
     run("lint:undefined-globals-and-members", [sys.executable, "tools/lint_luau.py"])
     run("api:class-service-enum-names", [sys.executable, "tools/check_api_names.py"])
     for path in sorted((ROOT / "tests").glob("*.spec.luau")):
